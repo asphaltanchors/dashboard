@@ -1,9 +1,20 @@
-import { parse } from 'csv-parse';
-import { createReadStream } from 'fs';
 import { PrismaClient, EmailType, PhoneType } from '@prisma/client';
-import { Command } from 'commander';
+import { AddressData, BaseImportStats, ImportContext } from './shared/types';
+import { 
+  createCsvParser, 
+  parseDate, 
+  processAddress, 
+  processImport, 
+  setupImportCommand 
+} from './shared/utils';
 
 const prisma = new PrismaClient();
+
+interface CustomerImportStats extends BaseImportStats {
+  companiesCreated: number;
+  customersCreated: number;
+  customersUpdated: number;
+}
 
 interface CustomerRow {
   'QuickBooks Internal Id': string;
@@ -43,22 +54,6 @@ interface CustomerRow {
   [key: string]: string;
 }
 
-interface ImportStats {
-  processed: number;
-  companiesCreated: number;
-  customersCreated: number;
-  customersUpdated: number;
-  warnings: string[];
-}
-
-const stats: ImportStats = {
-  processed: 0,
-  companiesCreated: 0,
-  customersCreated: 0,
-  customersUpdated: 0,
-  warnings: [],
-};
-
 function extractDomain(email: string): string | null {
   if (!email) return null;
   const match = email.match(/@([^@]+)$/);
@@ -78,58 +73,7 @@ function formatPhone(phone: string): string {
     .trim();
 }
 
-function parseDate(dateStr: string): Date {
-  // Assuming date format MM-DD-YYYY
-  const [month, day, year] = dateStr.split('-');
-  return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-}
-
-async function processAddress(addressData: {
-  line1: string;
-  line2?: string;
-  line3?: string;
-  city: string;
-  state?: string;
-  postalCode?: string;
-  country?: string;
-}, debug: boolean) {
-  if (!addressData.line1) return null;
-
-  // Look for existing address with exact match
-  const existingAddress = await prisma.address.findFirst({
-    where: {
-      line1: addressData.line1,
-      line2: addressData.line2 || null,
-      line3: addressData.line3 || null,
-      city: addressData.city,
-      state: addressData.state || null,
-      postalCode: addressData.postalCode || null,
-      country: addressData.country || null,
-    }
-  });
-
-  if (existingAddress) {
-    if (debug) console.log(`Found existing address: ${existingAddress.line1}, ${existingAddress.city}`);
-    return existingAddress;
-  }
-
-  const newAddress = await prisma.address.create({
-    data: {
-      line1: addressData.line1,
-      line2: addressData.line2 || null,
-      line3: addressData.line3 || null,
-      city: addressData.city,
-      state: addressData.state || null,
-      postalCode: addressData.postalCode || null,
-      country: addressData.country || null,
-    },
-  });
-
-  if (debug) console.log(`Created new address: ${newAddress.line1}, ${newAddress.city}`);
-  return newAddress;
-}
-
-async function processEmails(emails: string[], customerId: string, debug: boolean) {
+async function processEmails(ctx: ImportContext, emails: string[], customerId: string) {
   const emailList = emails
     .filter(Boolean)
     .flatMap(e => e.split(';'))
@@ -137,8 +81,7 @@ async function processEmails(emails: string[], customerId: string, debug: boolea
     .filter(Boolean);
 
   for (const email of emailList) {
-    // Look for existing email record for this customer
-    const existingEmail = await prisma.customerEmail.findFirst({
+    const existingEmail = await ctx.prisma.customerEmail.findFirst({
       where: { 
         email,
         customerId 
@@ -146,11 +89,11 @@ async function processEmails(emails: string[], customerId: string, debug: boolea
     });
 
     if (existingEmail) {
-      if (debug) console.log(`Found existing email record: ${email}`);
+      if (ctx.debug) console.log(`Found existing email record: ${email}`);
       continue;
     }
 
-    await prisma.customerEmail.create({
+    await ctx.prisma.customerEmail.create({
       data: {
         email,
         type: EmailType.MAIN,
@@ -158,19 +101,18 @@ async function processEmails(emails: string[], customerId: string, debug: boolea
         customerId,
       },
     });
-    if (debug) console.log(`Created email record: ${email}`);
+    if (ctx.debug) console.log(`Created email record: ${email}`);
   }
 }
 
-async function processPhones(phones: { number: string; type: PhoneType }[], customerId: string, debug: boolean) {
+async function processPhones(ctx: ImportContext, phones: { number: string; type: PhoneType }[], customerId: string) {
   for (const { number, type } of phones) {
     if (!number) continue;
     const formattedPhone = formatPhone(number);
     const normalizedPhone = normalizePhone(number);
     
     if (formattedPhone && normalizedPhone) {
-      // Look for existing phone with same normalized number
-      const existingPhone = await prisma.$queryRaw<Array<{ id: string, phone: string }>>`
+      const existingPhone = await ctx.prisma.$queryRaw<Array<{ id: string, phone: string }>>`
         SELECT id, phone 
         FROM "CustomerPhone"
         WHERE REGEXP_REPLACE(phone, '[^0-9]', '', 'g') = ${normalizedPhone}
@@ -179,12 +121,11 @@ async function processPhones(phones: { number: string; type: PhoneType }[], cust
       `;
 
       if (existingPhone.length > 0) {
-        if (debug) console.log(`Found existing phone record: ${existingPhone[0].phone} (${type})`);
-        // Use the existing formatted number
+        if (ctx.debug) console.log(`Found existing phone record: ${existingPhone[0].phone} (${type})`);
         continue;
       }
 
-      await prisma.customerPhone.create({
+      await ctx.prisma.customerPhone.create({
         data: {
           phone: formattedPhone,
           type,
@@ -192,12 +133,13 @@ async function processPhones(phones: { number: string; type: PhoneType }[], cust
           customerId,
         },
       });
-      if (debug) console.log(`Created phone record: ${formattedPhone} (${type})`);
+      if (ctx.debug) console.log(`Created phone record: ${formattedPhone} (${type})`);
     }
   }
 }
 
-async function processCustomerRow(row: CustomerRow, debug: boolean) {
+async function processCustomerRow(ctx: ImportContext, row: CustomerRow) {
+  const stats = ctx.stats as CustomerImportStats;
   const quickbooksId = row['QuickBooks Internal Id'];
   if (!quickbooksId) {
     stats.warnings.push(`Skipping row: Missing QuickBooks ID`);
@@ -210,7 +152,7 @@ async function processCustomerRow(row: CustomerRow, debug: boolean) {
   let companyDomain = null;
 
   if (domain) {
-    const company = await prisma.company.upsert({
+    const company = await ctx.prisma.company.upsert({
       where: { domain },
       create: {
         domain,
@@ -219,12 +161,12 @@ async function processCustomerRow(row: CustomerRow, debug: boolean) {
       update: {},
     });
     companyDomain = company.domain;
-    if (debug) console.log(`Processed company: ${domain}`);
+    if (ctx.debug) console.log(`Processed company: ${domain}`);
     stats.companiesCreated++;
   }
 
   // Process addresses
-  const billingAddress = await processAddress({
+  const billingAddressData = {
     line1: row['Billing Address Line 1'],
     line2: row['Billing Address Line 2'],
     line3: row['Billing Address Line 3'],
@@ -232,9 +174,9 @@ async function processCustomerRow(row: CustomerRow, debug: boolean) {
     state: row['Billing Address State'],
     postalCode: row['Billing Address Postal Code'],
     country: row['Billing Address Country'],
-  }, debug);
+  };
 
-  const shippingAddress = await processAddress({
+  const shippingAddressData = {
     line1: row['Shipping Address Line 1'],
     line2: row['Shipping Address Line 2'],
     line3: row['Shipping Address Line 3'],
@@ -242,22 +184,44 @@ async function processCustomerRow(row: CustomerRow, debug: boolean) {
     state: row['Shipping Address State'],
     postalCode: row['Shipping Address Postal Code'],
     country: row['Shipping Address Country'],
-  }, debug);
+  };
+
+  // Check if addresses are identical
+  const areAddressesIdentical = 
+    billingAddressData.line1 === shippingAddressData.line1 &&
+    billingAddressData.line2 === shippingAddressData.line2 &&
+    billingAddressData.line3 === shippingAddressData.line3 &&
+    billingAddressData.city === shippingAddressData.city &&
+    billingAddressData.state === shippingAddressData.state &&
+    billingAddressData.postalCode === shippingAddressData.postalCode &&
+    billingAddressData.country === shippingAddressData.country;
+
+  let billingAddress, shippingAddress;
+  
+  if (areAddressesIdentical && billingAddressData.line1) {
+    // If addresses are identical, process once and use for both
+    billingAddress = await processAddress(ctx, billingAddressData);
+    shippingAddress = billingAddress;
+    if (ctx.debug) console.log(`Using same address for billing and shipping`);
+  } else {
+    // Process addresses separately
+    billingAddress = await processAddress(ctx, billingAddressData);
+    shippingAddress = await processAddress(ctx, shippingAddressData);
+  }
 
   // Create or update customer
-  // Find existing customer first
-  const existingCustomer = await prisma.customer.findUnique({
+  const existingCustomer = await ctx.prisma.customer.findUnique({
     where: { quickbooksId }
   });
 
   const customer = existingCustomer 
-    ? await prisma.customer.update({
+    ? await ctx.prisma.customer.update({
         where: { id: existingCustomer.id },
         data: {
           customerName: row['Customer Name'],
           companyDomain,
           status: row['Status'].toLowerCase() === 'true' ? 'ACTIVE' : 'INACTIVE',
-          modifiedAt: parseDate(row['Modified Date']),
+          modifiedAt: parseDate(row['Modified Date']) || new Date(),
           taxCode: row['Tax Code'] || null,
           taxItem: row['Tax Item'] || null,
           resaleNumber: row['Resale No'] || null,
@@ -268,14 +232,14 @@ async function processCustomerRow(row: CustomerRow, debug: boolean) {
           sourceData: row,
         }
       })
-    : await prisma.customer.create({
+    : await ctx.prisma.customer.create({
         data: {
           quickbooksId,
           customerName: row['Customer Name'],
           companyDomain,
           status: row['Status'].toLowerCase() === 'true' ? 'ACTIVE' : 'INACTIVE',
-          createdAt: parseDate(row['Created Date']),
-          modifiedAt: parseDate(row['Modified Date']),
+          createdAt: parseDate(row['Created Date']) || new Date(),
+          modifiedAt: parseDate(row['Modified Date']) || new Date(),
           taxCode: row['Tax Code'] || null,
           taxItem: row['Tax Item'] || null,
           resaleNumber: row['Resale No'] || null,
@@ -288,95 +252,52 @@ async function processCustomerRow(row: CustomerRow, debug: boolean) {
       });
 
   // Process contact information
-  await processEmails(
-    [row['Main Email'], row['CC Email']],
-    customer.id,
-    debug
-  );
+  await processEmails(ctx, [row['Main Email'], row['CC Email']], customer.id);
+  await processPhones(ctx, [
+    { number: row['Main Phone'], type: PhoneType.MAIN },
+    { number: row['Mobile'], type: PhoneType.MOBILE },
+    { number: row['Work Phone'], type: PhoneType.WORK },
+    { number: row['Alt. Phone'], type: PhoneType.OTHER },
+  ], customer.id);
 
-  await processPhones(
-    [
-      { number: row['Main Phone'], type: PhoneType.MAIN },
-      { number: row['Mobile'], type: PhoneType.MOBILE },
-      { number: row['Work Phone'], type: PhoneType.WORK },
-      { number: row['Alt. Phone'], type: PhoneType.OTHER },
-    ],
-    customer.id,
-    debug
-  );
-
-  if (debug) {
+  if (ctx.debug) {
     console.log(`Processed customer: ${customer.customerName} (${quickbooksId})`);
   }
 
   stats.processed++;
-}
-
-async function importCustomers(filePath: string, debug: boolean) {
-  const parser = createReadStream(filePath).pipe(
-    parse({
-      columns: true,
-      skip_empty_lines: true,
-    })
-  );
-
-  console.log('Starting import...');
-  const startTime = Date.now();
-  let lastProgressUpdate = startTime;
-
-  try {
-    for await (const row of parser) {
-      // Process each customer in its own transaction
-      await prisma.$transaction(
-        async (tx) => {
-          await processCustomerRow(row as CustomerRow, debug);
-        },
-        {
-          timeout: 30000, // 30 second timeout per customer
-          maxWait: 5000, // 5 seconds max wait for transaction to start
-        }
-      );
-
-      // Show progress every 100 records or if 5 seconds have passed
-      const now = Date.now();
-      if (!debug && (stats.processed % 100 === 0 || now - lastProgressUpdate >= 5000)) {
-        console.log(`Processed ${stats.processed} records...`);
-        lastProgressUpdate = now;
-      }
-    }
-
-    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log('\nImport completed successfully!');
-    console.log('Statistics:');
-    console.log(`- Records processed: ${stats.processed} in ${duration}s`);
-    console.log(`- Companies created/updated: ${stats.companiesCreated}`);
-    console.log(`- Customers created/updated: ${stats.processed}`);
-    
-    if (stats.warnings.length > 0) {
-      console.log('\nWarnings:');
-      stats.warnings.forEach((warning) => console.log(`- ${warning}`));
-    }
-  } catch (error) {
-    console.error('Import failed:', error);
-    throw error;
+  if (existingCustomer) {
+    stats.customersUpdated++;
+  } else {
+    stats.customersCreated++;
   }
 }
 
-const program = new Command();
+async function importCustomers(filePath: string, debug: boolean) {
+  const stats: CustomerImportStats = {
+    processed: 0,
+    companiesCreated: 0,
+    customersCreated: 0,
+    customersUpdated: 0,
+    warnings: [],
+  };
 
-program
-  .name('import-customer')
-  .description('Import customer data from QuickBooks CSV export')
-  .argument('<file>', 'CSV file to import')
-  .option('-d, --debug', 'Enable debug logging')
-  .action(async (file: string, options: { debug: boolean }) => {
-    try {
-      await importCustomers(file, options.debug);
-      process.exit(0);
-    } catch (error) {
-      console.error('Import failed:', error);
-      process.exit(1);
-    }
-  });
+  const ctx: ImportContext = {
+    prisma,
+    debug,
+    stats,
+  };
 
-program.parse();
+  const parser = await createCsvParser(filePath);
+  await processImport<CustomerRow>(ctx, parser, (row) => processCustomerRow(ctx, row));
+
+  // Log additional statistics
+  console.log(`- Companies created/updated: ${stats.companiesCreated}`);
+  console.log(`- Customers created: ${stats.customersCreated}`);
+  console.log(`- Customers updated: ${stats.customersUpdated}`);
+}
+
+setupImportCommand(
+  'import-customer',
+  'Import customer data from QuickBooks CSV export',
+  importCustomers
+);

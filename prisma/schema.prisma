@@ -29,10 +29,13 @@ model Customer {
   phones          CustomerPhone[]
   
   // Addresses
-  billingAddressId   String?   @unique
-  shippingAddressId  String?   @unique
+  billingAddressId   String?
+  shippingAddressId  String?
   billingAddress     Address?  @relation("CustomerBillingAddress", fields: [billingAddressId], references: [id])
   shippingAddress    Address?  @relation("CustomerShippingAddress", fields: [shippingAddressId], references: [id])
+
+  @@index([billingAddressId])
+  @@index([shippingAddressId])
   
   // Business fields
   taxCode        String?
@@ -87,10 +90,10 @@ model Address {
   postalCode  String?
   country     String?
   
-  customerBilling    Customer? @relation("CustomerBillingAddress")
-  customerShipping   Customer? @relation("CustomerShippingAddress")
-  orderBilling      Order?    @relation("OrderBillingAddress")
-  orderShipping     Order?    @relation("OrderShippingAddress")
+  customerBilling    Customer[] @relation("CustomerBillingAddress")
+  customerShipping   Customer[] @relation("CustomerShippingAddress")
+  orderBilling      Order[]    @relation("OrderBillingAddress")
+  orderShipping     Order[]    @relation("OrderShippingAddress")
 }
 
 model Company {
@@ -128,10 +131,13 @@ model Order {
   
   items           OrderItem[]
   
-  billingAddressId   String?   @unique
-  shippingAddressId  String?   @unique
+  billingAddressId   String?
+  shippingAddressId  String?
   billingAddress     Address?  @relation("OrderBillingAddress", fields: [billingAddressId], references: [id])
   shippingAddress    Address?  @relation("OrderShippingAddress", fields: [shippingAddressId], references: [id])
+
+  @@index([billingAddressId])
+  @@index([shippingAddressId])
   
   status          OrderStatus
   paymentStatus   PaymentStatus
