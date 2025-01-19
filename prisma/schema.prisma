@@ -181,6 +181,7 @@ model OrderItem {
   unitPrice     Decimal
   amount        Decimal
   serviceDate   DateTime?
+  sourceData    Json?
   
   @@index([orderId]) // Order's items lookup
   @@index([productCode]) // Product history lookup
