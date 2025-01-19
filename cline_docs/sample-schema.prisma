@@ -1,0 +1,37 @@
+// schema.prisma
+model Customer {
+  id              String    @id @default(cuid())
+  customerNumber  String    @unique 
+  customerName    String    
+  
+  // Relationships
+  company         Company?  @relation(fields: [companyDomain], references: [domain])
+  companyDomain   String?   // Using domain as foreign key instead of id
+  
+  // Contact Information
+  emails         CustomerEmail[]
+  phones         CustomerPhone[]
+  
+  // Addresses
+  billingAddress  Address?  @relation("BillingAddress")
+  shippingAddress Address?  @relation("ShippingAddress")
+  
+  // Metadata
+  status         String
+  createdAt      DateTime
+  modifiedAt     DateTime
+
+  sourceData     Json      // Store the original CSV line as JSON
+}
+
+model Company {
+  id            String    @id @default(cuid())
+  domain        String    @unique    // Primary lookup key for enrichment
+  name          String?   // Will be filled by enrichment
+  enriched      Boolean   @default(false)
+  enrichedAt    DateTime?
+  enrichmentData Json?    // JSONB field for all enriched data
+  
+  // Relationships
+  customers     Customer[]
+}
