@@ -16,7 +16,7 @@ datasource db {
 // schema.prisma
 model Customer {
   id              String    @id @default(cuid())
-  customerNumber  String    @unique 
+  quickbooksId    String    @unique 
   customerName    String    
   
   // Relationships
