@@ -18,6 +18,11 @@ const menuItems = [
     url: "/",
   },
   {
+    title: "Companies",
+    icon: Users,
+    url: "/companies",
+  },
+  {
     title: "Customers",
     icon: Users,
     url: "/customers",
