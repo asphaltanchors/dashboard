@@ -1,47 +1,57 @@
 import { prisma } from "./prisma"
 
 export async function getCustomers() {
-  const customers = await prisma.customer.findMany({
-    select: {
-      id: true,
-      customerName: true,
-      company: {
-        select: {
-          name: true,
+  const [customers, totalCount, recentCount] = await Promise.all([
+    prisma.customer.findMany({
+      select: {
+        id: true,
+        customerName: true,
+        company: {
+          select: {
+            name: true,
+          },
         },
+        emails: {
+          where: {
+            isPrimary: true,
+          },
+          select: {
+            email: true,
+          },
+          take: 1,
+        },
+        phones: {
+          where: {
+            isPrimary: true,
+          },
+          select: {
+            phone: true,
+          },
+          take: 1,
+        },
+        status: true,
+        createdAt: true,
+        orders: {
+          select: {
+            totalAmount: true
+          }
+        }
       },
-      emails: {
-        where: {
-          isPrimary: true,
-        },
-        select: {
-          email: true,
-        },
-        take: 1,
+      orderBy: {
+        customerName: 'asc',
       },
-      phones: {
-        where: {
-          isPrimary: true,
-        },
-        select: {
-          phone: true,
-        },
-        take: 1,
-      },
-      status: true,
-      createdAt: true,
-      orders: {
-        select: {
-          totalAmount: true
+    }),
+    prisma.customer.count(),
+    prisma.customer.count({
+      where: {
+        createdAt: {
+          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // Last 30 days
         }
       }
-    },
-    orderBy: {
-      customerName: 'asc',
-    },
-  })
+    })
+  ])
 
-  return customers.map(customer => {
+  const mappedCustomers = customers.map((customer) => {
     const totalOrders = customer.orders.reduce((sum, order) => 
       sum + Number(order.totalAmount), 0)
 
@@ -56,6 +66,12 @@ export async function getCustomers() {
       totalOrders: totalOrders
     }
   })
+
+  return {
+    customers: mappedCustomers,
+    totalCount,
+    recentCount
+  }
 }
 
-export type Customer = Awaited<ReturnType<typeof getCustomers>>[number]
+export type Customer = Awaited<ReturnType<typeof getCustomers>>['customers'][number]
