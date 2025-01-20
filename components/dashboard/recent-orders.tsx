@@ -22,7 +22,6 @@ export function RecentOrders({ orders }: RecentOrdersProps) {
               <TableHead>Customer</TableHead>
               <TableHead>Amount</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Type</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -57,9 +56,6 @@ export function RecentOrders({ orders }: RecentOrdersProps) {
                   >
                     {order.status.toLowerCase()}
                   </span>
-                </TableCell>
-                <TableCell>
-                  {order.sourceType === "INVOICE" ? "Invoice" : "Sales Receipt"}
                 </TableCell>
               </TableRow>
             ))}
