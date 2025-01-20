@@ -24,12 +24,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-ARG DATABASE_URL
-ENV DATABASE_URL ${DATABASE_URL}
-
 RUN corepack enable pnpm && pnpm dlx prisma generate
 
-RUN \
+RUN --mount=type=secret,id=database_url,env=DATABASE_URL \
     if [ -f yarn.lock ]; then yarn run build; \
     elif [ -f package-lock.json ]; then npm run build; \
     elif [ -f pnpm-lock.yaml ]; then corepack enable pnpm && pnpm run build; \
