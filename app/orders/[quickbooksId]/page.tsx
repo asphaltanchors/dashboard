@@ -3,7 +3,7 @@ import { getOrderByQuickbooksId } from "@/lib/orders"
 import { formatCurrency } from "@/lib/utils"
 
 interface OrderPageProps {
-  params: Promise<{ quickbooksId: string }> | { quickbooksId: string }
+  params: Promise<{ quickbooksId: string }>
 }
 
 export default async function OrderPage({
