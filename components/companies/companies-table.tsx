@@ -37,6 +37,7 @@ export function CompaniesTable({ companies }: CompaniesTableProps) {
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead>Domain</TableHead>
+              <TableHead>Total Orders</TableHead>
               <TableHead>Customers</TableHead>
               <TableHead>Enrichment Status</TableHead>
               <TableHead>Last Enriched</TableHead>
@@ -48,6 +49,7 @@ export function CompaniesTable({ companies }: CompaniesTableProps) {
               <TableRow key={company.id}>
                 <TableCell>{company.name}</TableCell>
                 <TableCell>{company.domain}</TableCell>
+                <TableCell>${company.totalOrders.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                 <TableCell>{company.customerCount}</TableCell>
                 <TableCell>
                   <span

@@ -39,6 +39,7 @@ export function CustomersTable({ customers }: CustomersTableProps) {
               <TableHead>Name</TableHead>
               <TableHead>Company</TableHead>
               <TableHead>Email</TableHead>
+              <TableHead>Total Orders</TableHead>
               <TableHead>Phone</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Created</TableHead>
@@ -50,6 +51,7 @@ export function CustomersTable({ customers }: CustomersTableProps) {
                 <TableCell>{customer.name}</TableCell>
                 <TableCell>{customer.company}</TableCell>
                 <TableCell>{customer.email}</TableCell>
+                <TableCell>${customer.totalOrders.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                 <TableCell>{customer.phone}</TableCell>
                 <TableCell>
                   <span

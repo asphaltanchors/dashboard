@@ -30,21 +30,32 @@ export async function getCustomers() {
       },
       status: true,
       createdAt: true,
+      orders: {
+        select: {
+          totalAmount: true
+        }
+      }
     },
     orderBy: {
       customerName: 'asc',
     },
   })
 
-  return customers.map(customer => ({
-    id: customer.id,
-    name: customer.customerName,
-    company: customer.company?.name ?? '',
-    email: customer.emails[0]?.email ?? '',
-    phone: customer.phones[0]?.phone ?? '',
-    status: customer.status,
-    createdAt: customer.createdAt,
-  }))
+  return customers.map(customer => {
+    const totalOrders = customer.orders.reduce((sum, order) => 
+      sum + Number(order.totalAmount), 0)
+
+    return {
+      id: customer.id,
+      name: customer.customerName,
+      company: customer.company?.name ?? '',
+      email: customer.emails[0]?.email ?? '',
+      phone: customer.phones[0]?.phone ?? '',
+      status: customer.status,
+      createdAt: customer.createdAt,
+      totalOrders: totalOrders
+    }
+  })
 }
 
 export type Customer = Awaited<ReturnType<typeof getCustomers>>[number]
