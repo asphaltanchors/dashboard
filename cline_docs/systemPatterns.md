@@ -5,65 +5,80 @@ The application follows a modern Next.js architecture with clear separation of c
 
 ### Data Layer
 1. Prisma Schema
-   - Models for business entities
-   - Relationships between entities
-   - Database migrations
+   - Complex entity relationships (Customer, Company, Order, Product)
+   - Flexible address management system
+   - Contact information modeling (emails, phones)
+   - Rich metadata storage with JSON fields
+   - Comprehensive indexing strategy
 
-2. Data Import
-   - CSV parsing utilities
-   - QuickBooks data mapping
-   - Data validation and transformation
+2. Data Import System
+   - Specialized processors for different order types
+   - Shared order processing utilities
+   - Type-safe data transformation
+   - Robust validation rules
+   - Import statistics tracking
 
 ### Application Layer
-1. API Routes
-   - RESTful endpoints for data operations
-   - CSV upload handling
-   - Report generation
+1. Data Access Layer
+   - Prisma Client integration
+   - Type-safe database operations
+   - Efficient query optimization
+   - Connection pooling
 
 2. Business Logic
-   - Data aggregation
+   - Order processing workflows
+   - Customer relationship management
+   - Company data enrichment
    - Metric calculations
-   - Report generation logic
 
 ### Presentation Layer
-1. Dashboard Layout
-   - Responsive grid system
-   - Report card components
-   - Navigation structure
+1. UI Components
+   - Shadcn UI integration
+   - Responsive data tables
+   - Search and filtering
+   - Status indicators
+   - Loading states
 
-2. Components
-   - Reusable UI components
-   - Data visualization components
-   - Form components for data import
+2. Page Structure
+   - App Router organization
+   - Nested layouts
+   - Dynamic routing
+   - Error boundaries
 
 ## Key Technical Decisions
-1. App Router Usage
-   - Server components for improved performance
-   - API routes for data operations
-   - Static and dynamic rendering where appropriate
+1. Database Design
+   - PostgreSQL for complex relationships
+   - JSON storage for flexible data
+   - Strategic indexing for performance
+   - Normalized address management
 
-2. Database Operations
-   - Prisma for type-safe database access
-   - Structured migrations
-   - Efficient querying patterns
+2. Type System
+   - Comprehensive TypeScript coverage
+   - Shared type definitions
+   - Prisma-generated types
+   - Import/Export type safety
 
-3. Data Import Strategy
-   - CSV file upload
-   - Background processing
-   - Validation and error handling
+3. Data Processing
+   - Modular processor architecture
+   - Shared utility functions
+   - Standardized error handling
+   - Import statistics tracking
 
 ## Code Organization
-1. Feature-based Structure
-   - Separate concerns by business domain
-   - Shared components in /components
-   - Utilities in /lib
+1. Feature Modules
+   - Customer management
+   - Company management
+   - Order processing
+   - Dashboard metrics
 
-2. Data Flow
-   - Unidirectional data flow
-   - Server-side data fetching
-   - Client-side state management when needed
+2. Shared Infrastructure
+   - UI component library
+   - Data access utilities
+   - Type definitions
+   - Processing utilities
 
-3. Error Handling
-   - Consistent error patterns
-   - User-friendly error messages
-   - Logging and monitoring
+3. Processing Pipeline
+   - CSV parsing
+   - Data validation
+   - Entity creation/updates
+   - Relationship management

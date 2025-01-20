@@ -1,36 +1,62 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AAC Dashboard
+
+A modern business intelligence dashboard for QuickBooks data visualization and analysis.
+
+## Features
+
+- 📊 Interactive data visualization
+- 👥 Customer relationship management
+- 🏢 Company data enrichment
+- 📈 Order tracking and analysis
+- 📱 Responsive design with Shadcn UI
+
+## Tech Stack
+
+- Next.js 15 (App Router)
+- PostgreSQL + Prisma ORM
+- TypeScript
+- TailwindCSS + Shadcn UI
 
 ## Getting Started
 
-First, run the development server:
-
+1. Install dependencies:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Set up environment variables:
+```bash
+cp .env.example .env
+# Update DATABASE_URL and other required variables
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Run database migrations:
+```bash
+pnpm prisma migrate dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+4. Start development server:
+```bash
+pnpm dev
+```
 
-## Learn More
+Open [http://localhost:3000](http://localhost:3000) to view the dashboard.
 
-To learn more about Next.js, take a look at the following resources:
+## Data Import
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The system supports importing QuickBooks data via CSV files:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Customer records
+- Company information
+- Orders (Invoices and Sales Receipts)
+- Products and line items
 
-## Deploy on Vercel
+## Development Status
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- Core infrastructure: 90% complete
+- Data models: 85% complete
+- UI components: 60% complete
+- Import system: 40% complete
+- Dashboard features: In progress
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+See [cline_docs/](./cline_docs/) for detailed documentation.
