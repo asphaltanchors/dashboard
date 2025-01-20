@@ -1,4 +1,4 @@
-import { OrderSourceType, OrderStatus, PaymentStatus } from '@prisma/client';
+import { OrderStatus, PaymentStatus } from '@prisma/client';
 import { BaseImportStats } from './types';
 
 export interface OrderItemData {
@@ -22,7 +22,6 @@ export interface OrderImportStats extends BaseImportStats {
 export interface BaseOrderData {
   orderNumber: string;
   orderDate: Date;
-  sourceType: OrderSourceType;
   customerId: string;
   billingAddressId: string | null;
   shippingAddressId: string | null;

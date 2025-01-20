@@ -1,4 +1,4 @@
-import { OrderSourceType, OrderStatus, PaymentStatus } from '@prisma/client';
+import { OrderStatus, PaymentStatus } from '@prisma/client';
 import { ImportContext } from '../shared/types';
 import { BaseOrderProcessor } from '../shared/order-processor';
 import { OrderItemData } from '../shared/order-types';
@@ -119,7 +119,6 @@ export class SalesReceiptProcessor extends BaseOrderProcessor {
     const orderData = {
       orderNumber: row['Sales Receipt No'],
       orderDate,
-      sourceType: OrderSourceType.SALES_RECEIPT,
       customerId,
       billingAddressId: billingAddress?.id || null,
       shippingAddressId: shippingAddress?.id || null,

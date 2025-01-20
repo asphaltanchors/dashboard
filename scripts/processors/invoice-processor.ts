@@ -1,4 +1,4 @@
-import { OrderSourceType, OrderStatus, PaymentStatus } from '@prisma/client';
+import { OrderStatus, PaymentStatus } from '@prisma/client';
 import { ImportContext } from '../shared/types';
 import { BaseOrderProcessor } from '../shared/order-processor';
 import { OrderItemData } from '../shared/order-types';
@@ -131,13 +131,12 @@ export class InvoiceProcessor extends BaseOrderProcessor {
     const orderData = {
       orderNumber: row['Invoice No'],
       orderDate,
-      sourceType: OrderSourceType.INVOICE,
       customerId,
       billingAddressId: billingAddress?.id || null,
       shippingAddressId: shippingAddress?.id || null,
       status: row['Status'] === 'Paid' ? OrderStatus.CLOSED : OrderStatus.OPEN,
       paymentStatus: row['Status'] === 'Paid' ? PaymentStatus.PAID : PaymentStatus.UNPAID,
-      paymentMethod: null,
+      paymentMethod: 'Invoice',
       paymentDate: null,
       dueDate,
       terms: row['Terms'] || null,

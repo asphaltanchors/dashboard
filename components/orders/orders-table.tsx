@@ -47,6 +47,7 @@ export function OrdersTable({ orders }: OrdersTableProps) {
               <TableHead>Customer</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Payment Status</TableHead>
+              <TableHead>Payment Method</TableHead>
               <TableHead>Amount</TableHead>
               <TableHead>Due Date</TableHead>
             </TableRow>
@@ -87,6 +88,7 @@ export function OrdersTable({ orders }: OrdersTableProps) {
                     {order.paymentStatus.charAt(0) + order.paymentStatus.slice(1).toLowerCase()}
                   </span>
                 </TableCell>
+                <TableCell>{order.paymentMethod || "-"}</TableCell>
                 <TableCell>{formatCurrency(order.totalAmount)}</TableCell>
                 <TableCell>{order.dueDate ? new Date(order.dueDate).toLocaleDateString() : "-"}</TableCell>
               </TableRow>

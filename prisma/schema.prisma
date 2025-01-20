@@ -124,7 +124,6 @@ model Order {
   id              String    @id @default(cuid())
   orderNumber     String    @unique
   orderDate       DateTime
-  sourceType      OrderSourceType
   
   customer        Customer  @relation(fields: [customerId], references: [id])
   customerId      String
@@ -198,11 +197,6 @@ enum PhoneType {
   MOBILE
   WORK
   OTHER
-}
-
-enum OrderSourceType {
-  INVOICE
-  SALES_RECEIPT
 }
 
 enum OrderStatus {

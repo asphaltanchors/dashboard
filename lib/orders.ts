@@ -9,6 +9,7 @@ export type Order = {
   paymentStatus: string
   totalAmount: number
   dueDate: Date | null
+  paymentMethod: string | null
 }
 
 export async function getOrders() {
@@ -26,6 +27,7 @@ export async function getOrders() {
       paymentStatus: true,
       totalAmount: true,
       dueDate: true,
+      paymentMethod: true,
     },
     orderBy: {
       orderDate: "desc",
@@ -41,5 +43,6 @@ export async function getOrders() {
     paymentStatus: order.paymentStatus,
     totalAmount: Number(order.totalAmount),
     dueDate: order.dueDate,
+    paymentMethod: order.paymentMethod,
   }))
 }
