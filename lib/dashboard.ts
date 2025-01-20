@@ -114,6 +114,40 @@ async function getAnnualMetrics() {
   }
 }
 
+export async function getPaymentMethodMetrics() {
+  const today = new Date()
+  const twelveMonthsAgo = new Date(today)
+  twelveMonthsAgo.setFullYear(today.getFullYear() - 1)
+
+  const orders = await prisma.order.findMany({
+    where: {
+      orderDate: {
+        gte: twelveMonthsAgo
+      },
+      paymentMethod: {
+        not: null
+      }
+    },
+    select: {
+      paymentMethod: true,
+      totalAmount: true
+    }
+  })
+
+  const metrics = orders.reduce((acc: { [key: string]: number }, order) => {
+    const method = order.paymentMethod || 'Unknown'
+    acc[method] = (acc[method] || 0) + Number(order.totalAmount.toString())
+    return acc
+  }, {})
+
+  return Object.entries(metrics)
+    .map(([method, amount]) => ({
+      method,
+      amount
+    }))
+    .sort((a, b) => b.amount - a.amount)
+}
+
 export async function getRecentOrders() {
   return await prisma.order.findMany({
     take: 10,
