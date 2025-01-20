@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { formatCurrency } from "@/lib/utils"
 import { OrderWithCustomer } from "@/types/orders"
+import Link from "next/link"
 
 interface RecentOrdersProps {
   orders: OrderWithCustomer[]
@@ -34,7 +35,14 @@ export function RecentOrders({ orders }: RecentOrdersProps) {
                     year: 'numeric'
                   })}
                 </TableCell>
-                <TableCell className="font-medium">{order.orderNumber}</TableCell>
+                <TableCell>
+                  <Link 
+                    href={`/orders/${order.quickbooksId}`}
+                    className="text-blue-600 hover:text-blue-800 hover:underline"
+                  >
+                    {order.orderNumber}
+                  </Link>
+                </TableCell>
                 <TableCell>
                   {order.customer.customerName}
                   {order.customer.emails[0] && (
