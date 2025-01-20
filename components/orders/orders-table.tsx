@@ -3,14 +3,18 @@
 import React, { useState } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { Order } from "@/lib/orders"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 
 interface OrdersTableProps {
   orders: Order[]
 }
 
 export function OrdersTable({ orders }: OrdersTableProps) {
+  const [page, setPage] = useState(1)
+  const pageSize = 10
   const [searchTerm, setSearchTerm] = useState("")
 
   const filteredOrders = orders.filter((order) =>
@@ -53,7 +57,9 @@ export function OrdersTable({ orders }: OrdersTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredOrders.map((order) => (
+            {filteredOrders
+              .slice((page - 1) * pageSize, page * pageSize)
+              .map((order) => (
               <TableRow key={order.id}>
                 <TableCell>{order.orderNumber}</TableCell>
                 <TableCell>{new Date(order.orderDate).toLocaleDateString()}</TableCell>
@@ -98,6 +104,29 @@ export function OrdersTable({ orders }: OrdersTableProps) {
         {filteredOrders.length === 0 && (
           <p className="text-center text-gray-500 mt-4">No orders found.</p>
         )}
+        <div className="flex items-center justify-between mt-4">
+          <p className="text-sm text-gray-500">
+            Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, filteredOrders.length)} of {filteredOrders.length} orders
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(page - 1)}
+              disabled={page <= 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(page + 1)}
+              disabled={page * pageSize >= filteredOrders.length}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
       </CardContent>
     </Card>
   )

@@ -1,40 +1,38 @@
 import { prisma } from "@/lib/prisma"
 
-export type Order = {
-  id: string
-  orderNumber: string
-  orderDate: Date
-  customerName: string
-  status: string
-  paymentStatus: string
-  totalAmount: number
-  dueDate: Date | null
-  paymentMethod: string | null
-}
-
 export async function getOrders() {
-  const orders = await prisma.order.findMany({
-    select: {
-      id: true,
-      orderNumber: true,
-      orderDate: true,
-      customer: {
-        select: {
-          customerName: true,
+  const [orders, totalCount, recentCount] = await Promise.all([
+    prisma.order.findMany({
+      select: {
+        id: true,
+        orderNumber: true,
+        orderDate: true,
+        customer: {
+          select: {
+            customerName: true,
+          },
         },
+        status: true,
+        paymentStatus: true,
+        totalAmount: true,
+        dueDate: true,
+        paymentMethod: true,
       },
-      status: true,
-      paymentStatus: true,
-      totalAmount: true,
-      dueDate: true,
-      paymentMethod: true,
-    },
-    orderBy: {
-      orderDate: "desc",
-    },
-  })
+      orderBy: {
+        orderDate: "desc",
+      },
+    }),
+    prisma.order.count(),
+    prisma.order.count({
+      where: {
+        orderDate: {
+          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // Last 30 days
+        }
+      }
+    })
+  ])
 
-  return orders.map((order) => ({
+  const mappedOrders = orders.map((order) => ({
     id: order.id,
     orderNumber: order.orderNumber,
     orderDate: order.orderDate,
@@ -45,4 +43,12 @@ export async function getOrders() {
     dueDate: order.dueDate,
     paymentMethod: order.paymentMethod,
   }))
+
+  return {
+    orders: mappedOrders,
+    totalCount,
+    recentCount
+  }
 }
+
+export type Order = Awaited<ReturnType<typeof getOrders>>['orders'][number]
