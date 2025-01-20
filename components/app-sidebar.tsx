@@ -1,5 +1,5 @@
 import * as React from "react"
-import { LayoutDashboard, Users } from "lucide-react"
+import { LayoutDashboard, Users, Building2 } from "lucide-react"
 
 import {
   Sidebar,
@@ -19,7 +19,7 @@ const menuItems = [
   },
   {
     title: "Companies",
-    icon: Users,
+    icon: Building2,
     url: "/companies",
   },
   {
