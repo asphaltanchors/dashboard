@@ -1,5 +1,5 @@
 import * as React from "react"
-import { LayoutDashboard, Users, Building2 } from "lucide-react"
+import { LayoutDashboard, Users, Building2, FileText } from "lucide-react"
 
 import {
   Sidebar,
@@ -26,6 +26,11 @@ const menuItems = [
     title: "Customers",
     icon: Users,
     url: "/customers",
+  },
+  {
+    title: "Orders",
+    icon: FileText,
+    url: "/orders",
   },
 ]
 
