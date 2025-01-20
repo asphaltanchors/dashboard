@@ -59,4 +59,18 @@ The system supports importing QuickBooks data via CSV files:
 - Import system: 40% complete
 - Dashboard features: In progress
 
+## Next Steps
+
+- Deploy to production
+    - Get Docker builds on GH action working
+- Improve importing performance, reliability, error reporting
+- Setup auto-importing for daily jobs
+- Additional Reports
+    - Popper Dropper
+- Enrichment Jobs
+    - enrich script
+    - button to enrich specific company
+    - update views to display enriched data
+    - filters on enriched data
+
 See [cline_docs/](./cline_docs/) for detailed documentation.
