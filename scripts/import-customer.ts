@@ -1,5 +1,6 @@
 import { PrismaClient, EmailType, PhoneType } from '@prisma/client';
 import { AddressData, BaseImportStats, ImportContext } from './shared/types';
+import { BatchEmailProcessor, BatchPhoneProcessor } from './shared/batch-utils';
 import { 
   createCsvParser, 
   parseDate, 
@@ -14,6 +15,11 @@ interface CustomerImportStats extends BaseImportStats {
   companiesCreated: number;
   customersCreated: number;
   customersUpdated: number;
+}
+
+interface CustomerImportContext extends ImportContext {
+  emailProcessor: BatchEmailProcessor;
+  phoneProcessor: BatchPhoneProcessor;
 }
 
 interface CustomerRow {
@@ -73,7 +79,7 @@ function formatPhone(phone: string): string {
     .trim();
 }
 
-async function processEmails(ctx: ImportContext, emails: string[], customerId: string) {
+async function processEmails(ctx: CustomerImportContext, emails: string[], customerId: string) {
   const emailList = emails
     .filter(Boolean)
     .flatMap(e => e.split(';'))
@@ -81,64 +87,34 @@ async function processEmails(ctx: ImportContext, emails: string[], customerId: s
     .filter(Boolean);
 
   for (const email of emailList) {
-    const existingEmail = await ctx.prisma.customerEmail.findFirst({
-      where: { 
-        email,
-        customerId 
-      }
+    await ctx.emailProcessor.add({
+      email,
+      type: 'MAIN',
+      isPrimary: emailList.indexOf(email) === 0,
+      customerId,
     });
-
-    if (existingEmail) {
-      if (ctx.debug) console.log(`Found existing email record: ${email}`);
-      continue;
-    }
-
-    await ctx.prisma.customerEmail.create({
-      data: {
-        email,
-        type: EmailType.MAIN,
-        isPrimary: emailList.indexOf(email) === 0,
-        customerId,
-      },
-    });
-    if (ctx.debug) console.log(`Created email record: ${email}`);
+    if (ctx.debug) console.log(`Queued email for processing: ${email}`);
   }
 }
 
-async function processPhones(ctx: ImportContext, phones: { number: string; type: PhoneType }[], customerId: string) {
+async function processPhones(ctx: CustomerImportContext, phones: { number: string; type: PhoneType }[], customerId: string) {
   for (const { number, type } of phones) {
     if (!number) continue;
     const formattedPhone = formatPhone(number);
-    const normalizedPhone = normalizePhone(number);
     
-    if (formattedPhone && normalizedPhone) {
-      const existingPhone = await ctx.prisma.$queryRaw<Array<{ id: string, phone: string }>>`
-        SELECT id, phone 
-        FROM "CustomerPhone"
-        WHERE REGEXP_REPLACE(phone, '[^0-9]', '', 'g') = ${normalizedPhone}
-        AND "customerId" = ${customerId}
-        LIMIT 1
-      `;
-
-      if (existingPhone.length > 0) {
-        if (ctx.debug) console.log(`Found existing phone record: ${existingPhone[0].phone} (${type})`);
-        continue;
-      }
-
-      await ctx.prisma.customerPhone.create({
-        data: {
-          phone: formattedPhone,
-          type,
-          isPrimary: phones.indexOf({ number, type }) === 0,
-          customerId,
-        },
+    if (formattedPhone) {
+      await ctx.phoneProcessor.add({
+        phone: formattedPhone,
+        type,
+        isPrimary: phones.indexOf({ number, type }) === 0,
+        customerId,
       });
-      if (ctx.debug) console.log(`Created phone record: ${formattedPhone} (${type})`);
+      if (ctx.debug) console.log(`Queued phone for processing: ${formattedPhone} (${type})`);
     }
   }
 }
 
-async function processCustomerRow(ctx: ImportContext, row: CustomerRow) {
+async function processCustomerRow(ctx: CustomerImportContext, row: CustomerRow) {
   const stats = ctx.stats as CustomerImportStats;
   const quickbooksId = row['QuickBooks Internal Id'];
   if (!quickbooksId) {
@@ -281,14 +257,20 @@ async function importCustomers(filePath: string, debug: boolean) {
     warnings: [],
   };
 
-  const ctx: ImportContext = {
+  const ctx: CustomerImportContext = {
     prisma,
     debug,
     stats,
+    emailProcessor: new BatchEmailProcessor(prisma),
+    phoneProcessor: new BatchPhoneProcessor(prisma),
   };
 
   const parser = await createCsvParser(filePath);
   await processImport<CustomerRow>(ctx, parser, (row) => processCustomerRow(ctx, row));
+
+  // Flush any remaining batched records
+  await ctx.emailProcessor.flush();
+  await ctx.phoneProcessor.flush();
 
   // Log additional statistics
   console.log(`- Companies created/updated: ${stats.companiesCreated}`);
