@@ -100,6 +100,7 @@ model Company {
   id            String    @id @default(cuid())
   domain        String    @unique    
   name          String?   
+  createdAt     DateTime?
   enriched      Boolean   @default(false)
   enrichedAt    DateTime?
   enrichedSource String?

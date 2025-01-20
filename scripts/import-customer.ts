@@ -133,6 +133,7 @@ async function processCustomerRow(ctx: CustomerImportContext, row: CustomerRow) 
       create: {
         domain,
         name: row['Company Name'] || null,
+        createdAt: parseDate(row['Created Date']) || new Date(),
       },
       update: {},
     });
