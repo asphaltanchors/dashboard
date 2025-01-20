@@ -3,14 +3,18 @@
 import React, { useState } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { Customer } from "@/lib/customers"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 
 interface CustomersTableProps {
   customers: Customer[]
 }
 
 export function CustomersTable({ customers }: CustomersTableProps) {
+  const [page, setPage] = useState(1)
+  const pageSize = 10
   const [searchTerm, setSearchTerm] = useState("")
 
   const filteredCustomers = customers.filter((customer) =>
@@ -46,7 +50,9 @@ export function CustomersTable({ customers }: CustomersTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredCustomers.map((customer) => (
+            {filteredCustomers
+              .slice((page - 1) * pageSize, page * pageSize)
+              .map((customer) => (
               <TableRow key={customer.id}>
                 <TableCell>{customer.name}</TableCell>
                 <TableCell>{customer.company}</TableCell>
@@ -72,6 +78,29 @@ export function CustomersTable({ customers }: CustomersTableProps) {
         {filteredCustomers.length === 0 && (
           <p className="text-center text-gray-500 mt-4">No customers found.</p>
         )}
+        <div className="flex items-center justify-between mt-4">
+          <p className="text-sm text-gray-500">
+            Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, filteredCustomers.length)} of {filteredCustomers.length} customers
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(page - 1)}
+              disabled={page <= 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(page + 1)}
+              disabled={page * pageSize >= filteredCustomers.length}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
       </CardContent>
     </Card>
   )
