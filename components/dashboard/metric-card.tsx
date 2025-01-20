@@ -20,7 +20,7 @@ export function MetricCard({ title, value, change, icon: Icon }: MetricCardProps
       <CardContent>
         <div className="text-2xl font-bold">{value}</div>
         <p className={`text-xs ${changeNum >= 0 ? "text-green-500" : "text-red-500"}`}>
-          {change}% from previous month
+          {change}% change vs
         </p>
       </CardContent>
     </Card>

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { Order } from "@/lib/orders"
 import { ChevronLeft, ChevronRight } from "lucide-react"
+import Link from "next/link"
 
 interface OrdersTableProps {
   orders: Order[]
@@ -61,7 +62,14 @@ export function OrdersTable({ orders }: OrdersTableProps) {
               .slice((page - 1) * pageSize, page * pageSize)
               .map((order) => (
               <TableRow key={order.id}>
-                <TableCell>{order.orderNumber}</TableCell>
+                <TableCell>
+                  <Link 
+                    href={`/orders/${order.quickbooksId}`}
+                    className="text-blue-600 hover:text-blue-800 hover:underline"
+                  >
+                    {order.orderNumber}
+                  </Link>
+                </TableCell>
                 <TableCell>{new Date(order.orderDate).toLocaleDateString()}</TableCell>
                 <TableCell>{order.customerName}</TableCell>
                 <TableCell>
