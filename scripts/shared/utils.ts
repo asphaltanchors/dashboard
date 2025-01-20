@@ -120,19 +120,30 @@ export async function processAddress(
   return newAddress;
 }
 
-export async function createCsvParser(filePath: string) {
-  return createReadStream(filePath).pipe(
-    parse({
-      columns: true,
-      skip_empty_lines: true,
-    })
-  );
+export async function createCsvParser(filePath: string, skipLines?: number) {
+  if (skipLines) {
+    console.log(`Reading header row then skipping ${skipLines} lines`);
+  }
+  
+  const parser = parse({
+    columns: true,
+    skip_empty_lines: true,
+    on_record: (record, { lines }) => {
+      // Skip the specified number of lines after the header
+      if (skipLines && lines > 1 && lines <= skipLines + 1) {
+        return null; // Returning null skips this record
+      }
+      return record;
+    }
+  });
+
+  return createReadStream(filePath).pipe(parser);
 }
 
 export function setupImportCommand(
   name: string,
   description: string,
-  importFn: (file: string, debug: boolean) => Promise<void>
+  importFn: (file: string, debug: boolean, options: { skipLines?: number }) => Promise<void>
 ) {
   const program = new Command();
 
@@ -141,9 +152,11 @@ export function setupImportCommand(
     .description(description)
     .argument('<file>', 'CSV file to import')
     .option('-d, --debug', 'Enable debug logging')
-    .action(async (file: string, options: { debug: boolean }) => {
+    .option('-s, --skip-lines <number>', 'Skip first N lines of CSV file')
+    .action(async (file: string, options: { debug: boolean; skipLines?: string }) => {
+      const skipLines = options.skipLines ? parseInt(options.skipLines, 10) : undefined;
       try {
-        await importFn(file, options.debug);
+        await importFn(file, options.debug, { skipLines });
         process.exit(0);
       } catch (error) {
         console.error('Import failed:', error);
@@ -175,6 +188,8 @@ export async function processImport<T>(
           maxWait: 5000, // 5 seconds max wait for transaction to start
         }
       );
+
+      ctx.stats.processed++; // Increment the counter after successful processing
 
       // Show progress every 100 records or if 5 seconds have passed
       const now = Date.now();

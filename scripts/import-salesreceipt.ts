@@ -6,7 +6,7 @@ import { SalesReceiptProcessor } from './processors/sales-receipt-processor';
 
 const prisma = new PrismaClient();
 
-async function importSalesReceipts(filePath: string, debug: boolean) {
+async function importSalesReceipts(filePath: string, debug: boolean, options: { skipLines?: number }) {
   const stats: OrderImportStats = {
     processed: 0,
     ordersCreated: 0,
@@ -24,7 +24,7 @@ async function importSalesReceipts(filePath: string, debug: boolean) {
   };
 
   const processor = new SalesReceiptProcessor(ctx);
-  const parser = await createCsvParser(filePath);
+  const parser = await createCsvParser(filePath, options.skipLines);
   await processImport(ctx, parser, (row) => processor.processRow(row));
 
   // Log additional statistics
