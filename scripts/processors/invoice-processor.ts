@@ -47,80 +47,166 @@ interface InvoiceRow {
 }
 
 export class InvoiceProcessor extends BaseOrderProcessor {
+  private pendingInvoices: Map<string, InvoiceRow[]> = new Map();
+  private readonly batchSize: number;
+  private processedCount: number = 0;
+
+  constructor(ctx: ImportContext, batchSize: number = 100) {
+    super(ctx);
+    this.batchSize = batchSize;
+  }
+
   async processRow(row: InvoiceRow): Promise<void> {
     const stats = this.ctx.stats;
-    const customerName = row['Customer'];
-
-    if (!customerName) {
-      stats.warnings.push(`Skipping row: Missing Customer Name`);
+    const invoiceNo = row['Invoice No'];
+    
+    if (!invoiceNo) {
+      stats.warnings.push(`Skipping row: Missing Invoice Number`);
       return;
     }
 
+    // Collect rows for each invoice
+    const existingRows = this.pendingInvoices.get(invoiceNo) || [];
+    const isNewInvoice = existingRows.length === 0;
+    
+    existingRows.push(row);
+    this.pendingInvoices.set(invoiceNo, existingRows);
+
+    // Process batch if:
+    // 1. We've collected all rows for this invoice (detected by Total Amount), or
+    // 2. We've hit the batch size limit
+    const hasTotal = parseDecimal(row['Total Amount']) > 0;
+    if (hasTotal || this.pendingInvoices.size >= this.batchSize) {
+      if (hasTotal) {
+        // Process just this invoice
+        await this.processInvoice(invoiceNo, existingRows);
+        this.pendingInvoices.delete(invoiceNo);
+      } else {
+        // Process all complete invoices in the current batch
+        await this.processBatch();
+      }
+    }
+  }
+
+  private async processBatch(): Promise<void> {
+    for (const [invoiceNo, rows] of this.pendingInvoices.entries()) {
+      // Check if we have found a total amount row for this invoice
+      const hasTotal = rows.some(row => parseDecimal(row['Total Amount']) > 0);
+      if (hasTotal) {
+        await this.processInvoice(invoiceNo, rows);
+        this.pendingInvoices.delete(invoiceNo);
+      }
+    }
+  }
+
+  private createLineItem(row: InvoiceRow): OrderItemData | null {
     // Skip empty lines or special items
     if (!row['Product/Service'] || 
         ['NJ Sales Tax', 'Shipping', 'Handling Fee', 'Discount'].includes(row['Product/Service'])) {
       if (this.ctx.debug) {
         console.log(`Skipping line: ${row['Product/Service'] || 'Empty product'}`);
       }
-      return;
+      return null;
     }
 
-    // Create line item
-    const lineItems: OrderItemData[] = [{
+    return {
       productCode: row['Product/Service'],
       description: row['Product/Service Description'],
       quantity: parseFloat(row['Product/Service Quantity'] || '0'),
       unitPrice: parseFloat(row['Product/Service Rate'] || '0'),
       amount: parseFloat(row['Product/Service  Amount'] || '0'),
       serviceDate: parseDate(row['Product/Service Service Date'])
-    }];
+    };
+  }
 
-    // Process addresses - combine multiple lines
+  async finalize(): Promise<void> {
+    // Process any remaining invoices
+    await this.processBatch();
+    
+    // If any invoices are left without totals, log warnings
+    for (const [invoiceNo, rows] of this.pendingInvoices.entries()) {
+      this.ctx.stats.warnings.push(`Invoice ${invoiceNo}: No row has a total amount`);
+    }
+    
+    // Clear any remaining pending invoices
+    this.pendingInvoices.clear();
+  }
+
+  private async processInvoice(invoiceNo: string, rows: InvoiceRow[]): Promise<void> {
+    const stats = this.ctx.stats;
+    
+    // Find rows with total amounts
+    const rowsWithTotal = rows.filter(row => parseDecimal(row['Total Amount']) > 0);
+    
+    if (rowsWithTotal.length === 0) {
+      stats.warnings.push(`Invoice ${invoiceNo}: No row has a total amount`);
+      return;
+    }
+    
+    if (rowsWithTotal.length > 1) {
+      stats.warnings.push(`Invoice ${invoiceNo}: Multiple rows have total amounts`);
+      return;
+    }
+
+    const primaryRow = rowsWithTotal[0];
+    const customerName = primaryRow['Customer'];
+
+    if (!customerName) {
+      stats.warnings.push(`Invoice ${invoiceNo}: Missing Customer Name`);
+      return;
+    }
+
+    // Create line items from all valid rows
+    const lineItems: OrderItemData[] = rows
+      .map(row => this.createLineItem(row))
+      .filter((item): item is OrderItemData => item !== null);
+
+    // Process addresses from primary row
     const billingAddress = await processAddress(this.ctx, {
-      line1: row['Billing Address Line1'],
-      line2: [row['Billing Address Line2'], row['Billing Address Line3']]
+      line1: primaryRow['Billing Address Line1'],
+      line2: [primaryRow['Billing Address Line2'], primaryRow['Billing Address Line3']]
         .filter(Boolean)
         .join(', '),
-      line3: [row['Billing Address Line4'], row['Billing Address Line5']]
+      line3: [primaryRow['Billing Address Line4'], primaryRow['Billing Address Line5']]
         .filter(Boolean)
         .join(', '),
-      city: row['Billing Address City'],
-      state: row['Billing Address State'],
-      postalCode: row['Billing Address Postal Code'],
-      country: row['Billing Address Country'],
+      city: primaryRow['Billing Address City'],
+      state: primaryRow['Billing Address State'],
+      postalCode: primaryRow['Billing Address Postal Code'],
+      country: primaryRow['Billing Address Country'],
     });
 
     const shippingAddress = await processAddress(this.ctx, {
-      line1: row['Shipping Address Line1'],
-      line2: [row['Shipping Address Line2'], row['Shipping Address Line3']]
+      line1: primaryRow['Shipping Address Line1'],
+      line2: [primaryRow['Shipping Address Line2'], primaryRow['Shipping Address Line3']]
         .filter(Boolean)
         .join(', '),
-      line3: [row['Shipping Address Line4'], row['Shipping Address Line5']]
+      line3: [primaryRow['Shipping Address Line4'], primaryRow['Shipping Address Line5']]
         .filter(Boolean)
         .join(', '),
-      city: row['Shipping Address City'],
-      state: row['Shipping Address State'],
-      postalCode: row['Shipping Address Postal Code'],
-      country: row['Shipping Address Country'],
+      city: primaryRow['Shipping Address City'],
+      state: primaryRow['Shipping Address State'],
+      postalCode: primaryRow['Shipping Address Postal Code'],
+      country: primaryRow['Shipping Address Country'],
     });
 
-    // Parse dates
-    const orderDate = parseDate(row['Invoice Date']) || new Date();
-    const dueDate = parseDate(row['Due Date']);
-    const createdDate = parseDate(row['Created Date']) || new Date();
-    const modifiedDate = parseDate(row['Modified Date']) || new Date();
-    const shipDate = parseDate(row['Ship Date']);
+    // Parse dates from primary row
+    const orderDate = parseDate(primaryRow['Invoice Date']) || new Date();
+    const dueDate = parseDate(primaryRow['Due Date']);
+    const createdDate = parseDate(primaryRow['Created Date']) || new Date();
+    const modifiedDate = parseDate(primaryRow['Modified Date']) || new Date();
+    const shipDate = parseDate(primaryRow['Ship Date']);
 
-    // Parse amounts
-    const taxAmount = parseDecimal(row['Total Tax']);
-    const totalAmount = parseDecimal(row['Total Amount']);
+    // Parse amounts from primary row (the one with total)
+    const taxAmount = parseDecimal(primaryRow['Total Tax']);
+    const totalAmount = parseDecimal(primaryRow['Total Amount']);
 
     // Find existing order by QuickBooks ID or order number
     const existingOrder = await this.ctx.prisma.order.findFirst({
       where: {
         OR: [
-          { quickbooksId: row['QuickBooks Internal Id'] },
-          { orderNumber: row['Invoice No'] }
+          { quickbooksId: primaryRow['QuickBooks Internal Id'] },
+          { orderNumber: primaryRow['Invoice No'] }
         ]
       }
     });
@@ -129,26 +215,26 @@ export class InvoiceProcessor extends BaseOrderProcessor {
     const customerId = await this.findOrCreateCustomer(customerName);
 
     const orderData = {
-      orderNumber: row['Invoice No'],
+      orderNumber: primaryRow['Invoice No'],
       orderDate,
       customerId,
       billingAddressId: billingAddress?.id || null,
       shippingAddressId: shippingAddress?.id || null,
-      status: row['Status'] === 'Paid' ? OrderStatus.CLOSED : OrderStatus.OPEN,
-      paymentStatus: row['Status'] === 'Paid' ? PaymentStatus.PAID : PaymentStatus.UNPAID,
+      status: primaryRow['Status'] === 'Paid' ? OrderStatus.CLOSED : OrderStatus.OPEN,
+      paymentStatus: primaryRow['Status'] === 'Paid' ? PaymentStatus.PAID : PaymentStatus.UNPAID,
       paymentMethod: 'Invoice',
       paymentDate: null,
       dueDate,
-      terms: row['Terms'] || null,
+      terms: primaryRow['Terms'] || null,
       subtotal: totalAmount - taxAmount,
       taxAmount,
       taxPercent: taxAmount > 0 ? (taxAmount / (totalAmount - taxAmount)) * 100 : 0,
       totalAmount,
       shipDate,
-      shippingMethod: row['Shipping Method'] || null,
+      shippingMethod: primaryRow['Shipping Method'] || null,
       modifiedAt: modifiedDate,
-      quickbooksId: row['QuickBooks Internal Id'],
-      sourceData: row,
+      quickbooksId: primaryRow['QuickBooks Internal Id'],
+      sourceData: primaryRow,
     };
 
     const order = await this.createOrUpdateOrder(orderData, existingOrder);

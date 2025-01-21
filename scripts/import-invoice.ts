@@ -23,9 +23,12 @@ async function importInvoices(filePath: string, debug: boolean) {
     stats,
   };
 
-  const processor = new InvoiceProcessor(ctx);
+  const processor = new InvoiceProcessor(ctx, 100); // Process in batches of 100
   const parser = await createCsvParser(filePath);
   await processImport(ctx, parser, (row) => processor.processRow(row));
+  
+  // Process collected invoices
+  await processor.finalize();
 
   // Log additional statistics
   console.log(`- Orders created: ${stats.ordersCreated}`);
