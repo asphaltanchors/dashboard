@@ -4,7 +4,7 @@ export const DEFAULT_BATCH_SIZE = 500;
 
 export interface BatchProcessor<T> {
   add(record: T): Promise<void>;
-  flush(): Promise<void>;
+  flush(tx?: Prisma.TransactionClient): Promise<void>;
 }
 
 export class BatchEmailProcessor {
@@ -33,11 +33,13 @@ export class BatchEmailProcessor {
     }
   }
 
-  async flush(): Promise<void> {
+  async flush(tx?: Prisma.TransactionClient): Promise<void> {
     if (this.batch.length === 0) return;
 
+    const client = tx || this.prisma;
+
     // First check which emails already exist to avoid unique constraint violations
-    const existingEmails = await this.prisma.customerEmail.findMany({
+    const existingEmails = await client.customerEmail.findMany({
       where: {
         OR: this.batch.map(record => ({
           AND: {
@@ -63,7 +65,7 @@ export class BatchEmailProcessor {
     );
 
     if (newRecords.length > 0) {
-      await this.prisma.customerEmail.createMany({
+      await client.customerEmail.createMany({
         data: newRecords,
         skipDuplicates: true
       });
@@ -99,11 +101,13 @@ export class BatchPhoneProcessor {
     }
   }
 
-  async flush(): Promise<void> {
+  async flush(tx?: Prisma.TransactionClient): Promise<void> {
     if (this.batch.length === 0) return;
 
+    const client = tx || this.prisma;
+
     // First check which phones already exist to avoid unique constraint violations
-    const existingPhones = await this.prisma.$queryRaw<Array<{ phone: string, customerId: string }>>`
+    const existingPhones = await client.$queryRaw<Array<{ phone: string, customerId: string }>>`
       SELECT phone, "customerId"
       FROM "CustomerPhone"
       WHERE (phone, "customerId") IN (
@@ -126,7 +130,7 @@ export class BatchPhoneProcessor {
     );
 
     if (newRecords.length > 0) {
-      await this.prisma.customerPhone.createMany({
+      await client.customerPhone.createMany({
         data: newRecords as Prisma.CustomerPhoneCreateManyInput[],
         skipDuplicates: true
       });

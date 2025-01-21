@@ -10,6 +10,7 @@ export async function getCustomers() {
           select: {
             id: true,
             name: true,
+            domain: true,
           },
         },
         emails: {
@@ -59,7 +60,7 @@ export async function getCustomers() {
     return {
       id: customer.id,
       name: customer.customerName,
-      company: customer.company?.name ?? '',
+      company: customer.company?.name ?? customer.company?.domain ?? '',
       companyId: customer.company?.id,
       email: customer.emails[0]?.email ?? '',
       phone: customer.phones[0]?.phone ?? '',

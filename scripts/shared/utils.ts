@@ -198,8 +198,8 @@ export async function processImport<T>(
               await processFn(row);
             },
             {
-              timeout: 60000, // 60 second timeout per record
-              maxWait: 10000, // 10 seconds max wait for transaction to start
+              timeout: 120000, // 120 second timeout per record
+              maxWait: 30000, // 30 seconds max wait for transaction to start
             }
           );
           break; // Success, exit retry loop
@@ -217,6 +217,7 @@ export async function processImport<T>(
       }
 
       if (lastError && attempts === maxAttempts) {
+        console.error(`Error details:`, lastError);
         throw new Error(`Failed after ${maxAttempts} attempts: ${lastError.message}`);
       }
 

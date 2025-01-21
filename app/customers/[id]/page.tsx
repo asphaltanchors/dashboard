@@ -15,7 +15,12 @@ export default async function CustomerPage(
       customerName: true,
       company: {
         select: {
+          id: true,
           name: true,
+          domain: true,
+          enriched: true,
+          enrichedAt: true,
+          enrichedSource: true,
         },
       },
       emails: {
@@ -114,6 +119,60 @@ export default async function CustomerPage(
           </div>
         </CardContent>
       </Card>
+
+      {customer.company && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Company Information</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <h3 className="font-semibold">Basic Information</h3>
+                <dl className="mt-2 space-y-2">
+                  <div>
+                    <dt className="text-sm font-medium text-gray-500">Name</dt>
+                    <dd className="mt-1">{customer.company.name ?? customer.company.domain}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm font-medium text-gray-500">Domain</dt>
+                    <dd className="mt-1">{customer.company.domain}</dd>
+                  </div>
+                </dl>
+              </div>
+              <div>
+                <h3 className="font-semibold">Enrichment Details</h3>
+                <dl className="mt-2 space-y-2">
+                  <div>
+                    <dt className="text-sm font-medium text-gray-500">Status</dt>
+                    <dd className="mt-1">
+                      <span
+                        className={`inline-block px-2 py-1 text-xs font-semibold rounded-full ${
+                          customer.company.enriched
+                            ? "bg-green-100 text-green-800"
+                            : "bg-yellow-100 text-yellow-800"
+                        }`}
+                      >
+                        {customer.company.enriched ? "Enriched" : "Pending"}
+                      </span>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm font-medium text-gray-500">Last Enriched</dt>
+                    <dd className="mt-1">
+                      {customer.company.enrichedAt ? new Date(customer.company.enrichedAt).toLocaleDateString() : "-"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm font-medium text-gray-500">Source</dt>
+                    <dd className="mt-1">{customer.company.enrichedSource || "-"}</dd>
+                  </div>
+                </dl>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
