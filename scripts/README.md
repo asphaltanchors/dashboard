@@ -96,11 +96,59 @@ If you encounter memory issues:
 
 ### Customer Import
 - Required columns:
-  - QuickBooks Internal Id
+  - QuickBooks Internal Id (unique identifier)
   - Customer Name
+  - Company Name
+  - Main Email (used to determine company domain)
   - Status
-  - Address details
-  - Contact information
+  - Created Date
+  - Modified Date
+  - Address details:
+    - Billing Address (Line 1-3, City, State, Postal Code, Country)
+    - Shipping Address (Line 1-3, City, State, Postal Code, Country)
+  - Contact information:
+    - Main Email, CC Email
+    - Main Phone, Alt. Phone, Work Phone, Mobile
+  - Business details:
+    - Tax Code, Tax Item
+    - Resale No
+    - Credit Limit
+    - Terms
+
+#### Import Process and Order of Operations
+
+The customer import follows a specific order to maintain data integrity and handle relationships correctly:
+
+1. Companies Creation (First Pass)
+   - Extract domains from email addresses
+   - Create company records for unique domains
+   - Companies must exist before customers can reference them
+
+2. Addresses Processing (First Pass)
+   - Process billing and shipping addresses
+   - Create unique address records
+   - Handle identical billing/shipping addresses efficiently
+
+3. Customer Creation (Second Pass)
+   - Create customer records with:
+     - References to existing companies (via domain)
+     - References to created addresses
+   - Must happen after companies exist to maintain foreign key constraints
+
+4. Contact Information (Final Pass)
+   - Process emails and phones
+   - Link to created customers
+   - Handle primary/secondary designations
+
+This strict ordering ensures that:
+- All foreign key relationships are valid
+- Data integrity is maintained
+- Batch processing remains efficient
+
+Common issues:
+- Foreign key violations: Usually means the import order was not followed
+- Missing relationships: Check if companies were created successfully
+- Duplicate records: Verify unique constraints in the CSV data
 
 ## Examples
 

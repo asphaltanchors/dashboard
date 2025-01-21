@@ -10,8 +10,8 @@ class BatchCompanyProcessor {
   }> = new Map();
   private existingDomains = new Set<string>();
 
-  getDomain(domain: string): string | null {
-    return this.existingDomains.has(domain) ? domain : null;
+  getDomain(domain: string): string {
+    return domain;
   }
   
   constructor(
@@ -599,17 +599,124 @@ async function importCustomers(filePath: string, debug: boolean) {
 
   const parser = await createCsvParser(filePath);
   
-  // First pass: Process companies, addresses, and customers
+  // First pass: Process and create companies
+  const pendingCustomers: Array<{
+    row: CustomerRow;
+    billingAddressId: string | null;
+    shippingAddressId: string | null;
+    companyDomain: string | null;
+  }> = [];
+
+  await processImport<CustomerRow>(ctx, parser, async (row) => {
+    // Process company if email domain exists
+    const mainEmail = row['Main Email'];
+    const domain = extractDomain(mainEmail);
+    let companyDomain = null;
+
+    if (domain) {
+      await ctx.companyProcessor.add({
+        domain,
+        name: row['Company Name'] || null,
+        createdAt: parseDate(row['Created Date']) || new Date(),
+      });
+      companyDomain = domain;
+    }
+
+    // Process addresses
+    const billingAddressData = {
+      line1: row['Billing Address Line 1'],
+      line2: row['Billing Address Line 2'],
+      line3: row['Billing Address Line 3'],
+      city: row['Billing Address City'],
+      state: row['Billing Address State'],
+      postalCode: row['Billing Address Postal Code'],
+      country: row['Billing Address Country'],
+    };
+
+    const shippingAddressData = {
+      line1: row['Shipping Address Line 1'],
+      line2: row['Shipping Address Line 2'],
+      line3: row['Shipping Address Line 3'],
+      city: row['Shipping Address City'],
+      state: row['Shipping Address State'],
+      postalCode: row['Shipping Address Postal Code'],
+      country: row['Shipping Address Country'],
+    };
+
+    // Check if addresses are identical
+    const areAddressesIdentical = 
+      billingAddressData.line1 === shippingAddressData.line1 &&
+      billingAddressData.line2 === shippingAddressData.line2 &&
+      billingAddressData.line3 === shippingAddressData.line3 &&
+      billingAddressData.city === shippingAddressData.city &&
+      billingAddressData.state === shippingAddressData.state &&
+      billingAddressData.postalCode === shippingAddressData.postalCode &&
+      billingAddressData.country === shippingAddressData.country;
+
+    let billingAddressId = null;
+    let shippingAddressId = null;
+
+    if (areAddressesIdentical && billingAddressData.line1) {
+      // If addresses are identical, process once and use for both
+      billingAddressId = await ctx.addressProcessor.add(billingAddressData);
+      shippingAddressId = billingAddressId;
+    } else {
+      // Process addresses separately
+      billingAddressId = await ctx.addressProcessor.add(billingAddressData);
+      shippingAddressId = await ctx.addressProcessor.add(shippingAddressData);
+    }
+
+    pendingCustomers.push({
+      row,
+      billingAddressId,
+      shippingAddressId,
+      companyDomain
+    });
+
+    stats.processed++;
+  });
+
+  // Flush companies and addresses first
+  await Promise.all([
+    ctx.companyProcessor.flush(),
+    ctx.addressProcessor.flush()
+  ]);
+
+  // Second pass: Process customers now that companies exist
   const pendingContactInfo: Array<{
     quickbooksId: string;
     emails: Array<{ email: string; isPrimary: boolean }>;
     phones: Array<{ phone: string; type: PhoneType; isPrimary: boolean }>;
   }> = [];
 
-  await processImport<CustomerRow>(ctx, parser, async (row) => {
-    await processCustomerRow(ctx, row);
+  for (const pending of pendingCustomers) {
+    const { row, billingAddressId, shippingAddressId, companyDomain } = pending;
+    const quickbooksId = row['QuickBooks Internal Id'];
     
-    // Store contact info for processing after customers are created
+    if (!quickbooksId) {
+      stats.warnings.push(`Skipping row: Missing QuickBooks ID`);
+      continue;
+    }
+
+    // Queue customer for batch processing
+    await ctx.customerProcessor.add({
+      quickbooksId,
+      customerName: row['Customer Name'],
+      companyDomain,
+      status: row['Status'].toLowerCase() === 'true' ? 'ACTIVE' : 'INACTIVE',
+      createdAt: parseDate(row['Created Date']) || new Date(),
+      modifiedAt: parseDate(row['Modified Date']) || new Date(),
+      taxCode: row['Tax Code'] || null,
+      taxItem: row['Tax Item'] || null,
+      resaleNumber: row['Resale No'] || null,
+      creditLimit: row['Credit Limit'] ? parseFloat(row['Credit Limit']) : null,
+      terms: row['Terms'] || null,
+      billingAddressId,
+      shippingAddressId,
+      sourceData: row,
+    });
+
+    // Store contact info for later processing
     const emails = [row['Main Email'], row['CC Email']]
       .filter(Boolean)
       .flatMap(e => e.split(';'))
@@ -636,21 +743,17 @@ async function importCustomers(filePath: string, debug: boolean) {
 
     if (emails.length > 0 || phones.length > 0) {
       pendingContactInfo.push({
-        quickbooksId: row['QuickBooks Internal Id'],
+        quickbooksId,
         emails,
         phones
       });
     }
-  });
+  }
 
-  // First flush companies, addresses, and customers
-  await Promise.all([
-    ctx.companyProcessor.flush(),
-    ctx.addressProcessor.flush(),
-    ctx.customerProcessor.flush()
-  ]);
+  // Flush customers now that companies exist
+  await ctx.customerProcessor.flush();
 
-  // Second pass: Process contact info now that we have customer IDs
+  // Third pass: Process contact info now that customers exist
   for (const info of pendingContactInfo) {
     const customerId = ctx.customerProcessor.getCustomerId(info.quickbooksId);
     if (customerId) {
