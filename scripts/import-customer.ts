@@ -719,7 +719,7 @@ async function importCustomers(filePath: string, debug: boolean) {
     // Store contact info for later processing
     const emails = [row['Main Email'], row['CC Email']]
       .filter(Boolean)
-      .flatMap(e => e.split(';'))
+      .flatMap(e => e.split(/[;,]/)) // Split on both semicolons and commas
       .map(e => e.trim())
       .filter(Boolean)
       .map((email, index) => ({

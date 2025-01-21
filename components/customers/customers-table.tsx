@@ -63,7 +63,18 @@ export function CustomersTable({ customers }: CustomersTableProps) {
                     {customer.name}
                   </Link>
                 </TableCell>
-                <TableCell>{customer.company}</TableCell>
+                <TableCell>
+                  {customer.companyId ? (
+                    <Link 
+                      href={`/companies/${customer.companyId}`}
+                      className="text-blue-600 hover:text-blue-800 hover:underline"
+                    >
+                      {customer.company}
+                    </Link>
+                  ) : (
+                    customer.company
+                  )}
+                </TableCell>
                 <TableCell>{customer.email}</TableCell>
                 <TableCell>${customer.totalOrders.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                 <TableCell>{customer.phone}</TableCell>

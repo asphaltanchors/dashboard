@@ -8,6 +8,7 @@ export async function getCustomers() {
         customerName: true,
         company: {
           select: {
+            id: true,
             name: true,
           },
         },
@@ -59,6 +60,7 @@ export async function getCustomers() {
       id: customer.id,
       name: customer.customerName,
       company: customer.company?.name ?? '',
+      companyId: customer.company?.id,
       email: customer.emails[0]?.email ?? '',
       phone: customer.phones[0]?.phone ?? '',
       status: customer.status,

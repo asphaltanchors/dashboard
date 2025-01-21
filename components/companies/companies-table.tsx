@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState } from "react"
+import Link from "next/link"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -53,7 +54,14 @@ export function CompaniesTable({ companies }: CompaniesTableProps) {
               .slice((page - 1) * pageSize, page * pageSize)
               .map((company) => (
               <TableRow key={company.id}>
-                <TableCell>{company.name}</TableCell>
+                <TableCell>
+                  <Link 
+                    href={`/companies/${company.id}`}
+                    className="text-blue-600 hover:text-blue-800 hover:underline"
+                  >
+                    {company.name}
+                  </Link>
+                </TableCell>
                 <TableCell>{company.domain}</TableCell>
                 <TableCell>${company.totalOrders.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                 <TableCell>{company.customerCount}</TableCell>
