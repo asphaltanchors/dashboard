@@ -16,7 +16,8 @@ class BatchCompanyProcessor {
   
   constructor(
     private prisma: PrismaClient,
-    private batchSize: number = DEFAULT_BATCH_SIZE
+    private batchSize: number = DEFAULT_BATCH_SIZE,
+    private stats?: CustomerImportStats
   ) {}
 
   async add(record: {
@@ -53,16 +54,26 @@ class BatchCompanyProcessor {
       this.existingDomains.add(company.domain);
     }
 
-    await this.prisma.$transaction(async (tx) => {
-      for (const record of records) {
-        await tx.company.upsert({
-          where: { domain: record.domain },
-          create: record,
-          update: {}
-        });
+    // Filter out records that don't exist yet
+    const newRecords = records.filter(record => !this.existingDomains.has(record.domain));
+    
+    if (newRecords.length > 0) {
+      // Use createMany for bulk insertion
+      await this.prisma.company.createMany({
+        data: newRecords,
+        skipDuplicates: true
+      });
+
+      // Update stats
+      if (this.stats) {
+        this.stats.companiesCreated += newRecords.length;
+      }
+
+      // Add new domains to our set
+      for (const record of newRecords) {
         this.existingDomains.add(record.domain);
       }
-    });
+    }
 
     this.batch.clear();
   }
@@ -72,10 +83,15 @@ class BatchAddressProcessor {
   private batch: Array<AddressData & { hash: string }> = [];
   private processedAddresses = new Map<string, string>();
   
+  private stats?: CustomerImportStats;
+
   constructor(
     private prisma: PrismaClient,
-    private batchSize: number = DEFAULT_BATCH_SIZE
-  ) {}
+    private batchSize: number = DEFAULT_BATCH_SIZE,
+    stats?: CustomerImportStats
+  ) {
+    this.stats = stats;
+  }
 
   private hashAddress(address: AddressData): string {
     return JSON.stringify({
@@ -111,19 +127,103 @@ class BatchAddressProcessor {
   async flush(): Promise<void> {
     if (this.batch.length === 0) return;
 
-    const addresses = await this.prisma.$transaction(async (tx) => {
-      const results = [];
-      for (const record of this.batch) {
-        const { hash, ...addressData } = record;
-        const address = await tx.address.create({ data: addressData });
-        results.push({ hash, id: address.id });
+    // First find any existing addresses
+    const existingAddresses = await this.prisma.address.findMany({
+      where: {
+        OR: this.batch.map(({ hash, ...address }) => ({
+          AND: {
+            line1: address.line1,
+            line2: address.line2 ?? null,
+            line3: address.line3 ?? null,
+            city: address.city,
+            state: address.state,
+            postalCode: address.postalCode,
+            country: address.country
+          }
+        }))
+      },
+      select: {
+        id: true,
+        line1: true,
+        line2: true,
+        line3: true,
+        city: true,
+        state: true,
+        postalCode: true,
+        country: true
       }
-      return results;
     });
 
-    // Update our processed addresses map
-    for (const { hash, id } of addresses) {
-      this.processedAddresses.set(hash, id);
+    // Create a map of existing addresses by their hash
+    const existingAddressMap = new Map<string, string>();
+    for (const address of existingAddresses) {
+      const addressData: AddressData = {
+        line1: address.line1,
+        line2: address.line2 ?? undefined,
+        line3: address.line3 ?? undefined,
+        city: address.city,
+        state: address.state ?? undefined,
+        postalCode: address.postalCode ?? undefined,
+        country: address.country ?? undefined
+      };
+      const hash = this.hashAddress(addressData);
+      existingAddressMap.set(hash, address.id);
+      this.processedAddresses.set(hash, address.id);
+    }
+
+    // Filter out addresses that already exist
+    const newAddresses = this.batch.filter(({ hash }) => !existingAddressMap.has(hash));
+
+    if (newAddresses.length > 0) {
+      // Create new addresses
+      const result = await this.prisma.address.createMany({
+        data: newAddresses.map(({ hash, ...addressData }) => addressData),
+        skipDuplicates: true
+      });
+
+      if (result.count > 0) {
+        // Fetch the newly created addresses to get their IDs
+        const createdAddresses = await this.prisma.address.findMany({
+          where: {
+            OR: newAddresses.map(({ hash, ...address }) => ({
+              AND: {
+                line1: address.line1,
+                line2: address.line2 ?? null,
+                line3: address.line3 ?? null,
+                city: address.city,
+                state: address.state,
+                postalCode: address.postalCode,
+                country: address.country
+              }
+            }))
+          },
+          select: {
+            id: true,
+            line1: true,
+            line2: true,
+            line3: true,
+            city: true,
+            state: true,
+            postalCode: true,
+            country: true
+          }
+        });
+
+        // Update our processed addresses map with new addresses
+        for (const address of createdAddresses) {
+          const addressData: AddressData = {
+            line1: address.line1,
+            line2: address.line2 ?? undefined,
+            line3: address.line3 ?? undefined,
+            city: address.city,
+            state: address.state ?? undefined,
+            postalCode: address.postalCode ?? undefined,
+            country: address.country ?? undefined
+          };
+          const hash = this.hashAddress(addressData);
+          this.processedAddresses.set(hash, address.id);
+        }
+      }
     }
 
     this.batch = [];
@@ -157,6 +257,7 @@ interface CustomerBatchRecord {
 class BatchCustomerProcessor {
   private batch: CustomerBatchRecord[] = [];
   private customerIdMap = new Map<string, string>();
+  private stats?: CustomerImportStats;
 
   getCustomerId(quickbooksId: string): string | undefined {
     return this.customerIdMap.get(quickbooksId);
@@ -164,8 +265,11 @@ class BatchCustomerProcessor {
   
   constructor(
     private prisma: PrismaClient,
-    private batchSize: number = DEFAULT_BATCH_SIZE
-  ) {}
+    private batchSize: number = DEFAULT_BATCH_SIZE,
+    stats?: CustomerImportStats
+  ) {
+    this.stats = stats;
+  }
 
   async add(record: Omit<typeof this.batch[0], 'isUpdate'> & { 
     existingCustomerId?: string 
@@ -203,10 +307,10 @@ class BatchCustomerProcessor {
       return acc;
     }, { updates: [], creates: [] });
 
-    const results = await this.prisma.$transaction(async (tx) => {
+    await this.prisma.$transaction(async (tx) => {
       // Handle creates
       if (creates.length > 0) {
-        const created = await tx.customer.createMany({
+        const result = await tx.customer.createMany({
           data: creates.map(data => ({
             ...data,
             customerName: data.customerName ?? undefined,
@@ -223,7 +327,11 @@ class BatchCustomerProcessor {
         });
 
         // Get IDs of created customers
-        if (created.count > 0) {
+        if (result.count > 0) {
+          if (this.stats) {
+            this.stats.customersCreated += result.count;
+          }
+          
           const createdCustomers = await tx.customer.findMany({
             where: {
               quickbooksId: {
@@ -243,38 +351,56 @@ class BatchCustomerProcessor {
         }
       }
       
-      // Handle updates
-      for (const update of updates) {
-        const existing = await tx.customer.findUnique({
-          where: { quickbooksId: update.quickbooksId },
-          select: { id: true }
+      // Handle updates in bulk
+      if (updates.length > 0) {
+        // First get all customer IDs for the updates
+        const existingCustomers = await tx.customer.findMany({
+          where: {
+            quickbooksId: {
+              in: updates.map(u => u.quickbooksId)
+            }
+          },
+          select: {
+            id: true,
+            quickbooksId: true
+          }
         });
-        
-        if (existing) {
-          this.customerIdMap.set(update.quickbooksId, existing.id);
+
+        // Update customerIdMap and stats
+        for (const customer of existingCustomers) {
+          this.customerIdMap.set(customer.quickbooksId, customer.id);
         }
-        
-        const { quickbooksId, ...data } = update;
-        await tx.customer.update({
-          where: { quickbooksId },
-          data: {
-            ...data,
-            customerName: data.customerName ?? undefined,
-            companyDomain: data.companyDomain ?? undefined,
-            taxCode: data.taxCode ?? undefined,
-            taxItem: data.taxItem ?? undefined,
-            resaleNumber: data.resaleNumber ?? undefined,
-            creditLimit: data.creditLimit ?? undefined,
-            terms: data.terms ?? undefined,
-            billingAddressId: data.billingAddressId ?? undefined,
-            shippingAddressId: data.shippingAddressId ?? undefined,
-          } as Prisma.CustomerUpdateInput
-        });
+        if (this.stats) {
+          this.stats.customersUpdated += existingCustomers.length;
+        }
+
+        // Perform updates in chunks to avoid query size limits
+        const CHUNK_SIZE = 100;
+        for (let i = 0; i < updates.length; i += CHUNK_SIZE) {
+          const chunk = updates.slice(i, i + CHUNK_SIZE);
+          await Promise.all(chunk.map(update => {
+            const { quickbooksId, ...data } = update;
+            return tx.customer.update({
+              where: { quickbooksId },
+              data: {
+                ...data,
+                customerName: data.customerName ?? undefined,
+                companyDomain: data.companyDomain ?? undefined,
+                taxCode: data.taxCode ?? undefined,
+                taxItem: data.taxItem ?? undefined,
+                resaleNumber: data.resaleNumber ?? undefined,
+                creditLimit: data.creditLimit ?? undefined,
+                terms: data.terms ?? undefined,
+                billingAddressId: data.billingAddressId ?? undefined,
+                shippingAddressId: data.shippingAddressId ?? undefined,
+              } as Prisma.CustomerUpdateInput
+            });
+          }));
+        }
       }
     });
 
     this.batch = [];
-    return results;
   }
 }
 import { 
@@ -358,41 +484,6 @@ function formatPhone(phone: string): string {
     .trim();
 }
 
-async function processEmails(ctx: CustomerImportContext, emails: string[], customerId: string) {
-  const emailList = emails
-    .filter(Boolean)
-    .flatMap(e => e.split(';'))
-    .map(e => e.trim())
-    .filter(Boolean);
-
-  for (const email of emailList) {
-    await ctx.emailProcessor.add({
-      email,
-      type: 'MAIN',
-      isPrimary: emailList.indexOf(email) === 0,
-      customerId,
-    });
-    if (ctx.debug) console.log(`Queued email for processing: ${email}`);
-  }
-}
-
-async function processPhones(ctx: CustomerImportContext, phones: { number: string; type: PhoneType }[], customerId: string) {
-  for (const { number, type } of phones) {
-    if (!number) continue;
-    const formattedPhone = formatPhone(number);
-    
-    if (formattedPhone) {
-      await ctx.phoneProcessor.add({
-        phone: formattedPhone,
-        type,
-        isPrimary: phones.indexOf({ number, type }) === 0,
-        customerId,
-      });
-      if (ctx.debug) console.log(`Queued phone for processing: ${formattedPhone} (${type})`);
-    }
-  }
-}
-
 async function processCustomerRow(ctx: CustomerImportContext, row: CustomerRow) {
   const stats = ctx.stats as CustomerImportStats;
   const quickbooksId = row['QuickBooks Internal Id'];
@@ -414,7 +505,6 @@ async function processCustomerRow(ctx: CustomerImportContext, row: CustomerRow) 
     });
     companyDomain = ctx.companyProcessor.getDomain(domain);
     if (ctx.debug) console.log(`Queued company for processing: ${domain}`);
-    stats.companiesCreated++;
   }
 
   // Process addresses
@@ -462,12 +552,6 @@ async function processCustomerRow(ctx: CustomerImportContext, row: CustomerRow) 
     shippingAddressId = await ctx.addressProcessor.add(shippingAddressData);
   }
 
-  // Check for existing customer
-  const existingCustomer = await ctx.prisma.customer.findUnique({
-    where: { quickbooksId },
-    select: { id: true }
-  });
-
   // Queue customer for batch processing
   const { quickbooksId: qbId, pending } = await ctx.customerProcessor.add({
     quickbooksId,
@@ -484,33 +568,13 @@ async function processCustomerRow(ctx: CustomerImportContext, row: CustomerRow) 
     billingAddressId,
     shippingAddressId,
     sourceData: row,
-    existingCustomerId: existingCustomer?.id
   });
 
   if (ctx.debug) {
     console.log(`Queued customer for processing: ${row['Customer Name']} (${quickbooksId})`);
   }
 
-  // Only process contact information if customer already exists
-  if (!pending) {
-    const customerId = ctx.customerProcessor.getCustomerId(qbId);
-    if (customerId) {
-      await processEmails(ctx, [row['Main Email'], row['CC Email']], customerId);
-      await processPhones(ctx, [
-        { number: row['Main Phone'], type: PhoneType.MAIN },
-        { number: row['Mobile'], type: PhoneType.MOBILE },
-        { number: row['Work Phone'], type: PhoneType.WORK },
-        { number: row['Alt. Phone'], type: PhoneType.OTHER },
-      ], customerId);
-    }
-  }
-
   stats.processed++;
-  if (existingCustomer) {
-    stats.customersUpdated++;
-  } else {
-    stats.customersCreated++;
-  }
 }
 
 async function importCustomers(filePath: string, debug: boolean) {
@@ -526,67 +590,97 @@ async function importCustomers(filePath: string, debug: boolean) {
     prisma,
     debug,
     stats,
-    emailProcessor: new BatchEmailProcessor(prisma),
-    phoneProcessor: new BatchPhoneProcessor(prisma),
-    companyProcessor: new BatchCompanyProcessor(prisma),
-    addressProcessor: new BatchAddressProcessor(prisma),
-    customerProcessor: new BatchCustomerProcessor(prisma),
+    emailProcessor: new BatchEmailProcessor(prisma, DEFAULT_BATCH_SIZE),
+    phoneProcessor: new BatchPhoneProcessor(prisma, DEFAULT_BATCH_SIZE),
+    companyProcessor: new BatchCompanyProcessor(prisma, DEFAULT_BATCH_SIZE, stats),
+    addressProcessor: new BatchAddressProcessor(prisma, DEFAULT_BATCH_SIZE, stats),
+    customerProcessor: new BatchCustomerProcessor(prisma, DEFAULT_BATCH_SIZE, stats),
   };
 
   const parser = await createCsvParser(filePath);
-  const csvData: CustomerRow[] = [];
   
-  await processImport<CustomerRow>(ctx, parser, (row) => {
-    csvData.push(row);
-    return processCustomerRow(ctx, row);
+  // First pass: Process companies, addresses, and customers
+  const pendingContactInfo: Array<{
+    quickbooksId: string;
+    emails: Array<{ email: string; isPrimary: boolean }>;
+    phones: Array<{ phone: string; type: PhoneType; isPrimary: boolean }>;
+  }> = [];
+
+  await processImport<CustomerRow>(ctx, parser, async (row) => {
+    await processCustomerRow(ctx, row);
+    
+    // Store contact info for processing after customers are created
+    const emails = [row['Main Email'], row['CC Email']]
+      .filter(Boolean)
+      .flatMap(e => e.split(';'))
+      .map(e => e.trim())
+      .filter(Boolean)
+      .map((email, index) => ({
+        email,
+        isPrimary: index === 0
+      }));
+    
+    const phones = [
+      { number: row['Main Phone'], type: PhoneType.MAIN },
+      { number: row['Mobile'], type: PhoneType.MOBILE },
+      { number: row['Work Phone'], type: PhoneType.WORK },
+      { number: row['Alt. Phone'], type: PhoneType.OTHER },
+    ]
+      .map(p => ({ ...p, number: formatPhone(p.number) }))
+      .filter(p => p.number)
+      .map((p, index) => ({
+        phone: p.number,
+        type: p.type,
+        isPrimary: index === 0
+      }));
+
+    if (emails.length > 0 || phones.length > 0) {
+      pendingContactInfo.push({
+        quickbooksId: row['QuickBooks Internal Id'],
+        emails,
+        phones
+      });
+    }
   });
 
-  // Process in correct order with retries for foreign key dependencies
-  await ctx.companyProcessor.flush();
-  await ctx.addressProcessor.flush();
-  
-  // Recheck company domains after company creation
-  for (const row of csvData) {
-    const domain = extractDomain(row['Main Email']);
-    if (domain) {
-      const companyDomain = ctx.companyProcessor.getDomain(domain);
-      if (companyDomain) {
-        const customer = await ctx.prisma.customer.findUnique({
-          where: { quickbooksId: row['QuickBooks Internal Id'] },
-          select: { id: true }
+  // First flush companies, addresses, and customers
+  await Promise.all([
+    ctx.companyProcessor.flush(),
+    ctx.addressProcessor.flush(),
+    ctx.customerProcessor.flush()
+  ]);
+
+  // Second pass: Process contact info now that we have customer IDs
+  for (const info of pendingContactInfo) {
+    const customerId = ctx.customerProcessor.getCustomerId(info.quickbooksId);
+    if (customerId) {
+      // Queue emails
+      for (const email of info.emails) {
+        await ctx.emailProcessor.add({
+          email: email.email,
+          type: 'MAIN',
+          isPrimary: email.isPrimary,
+          customerId,
         });
-        if (customer) {
-          await ctx.prisma.customer.update({
-            where: { id: customer.id },
-            data: { companyDomain }
-          });
-        }
+      }
+      
+      // Queue phones
+      for (const phone of info.phones) {
+        await ctx.phoneProcessor.add({
+          phone: phone.phone,
+          type: phone.type,
+          isPrimary: phone.isPrimary,
+          customerId,
+        });
       }
     }
   }
-  
-  await ctx.customerProcessor.flush();
-  
-  // Now process contact info for all customers
-  const rows = await ctx.prisma.customer.findMany({
-    select: { id: true, quickbooksId: true }
-  });
-  
-  for (const row of rows) {
-    const customerRow = csvData.find((r: CustomerRow) => r['QuickBooks Internal Id'] === row.quickbooksId);
-    if (customerRow) {
-      await processEmails(ctx, [customerRow['Main Email'], customerRow['CC Email']], row.id);
-      await processPhones(ctx, [
-        { number: customerRow['Main Phone'], type: PhoneType.MAIN },
-        { number: customerRow['Mobile'], type: PhoneType.MOBILE },
-        { number: customerRow['Work Phone'], type: PhoneType.WORK },
-        { number: customerRow['Alt. Phone'], type: PhoneType.OTHER },
-      ], row.id);
-    }
-  }
-  
-  await ctx.emailProcessor.flush();
-  await ctx.phoneProcessor.flush();
+
+  // Finally flush contact info
+  await Promise.all([
+    ctx.emailProcessor.flush(),
+    ctx.phoneProcessor.flush()
+  ]);
 
   // Log additional statistics
   console.log(`- Companies created/updated: ${stats.companiesCreated}`);

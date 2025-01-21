@@ -1,6 +1,6 @@
 import { PrismaClient, Prisma, EmailType, PhoneType } from '@prisma/client';
 
-export const DEFAULT_BATCH_SIZE = 100;
+export const DEFAULT_BATCH_SIZE = 500;
 
 export interface BatchProcessor<T> {
   add(record: T): Promise<void>;
