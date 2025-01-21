@@ -47,55 +47,42 @@ interface InvoiceRow {
 }
 
 export class InvoiceProcessor extends BaseOrderProcessor {
-  private pendingInvoices: Map<string, InvoiceRow[]> = new Map();
-  private readonly batchSize: number;
-  private processedCount: number = 0;
+  private currentInvoice: { invoiceNo: string; rows: InvoiceRow[] } | null = null;
 
-  constructor(ctx: ImportContext, batchSize: number = 100) {
+  constructor(ctx: ImportContext) {
     super(ctx);
-    this.batchSize = batchSize;
   }
 
   async processRow(row: InvoiceRow): Promise<void> {
-    const stats = this.ctx.stats;
-    const invoiceNo = row['Invoice No'];
-    
-    if (!invoiceNo) {
-      stats.warnings.push(`Skipping row: Missing Invoice Number`);
-      return;
-    }
-
-    // Collect rows for each invoice
-    const existingRows = this.pendingInvoices.get(invoiceNo) || [];
-    const isNewInvoice = existingRows.length === 0;
-    
-    existingRows.push(row);
-    this.pendingInvoices.set(invoiceNo, existingRows);
-
-    // Process batch if:
-    // 1. We've collected all rows for this invoice (detected by Total Amount), or
-    // 2. We've hit the batch size limit
-    const hasTotal = parseDecimal(row['Total Amount']) > 0;
-    if (hasTotal || this.pendingInvoices.size >= this.batchSize) {
-      if (hasTotal) {
-        // Process just this invoice
-        await this.processInvoice(invoiceNo, existingRows);
-        this.pendingInvoices.delete(invoiceNo);
-      } else {
-        // Process all complete invoices in the current batch
-        await this.processBatch();
+    try {
+      const stats = this.ctx.stats;
+      const invoiceNo = row['Invoice No'];
+      
+      if (!invoiceNo) {
+        stats.warnings.push(`Skipping row: Missing Invoice Number`);
+        return;
       }
-    }
-  }
 
-  private async processBatch(): Promise<void> {
-    for (const [invoiceNo, rows] of this.pendingInvoices.entries()) {
-      // Check if we have found a total amount row for this invoice
-      const hasTotal = rows.some(row => parseDecimal(row['Total Amount']) > 0);
-      if (hasTotal) {
-        await this.processInvoice(invoiceNo, rows);
-        this.pendingInvoices.delete(invoiceNo);
+      // If this is a new invoice, process the previous one first
+      if (this.currentInvoice && this.currentInvoice.invoiceNo !== invoiceNo) {
+        await this.processInvoice(this.currentInvoice.invoiceNo, this.currentInvoice.rows);
+        this.currentInvoice = null;
       }
+
+      // Initialize or add to current invoice
+      if (!this.currentInvoice) {
+        this.currentInvoice = {
+          invoiceNo,
+          rows: []
+        };
+      }
+      this.currentInvoice.rows.push(row);
+
+    } catch (error: any) {
+      const errorMessage = error?.message || 'Unknown error';
+      this.ctx.stats.warnings.push(`Unexpected error processing row: ${errorMessage}`);
+      // Clear current invoice on error
+      this.currentInvoice = null;
     }
   }
 
@@ -120,35 +107,29 @@ export class InvoiceProcessor extends BaseOrderProcessor {
   }
 
   async finalize(): Promise<void> {
-    // Process any remaining invoices
-    await this.processBatch();
-    
-    // If any invoices are left without totals, log warnings
-    for (const [invoiceNo, rows] of this.pendingInvoices.entries()) {
-      this.ctx.stats.warnings.push(`Invoice ${invoiceNo}: No row has a total amount`);
+    try {
+      // Process the last invoice if there is one
+      if (this.currentInvoice) {
+        await this.processInvoice(this.currentInvoice.invoiceNo, this.currentInvoice.rows);
+        this.currentInvoice = null;
+      }
+    } catch (error: any) {
+      const errorMessage = error?.message || 'Unknown error';
+      this.ctx.stats.warnings.push(`Failed to process final invoice: ${errorMessage}`);
     }
-    
-    // Clear any remaining pending invoices
-    this.pendingInvoices.clear();
   }
 
   private async processInvoice(invoiceNo: string, rows: InvoiceRow[]): Promise<void> {
     const stats = this.ctx.stats;
     
-    // Find rows with total amounts
-    const rowsWithTotal = rows.filter(row => parseDecimal(row['Total Amount']) > 0);
+    // Use first row as primary since CSV is sorted
+    const primaryRow = rows[0];
     
-    if (rowsWithTotal.length === 0) {
-      stats.warnings.push(`Invoice ${invoiceNo}: No row has a total amount`);
+    // Validate total amount
+    if (parseDecimal(primaryRow['Total Amount']) <= 0) {
+      stats.warnings.push(`Invoice ${invoiceNo}: Invalid total amount`);
       return;
     }
-    
-    if (rowsWithTotal.length > 1) {
-      stats.warnings.push(`Invoice ${invoiceNo}: Multiple rows have total amounts`);
-      return;
-    }
-
-    const primaryRow = rowsWithTotal[0];
     const customerName = primaryRow['Customer'];
 
     if (!customerName) {

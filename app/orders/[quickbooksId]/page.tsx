@@ -1,6 +1,8 @@
 import { Card } from "@/components/ui/card"
 import { getOrderByQuickbooksId } from "@/lib/orders"
 import { formatCurrency } from "@/lib/utils"
+import { AlertTriangle } from "lucide-react"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import Link from "next/link"
 
 interface OrderPageProps {
@@ -12,6 +14,20 @@ export default async function OrderPage({
 }: OrderPageProps) {
   const resolvedParams = await params
   const order = await getOrderByQuickbooksId(resolvedParams.quickbooksId)
+  
+  // Calculate total from items
+  const calculatedTotal = order.items.reduce((sum, item) => sum + item.amount, 0)
+  
+  // Calculate percentage difference
+  const percentageDiff = Math.abs((calculatedTotal - order.totalAmount) / order.totalAmount * 100)
+  
+  // Determine amount style based on difference
+  const getAmountStyle = () => {
+    if (percentageDiff <= 1) {
+      return "text-green-600"
+    }
+    return percentageDiff <= 5 ? "" : "text-yellow-600"
+  }
 
   return (
     <div className="p-8 space-y-6">
@@ -40,6 +56,30 @@ export default async function OrderPage({
         <Card className="p-6">
           <h2 className="font-semibold mb-4">Order Details</h2>
           <dl className="space-y-2">
+            <div className="flex justify-between items-center">
+              <dt className="text-gray-500">Amount</dt>
+              <dd className="flex items-center gap-2">
+                <span className={getAmountStyle()}>
+                  {formatCurrency(order.totalAmount)}
+                </span>
+                {percentageDiff > 5 && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Order total differs from sum of items by {percentageDiff.toFixed(1)}%</p>
+                        <p className="text-xs mt-1">
+                          Order total: {formatCurrency(order.totalAmount)}<br/>
+                          Items total: {formatCurrency(calculatedTotal)}
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </dd>
+            </div>
             <div className="flex justify-between">
               <dt className="text-gray-500">Status</dt>
               <dd>{order.status}</dd>
