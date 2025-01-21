@@ -160,6 +160,7 @@ model Order {
   
   poNumber        String?
   quickbooksId    String?
+  class           String?
 
   @@index([customerId]) // Customer's orders lookup
   @@index([orderDate]) // Date range queries

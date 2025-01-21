@@ -1,14 +1,16 @@
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { PaymentMethodCard } from "@/components/dashboard/payment-method-card"
+import { ClassCard } from "@/components/dashboard/class-card"
 import { RecentOrders } from "@/components/dashboard/recent-orders"
 import { formatCurrency } from "@/lib/utils"
 import { DollarSign, ShoppingCart } from "lucide-react"
-import { getOrderMetrics, getPaymentMethodMetrics, getRecentOrders } from "@/lib/dashboard"
+import { getOrderMetrics, getPaymentMethodMetrics, getClassMetrics, getRecentOrders } from "@/lib/dashboard"
 
 export default async function Home() {
-  const [metrics, paymentMetrics, recentOrders] = await Promise.all([
+  const [metrics, paymentMetrics, classMetrics, recentOrders] = await Promise.all([
     getOrderMetrics(),
     getPaymentMethodMetrics(),
+    getClassMetrics(),
     getRecentOrders()
   ])
   
@@ -47,10 +49,9 @@ export default async function Home() {
             />
       </div>
 
-      <div className="mt-4">
-        <div className="md:w-1/2">
-          <PaymentMethodCard metrics={paymentMetrics} />
-        </div>
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <PaymentMethodCard metrics={paymentMetrics} />
+        <ClassCard metrics={classMetrics} />
       </div>
 
       <div className="mt-4">

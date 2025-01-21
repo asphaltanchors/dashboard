@@ -234,6 +234,7 @@ export class InvoiceProcessor extends BaseOrderProcessor {
       shippingMethod: primaryRow['Shipping Method'] || null,
       modifiedAt: modifiedDate,
       quickbooksId: primaryRow['QuickBooks Internal Id'],
+      class: primaryRow['Product/Service Class'] || null,
       sourceData: primaryRow,
     };
 

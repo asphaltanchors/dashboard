@@ -165,6 +165,25 @@ export class SalesReceiptProcessor extends BaseOrderProcessor {
     };
   }
 
+  private determineClass(orderNumber: string, customerName: string): string | null {
+    // Check for eStore pattern: 3D- followed by 4-5 digits
+    if (/^3D-\d{4,5}$/.test(orderNumber)) {
+      return 'eStore';
+    }
+    
+    // Check for Amazon pattern: XXX-XXXXXXX (where X is any character, not just uppercase letters)
+    if (/^[A-Z0-9]{3}-\d{7}$/.test(orderNumber)) {
+      if (customerName.includes('Amazon FBA')) {
+        return 'Amazon FBA';
+      }
+      if (customerName.includes('Amazon')) {
+        return 'Amazon Direct';
+      }
+    }
+    
+    return null;
+  }
+
   private async processReceipt(quickbooksId: string, rows: SalesReceiptRow[]): Promise<void> {
     const stats = this.ctx.stats;
     
@@ -266,6 +285,7 @@ export class SalesReceiptProcessor extends BaseOrderProcessor {
       shippingMethod: primaryRow['Shipping Method'] || null,
       modifiedAt: modifiedDate,
       quickbooksId,
+      class: this.determineClass(primaryRow['Sales Receipt No'], customerName),
       sourceData: primaryRow,
     };
 

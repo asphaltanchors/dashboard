@@ -148,6 +148,42 @@ export async function getPaymentMethodMetrics() {
     .sort((a, b) => b.amount - a.amount)
 }
 
+export async function getClassMetrics() {
+  const today = new Date()
+  const twelveMonthsAgo = new Date(today)
+  twelveMonthsAgo.setFullYear(today.getFullYear() - 1)
+
+  const orders = await prisma.order.findMany({
+    where: {
+      orderDate: {
+        gte: twelveMonthsAgo
+      },
+      class: {
+        not: null
+      }
+    },
+    select: {
+      totalAmount: true,
+      class: true,
+      orderNumber: true,
+      orderDate: true
+    }
+  })
+
+  const metrics = orders.reduce((acc: { [key: string]: number }, order) => {
+    const className = order.class || 'Unclassified'
+    acc[className] = (acc[className] || 0) + Number(order.totalAmount.toString())
+    return acc
+  }, {})
+
+  return Object.entries(metrics)
+    .map(([className, amount]) => ({
+      class: className,
+      amount
+    }))
+    .sort((a, b) => b.amount - a.amount)
+}
+
 export async function getRecentOrders() {
   return await prisma.order.findMany({
     take: 10,
