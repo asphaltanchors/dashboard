@@ -23,9 +23,12 @@ async function importSalesReceipts(filePath: string, debug: boolean, options: { 
     stats,
   };
 
-  const processor = new SalesReceiptProcessor(ctx);
+  const processor = new SalesReceiptProcessor(ctx, 100); // Process in batches of 100
   const parser = await createCsvParser(filePath, options.skipLines);
   await processImport(ctx, parser, (row) => processor.processRow(row));
+  
+  // Process any remaining receipts
+  await processor.finalize();
 
   // Log additional statistics
   console.log(`- Orders created: ${stats.ordersCreated}`);
