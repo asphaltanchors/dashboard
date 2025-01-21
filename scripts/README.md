@@ -63,6 +63,22 @@ You can combine multiple runtime flags:
 pnpx tsx --expose-gc --max-old-space-size=4096 scripts/import-salesreceipt.ts
 ```
 
+### Import Processing Approaches
+
+The import scripts use different approaches for invoices and sales receipts due to differences in how QuickBooks exports the data:
+
+#### Invoice Import
+- Uses the Total Amount field to identify the primary row for each invoice
+- Each invoice has one row with the total amount, which contains the header information
+- Other rows for the same invoice have line item details but no total amount
+- This approach works because QuickBooks only puts the total on one row
+
+#### Sales Receipt Import
+- Uses the first row of each receipt as the primary row since the CSV is pre-sorted
+- All rows (including line items) contain the total amount
+- Line items are processed from all non-shipping/tax rows
+- This approach is more efficient since it doesn't need to scan for total amounts
+
 ### Memory Usage
 
 The import scripts are designed to handle large datasets efficiently by:
