@@ -125,19 +125,28 @@ export async function createCsvParser(filePath: string, skipLines?: number) {
     console.log(`Reading header row then skipping ${skipLines} lines`);
   }
   
+  const fileStream = createReadStream(filePath);
   const parser = parse({
     columns: true,
     skip_empty_lines: true,
     on_record: (record, { lines }) => {
-      // Skip the specified number of lines after the header
       if (skipLines && lines > 1 && lines <= skipLines + 1) {
-        return null; // Returning null skips this record
+        return null;
       }
       return record;
     }
   });
 
-  return createReadStream(filePath).pipe(parser);
+  // Handle cleanup on errors
+  parser.on('error', () => {
+    fileStream.destroy();
+  });
+
+  fileStream.on('error', () => {
+    parser.destroy();
+  });
+
+  return fileStream.pipe(parser);
 }
 
 export function setupImportCommand(
@@ -178,18 +187,40 @@ export async function processImport<T>(
 
   try {
     for await (const row of parser) {
-      // Process each record in its own transaction
-      await ctx.prisma.$transaction(
-        async (tx) => {
-          await processFn(row);
-        },
-        {
-          timeout: 30000, // 30 second timeout per record
-          maxWait: 5000, // 5 seconds max wait for transaction to start
+      let attempts = 0;
+      const maxAttempts = 3;
+      let lastError: Error | null = null;
+      
+      while (attempts < maxAttempts) {
+        try {
+          await ctx.prisma.$transaction(
+            async (tx) => {
+              await processFn(row);
+            },
+            {
+              timeout: 60000, // 60 second timeout per record
+              maxWait: 10000, // 10 seconds max wait for transaction to start
+            }
+          );
+          break; // Success, exit retry loop
+        } catch (error) {
+          attempts++;
+          lastError = error as Error;
+          
+          if (attempts < maxAttempts) {
+            // Exponential backoff between retries
+            const delay = Math.pow(2, attempts) * 1000;
+            console.log(`Attempt ${attempts} failed, retrying in ${delay/1000}s...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
         }
-      );
+      }
 
-      ctx.stats.processed++; // Increment the counter after successful processing
+      if (lastError && attempts === maxAttempts) {
+        throw new Error(`Failed after ${maxAttempts} attempts: ${lastError.message}`);
+      }
+
+      ctx.stats.processed++;
 
       // Show progress every 100 records or if 5 seconds have passed
       const now = Date.now();
@@ -210,5 +241,8 @@ export async function processImport<T>(
   } catch (error) {
     console.error('Import failed:', error);
     throw error;
+  } finally {
+    // Ensure Prisma connection is properly closed
+    await ctx.prisma.$disconnect();
   }
 }

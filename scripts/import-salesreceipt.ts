@@ -4,9 +4,22 @@ import { OrderImportStats } from './shared/order-types';
 import { createCsvParser, processImport, setupImportCommand } from './shared/utils';
 import { SalesReceiptProcessor } from './processors/sales-receipt-processor';
 
-const prisma = new PrismaClient();
+// Initialize Prisma with recommended settings for large imports
+const prisma = new PrismaClient({
+  log: ['warn', 'error'],
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL
+    }
+  }
+});
 
 async function importSalesReceipts(filePath: string, debug: boolean, options: { skipLines?: number }) {
+  // Enable garbage collection for better memory management
+  if (!global.gc) {
+    console.log('Garbage collection is not exposed. Run with --expose-gc flag for better memory management.');
+  }
+
   const stats: OrderImportStats = {
     processed: 0,
     ordersCreated: 0,
