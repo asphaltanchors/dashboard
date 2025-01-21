@@ -3,13 +3,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { notFound } from "next/navigation"
 
 interface PageProps {
-  params: {
+  params: Promise<{
     id: string
-  }
-  searchParams: { [key: string]: string | string[] | undefined }
+  }>
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }
 
-export default async function CompanyPage({ params }: PageProps) {
+export default async function CompanyPage(props: PageProps) {
+  const params = await props.params;
   const company = await prisma.company.findUnique({
     where: { id: params.id },
     select: {

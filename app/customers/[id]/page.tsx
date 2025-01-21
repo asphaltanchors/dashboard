@@ -2,11 +2,12 @@ import { prisma } from "@/lib/prisma"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { notFound } from "next/navigation"
 
-export default async function CustomerPage({
-  params,
-}: {
-  params: { id: string }
-}) {
+export default async function CustomerPage(
+  props: {
+    params: Promise<{ id: string }>
+  }
+) {
+  const params = await props.params;
   const customer = await prisma.customer.findUnique({
     where: { id: params.id },
     select: {
