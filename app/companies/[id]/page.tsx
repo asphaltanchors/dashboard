@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { notFound } from "next/navigation"
+import { OrdersTable } from "@/components/orders/orders-table"
 
 interface PageProps {
   params: Promise<{
@@ -41,8 +42,13 @@ export default async function CompanyPage(props: PageProps) {
             select: {
               id: true,
               orderNumber: true,
+              orderDate: true,
+              status: true,
+              paymentStatus: true,
               totalAmount: true,
-              createdAt: true,
+              dueDate: true,
+              paymentMethod: true,
+              quickbooksId: true,
             },
           },
         },
@@ -243,6 +249,24 @@ export default async function CompanyPage(props: PageProps) {
               </div>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>All Orders</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <OrdersTable 
+            orders={company.customers.flatMap(customer => 
+              customer.orders.map(order => ({
+                ...order,
+                customerName: customer.customerName,
+                totalAmount: Number(order.totalAmount),
+                orderDate: order.orderDate || new Date(),
+              }))
+            )} 
+          />
         </CardContent>
       </Card>
     </div>

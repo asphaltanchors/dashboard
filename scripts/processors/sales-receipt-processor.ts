@@ -41,12 +41,10 @@ interface SalesReceiptRow {
 }
 
 export class SalesReceiptProcessor extends BaseOrderProcessor {
-  private pendingReceipts: Map<string, SalesReceiptRow[]> = new Map();
-  private readonly batchSize: number;
+  private currentReceipt: { quickbooksId: string; rows: SalesReceiptRow[] } | null = null;
 
-  constructor(ctx: ImportContext, batchSize: number = 100) {
+  constructor(ctx: ImportContext) {
     super(ctx);
-    this.batchSize = batchSize;
   }
 
   async processRow(row: SalesReceiptRow): Promise<void> {
@@ -59,90 +57,51 @@ export class SalesReceiptProcessor extends BaseOrderProcessor {
         return;
       }
 
-      // Collect rows for each receipt
-      const existingRows = this.pendingReceipts.get(quickbooksId) || [];
-      existingRows.push(row);
-      this.pendingReceipts.set(quickbooksId, existingRows);
-
-      // Process batch if:
-      // 1. We've collected all rows for this receipt (detected by Total Amount), or
-      // 2. We've hit the batch size limit
-      const hasTotal = parseDecimal(row['Total Amount']) > 0;
-      if (hasTotal || this.pendingReceipts.size >= this.batchSize) {
-        try {
-          if (hasTotal) {
-            // Process just this receipt
-            await this.processReceipt(quickbooksId, existingRows);
-            this.pendingReceipts.delete(quickbooksId);
-          } else {
-            // Process all complete receipts in the current batch
-            await this.processBatch();
-          }
-
-          // Suggest garbage collection after processing significant chunks
-          if (stats.processed % 5000 === 0) {
-            global.gc?.();
-          }
-        } catch (error: any) {
-          const errorMessage = error?.message || 'Unknown error';
-          stats.warnings.push(`Error processing receipt ${quickbooksId}: ${errorMessage}`);
-          // Clean up the failed receipt to prevent memory leaks
-          this.pendingReceipts.delete(quickbooksId);
-        }
+      // If this is a new receipt, process the previous one first
+      if (this.currentReceipt && this.currentReceipt.quickbooksId !== quickbooksId) {
+        await this.processReceipt(this.currentReceipt.quickbooksId, this.currentReceipt.rows);
+        this.currentReceipt = null;
       }
+
+      // Initialize or add to current receipt
+      if (!this.currentReceipt) {
+        this.currentReceipt = {
+          quickbooksId,
+          rows: []
+        };
+      }
+      this.currentReceipt.rows.push(row);
+
+      if (this.ctx.debug && quickbooksId === '3A6FF-1715898545') {
+        console.log(`Receipt ${quickbooksId}:`);
+        console.log(`  - Product/Service: ${row['Product/Service']}`);
+        console.log(`  - Current rows: ${this.currentReceipt.rows.length}`);
+      }
+
     } catch (error: any) {
       const errorMessage = error?.message || 'Unknown error';
       this.ctx.stats.warnings.push(`Unexpected error processing row: ${errorMessage}`);
-      // Ensure we don't leak memory even on unexpected errors
-      this.pendingReceipts.clear();
-    }
-  }
-
-  private async processBatch(): Promise<void> {
-    try {
-      const entries = Array.from(this.pendingReceipts.entries());
-      for (const [quickbooksId, rows] of entries) {
-        // Check if we have found a total amount row for this receipt
-        const hasTotal = rows.some(row => parseDecimal(row['Total Amount']) > 0);
-        if (hasTotal) {
-          try {
-            await this.processReceipt(quickbooksId, rows);
-          } catch (error: any) {
-            const errorMessage = error?.message || 'Unknown error';
-            this.ctx.stats.warnings.push(`Failed to process receipt ${quickbooksId}: ${errorMessage}`);
-          } finally {
-            // Clean up memory regardless of success/failure
-            this.pendingReceipts.delete(quickbooksId);
-            
-            // Suggest garbage collection after processing large batches
-            if (this.ctx.stats.processed % 1000 === 0) {
-              global.gc?.();
-            }
-          }
-        }
-      }
-    } catch (error) {
-      // Clear all pending receipts on critical error to prevent memory leaks
-      this.pendingReceipts.clear();
-      throw error;
+      // Clear current receipt on error
+      this.currentReceipt = null;
     }
   }
 
   async finalize(): Promise<void> {
     try {
-      // Process any remaining receipts
-      await this.processBatch();
-      
-      // If any receipts are left without totals, log warnings
-      const remainingReceipts = Array.from(this.pendingReceipts.entries());
-      for (const [quickbooksId, rows] of remainingReceipts) {
-        this.ctx.stats.warnings.push(`Receipt ${quickbooksId}: No row has a total amount`);
-        // Clean up each remaining receipt after logging
-        this.pendingReceipts.delete(quickbooksId);
+      // Process the last receipt if there is one
+      if (this.currentReceipt) {
+        if (this.ctx.debug) {
+          console.log('\nProcessing final receipt in finalize():');
+          console.log(`  - QuickBooks ID: ${this.currentReceipt.quickbooksId}`);
+          console.log(`  - Row count: ${this.currentReceipt.rows.length}`);
+        }
+        await this.processReceipt(this.currentReceipt.quickbooksId, this.currentReceipt.rows);
+        this.currentReceipt = null;
       }
+    } catch (error: any) {
+      const errorMessage = error?.message || 'Unknown error';
+      this.ctx.stats.warnings.push(`Failed to process final receipt: ${errorMessage}`);
     } finally {
-      // Ensure pendingReceipts is cleared even if errors occur
-      this.pendingReceipts.clear();
       // Final garbage collection
       global.gc?.();
     }
@@ -187,20 +146,14 @@ export class SalesReceiptProcessor extends BaseOrderProcessor {
   private async processReceipt(quickbooksId: string, rows: SalesReceiptRow[]): Promise<void> {
     const stats = this.ctx.stats;
     
-    // Find rows with total amounts
-    const rowsWithTotal = rows.filter(row => parseDecimal(row['Total Amount']) > 0);
+    // Use first row as primary since CSV is sorted
+    const primaryRow = rows[0];
     
-    if (rowsWithTotal.length === 0) {
-      stats.warnings.push(`Receipt ${quickbooksId}: No row has a total amount`);
+    // Validate total amount
+    if (parseDecimal(primaryRow['Total Amount']) <= 0) {
+      stats.warnings.push(`Receipt ${quickbooksId}: Invalid total amount`);
       return;
     }
-    
-    if (rowsWithTotal.length > 1) {
-      stats.warnings.push(`Receipt ${quickbooksId}: Multiple rows have total amounts`);
-      return;
-    }
-
-    const primaryRow = rowsWithTotal[0];
     const customerName = primaryRow['Customer'];
 
     if (!customerName) {
@@ -208,21 +161,48 @@ export class SalesReceiptProcessor extends BaseOrderProcessor {
       return;
     }
 
-    // Process line items in smaller chunks to manage memory
+    // Create line items from all valid rows
+    if (this.ctx.debug && quickbooksId === '3A6FF-1715898545') {
+      console.log('\n=== START RECEIPT PROCESSING ===');
+      console.log(`Processing receipt ${quickbooksId}:`);
+      console.log(`Total rows to process: ${rows.length}`);
+      rows.forEach(row => {
+        console.log('\nRow details:');
+        console.log(`  - Product: ${row['Product/Service']}`);
+        console.log(`  - Description: ${row['Product/Service Description']}`);
+        console.log(`  - Quantity: ${row['Product/Service Quantity']}`);
+        console.log(`  - Rate: ${row['Product/Service Rate']}`);
+        console.log(`  - Amount: ${row['Product/Service Amount']}`);
+      });
+    }
+
     const lineItems: OrderItemData[] = [];
-    const chunkSize = 50; // Process line items in chunks of 50
-    
-    for (let i = 0; i < rows.length; i += chunkSize) {
-      const chunk = rows.slice(i, i + chunkSize);
-      const chunkItems = chunk
-        .map(row => this.createLineItem(row))
-        .filter((item): item is OrderItemData => item !== null);
-      lineItems.push(...chunkItems);
-      
-      // Allow GC to clean up the processed chunk
-      if (i > 0 && i % 200 === 0) {
-        global.gc?.();
+    for (const row of rows) {
+      if (this.ctx.debug && quickbooksId === '3A6FF-1715898545') {
+        console.log('\nProcessing row for line item:');
+        console.log(`  - Product/Service: ${row['Product/Service']}`);
+        console.log(`  - Is filtered product: ${['NJ Sales Tax', 'Shipping', 'Discount'].includes(row['Product/Service'])}`);
       }
+
+      const item = this.createLineItem(row);
+      if (item) {
+        if (this.ctx.debug && quickbooksId === '3A6FF-1715898545') {
+          console.log('  - Created line item:');
+          console.log(`    * Product Code: ${item.productCode}`);
+          console.log(`    * Description: ${item.description}`);
+          console.log(`    * Quantity: ${item.quantity}`);
+          console.log(`    * Unit Price: ${item.unitPrice}`);
+          console.log(`    * Amount: ${item.amount}`);
+        }
+        lineItems.push(item);
+      } else if (this.ctx.debug && quickbooksId === '3A6FF-1715898545') {
+        console.log('  - Row filtered out');
+      }
+    }
+
+    if (this.ctx.debug && quickbooksId === '3A6FF-1715898545') {
+      console.log(`\nFinal line items count: ${lineItems.length}`);
+      console.log('=== END RECEIPT PROCESSING ===\n');
     }
 
     // Process addresses from primary row
@@ -292,17 +272,8 @@ export class SalesReceiptProcessor extends BaseOrderProcessor {
     try {
       const order = await this.createOrUpdateOrder(orderData, existingOrder);
       
-      // Process order items in chunks to prevent memory spikes
-      const itemChunkSize = 100;
-      for (let i = 0; i < lineItems.length; i += itemChunkSize) {
-        const itemChunk = lineItems.slice(i, i + itemChunkSize);
-        await this.processOrderItems(order.id, itemChunk);
-        
-        // Allow GC to clean up processed items
-        if (i > 0 && i % 200 === 0) {
-          global.gc?.();
-        }
-      }
+      // Process all order items at once
+      await this.processOrderItems(order.id, lineItems);
 
       stats.processed++;
     } catch (error: any) {

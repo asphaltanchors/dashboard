@@ -1,6 +1,7 @@
 import { Card } from "@/components/ui/card"
 import { getOrderByQuickbooksId } from "@/lib/orders"
 import { formatCurrency } from "@/lib/utils"
+import Link from "next/link"
 
 interface OrderPageProps {
   params: Promise<{ quickbooksId: string }>
@@ -19,7 +20,14 @@ export default async function OrderPage({
           <h1 className="text-2xl font-bold mb-1">Order {order.orderNumber}</h1>
           <p className="text-sm text-gray-500">
             {order.customer.customerName}
-            {order.customer.company?.name && ` • ${order.customer.company.name}`}
+            {order.customer.company?.name && (
+              <>
+                {" • "}
+                <Link href={`/companies/${order.customer.company.id}`} className="text-gray-700 hover:underline transition-colors">
+                  {order.customer.company.name}
+                </Link>
+              </>
+            )}
           </p>
         </div>
         <div className="text-right">

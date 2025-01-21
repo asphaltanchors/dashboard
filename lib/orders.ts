@@ -70,6 +70,7 @@ export async function getOrderByQuickbooksId(quickbooksId: string) {
           customerName: true,
           company: {
             select: {
+              id: true,
               name: true
             }
           }

@@ -17,56 +17,58 @@ export abstract class BaseOrderProcessor {
       where: { orderId }
     });
 
-    // Create new items
+    // Create new items using a transaction to ensure data consistency
+    await this.ctx.prisma.$transaction(async (prisma) => {
+      for (const item of items) {
+        // Create or update product
+        const product = await prisma.product.upsert({
+          where: { productCode: item.productCode },
+          update: {
+            name: item.description || item.productCode,
+            description: item.description,
+            modifiedAt: new Date()
+          },
+          create: {
+            productCode: item.productCode,
+            name: item.description || item.productCode,
+            description: item.description,
+            createdAt: new Date(),
+            modifiedAt: new Date()
+          }
+        });
+
+        if (this.ctx.debug) {
+          console.log(`Upserted product: ${product.productCode} (${product.name})`);
+        }
+
+        // Create order item with guaranteed product reference
+        await prisma.orderItem.create({
+          data: {
+            orderId,
+            productCode: item.productCode,
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            amount: item.amount,
+            serviceDate: item.serviceDate
+          }
+        });
+
+        if (this.ctx.debug) {
+          console.log(`Created order item: ${item.productCode} (${item.quantity} @ ${item.unitPrice})`);
+        }
+      }
+    });
+
+    // Update stats after successful transaction
     for (const item of items) {
-      // Check if product exists first
       const existingProduct = await this.ctx.prisma.product.findUnique({
         where: { productCode: item.productCode }
       });
-
-      // Create or update product
-      const product = await this.ctx.prisma.product.upsert({
-        where: { productCode: item.productCode },
-        update: {
-          name: item.description || item.productCode,
-          description: item.description,
-          modifiedAt: new Date()
-        },
-        create: {
-          productCode: item.productCode,
-          name: item.description || item.productCode,
-          description: item.description,
-          createdAt: new Date(),
-          modifiedAt: new Date()
-        }
-      });
-
       if (existingProduct) {
         stats.productsUpdated++;
-        if (this.ctx.debug) {
-          console.log(`Updated product: ${product.productCode} (${product.name})`);
-        }
       } else {
         stats.productsCreated++;
-        if (this.ctx.debug) {
-          console.log(`Created product: ${product.productCode} (${product.name})`);
-        }
-      }
-
-      await this.ctx.prisma.orderItem.create({
-        data: {
-          orderId,
-          productCode: item.productCode,
-          description: item.description,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          amount: item.amount,
-          serviceDate: item.serviceDate
-        }
-      });
-
-      if (this.ctx.debug) {
-        console.log(`Created order item: ${item.productCode} (${item.quantity} @ ${item.unitPrice})`);
       }
     }
   }
