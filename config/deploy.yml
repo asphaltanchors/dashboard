@@ -6,7 +6,7 @@ image: teich/aacd
 
 # Deploy to these servers.
 servers:
-  - aac.giraffe-gamma.ts.net
+  - aac
 
 proxy:
   ssl: false
@@ -17,8 +17,7 @@ proxy:
 
 # Credentials for your image host.
 registry:
-  username: 
-    - KAMAL_REGISTRY_USERNAME
+  username: teich
   password:
     - KAMAL_REGISTRY_PASSWORD
 
@@ -27,7 +26,7 @@ builder:
   arch: amd64
   secrets:
     - DATABASE_URL
-  remote: ssh://root@aac.giraffe-gamma.ts.net
+  remote: ssh://root@aac
 
 env:
   secret:
