@@ -28,7 +28,7 @@ RUN corepack enable pnpm && pnpm dlx prisma generate
 
 RUN --mount=type=secret,id=DATABASE_URL \
     DATABASE_URL=$(cat /run/secrets/DATABASE_URL) \
-    corepack enable pnpm && pnpm run build; \
+    corepack enable pnpm && pnpm run build
 
 # Production image, copy all the files and run next
 FROM base AS runner
