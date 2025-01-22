@@ -284,9 +284,17 @@ class BatchCustomerProcessor {
   }): Promise<{ quickbooksId: string; pending: boolean }> {
     const { existingCustomerId, ...data } = record;
     
+    // Check if customer already exists
+    const existingCustomer = await this.prisma.customer.findUnique({
+      where: { quickbooksId: data.quickbooksId },
+      select: { id: true }
+    });
+
+    const isUpdate = !!existingCustomer;
+    
     this.batch.push({
       ...data,
-      isUpdate: !!existingCustomerId
+      isUpdate
     });
     
     if (this.batch.length >= this.batchSize) {

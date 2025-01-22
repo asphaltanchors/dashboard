@@ -65,19 +65,31 @@ pnpx tsx --expose-gc --max-old-space-size=4096 scripts/import-salesreceipt.ts
 
 ### Import Processing Approaches
 
-The import scripts use different approaches for invoices and sales receipts due to differences in how QuickBooks exports the data:
+Both invoice and sales receipt imports use a similar approach for handling multi-line orders:
+
+#### Common Processing Pattern
+- Groups all rows for each order by their identifier (Invoice No or QuickBooks ID)
+- Uses the first row of each group as the primary row containing header information
+- Processes line items from all rows, filtering out special rows (tax, shipping, etc.)
+- Maintains data integrity by processing orders one at a time
 
 #### Invoice Import
-- Uses the Total Amount field to identify the primary row for each invoice
-- Each invoice has one row with the total amount, which contains the header information
-- Other rows for the same invoice have line item details but no total amount
-- This approach works because QuickBooks only puts the total on one row
+- Groups rows by Invoice No
+- Processes line items from all rows except:
+  - Empty product lines
+  - Tax lines ('NJ Sales Tax')
+  - Shipping lines
+  - Handling Fee lines
+  - Discount lines
 
 #### Sales Receipt Import
-- Uses the first row of each receipt as the primary row since the CSV is pre-sorted
-- All rows (including line items) contain the total amount
-- Line items are processed from all non-shipping/tax rows
-- This approach is more efficient since it doesn't need to scan for total amounts
+- Groups rows by QuickBooks Internal Id
+- Processes line items from all rows except:
+  - Empty product lines
+  - Tax lines ('NJ Sales Tax')
+  - Shipping lines
+  - Discount lines
+- Automatically determines order class based on order number patterns (eStore, Amazon FBA, Amazon Direct)
 
 ### Memory Usage
 
