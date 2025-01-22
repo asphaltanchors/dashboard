@@ -36,9 +36,11 @@ async function importSalesReceipts(filePath: string, debug: boolean, options: { 
     stats,
   };
 
-  const processor = new SalesReceiptProcessor(ctx, 100); // Process in batches of 100
+  const processor = new SalesReceiptProcessor(ctx);
   const parser = await createCsvParser(filePath, options.skipLines);
-  await processImport(ctx, parser, (row) => processor.processRow(row));
+  await processImport(ctx, parser, async (row) => {
+    await processor.processRow(row);
+  });
   
   // Process any remaining receipts
   await processor.finalize();
@@ -51,8 +53,14 @@ async function importSalesReceipts(filePath: string, debug: boolean, options: { 
   console.log(`- Addresses created: ${stats.addressesCreated}`);
 }
 
-setupImportCommand(
-  'import-salesreceipt',
-  'Import sales receipt data from QuickBooks CSV export',
-  importSalesReceipts
-);
+// Export the main function for programmatic use
+export { importSalesReceipts };
+
+// Setup CLI command when run directly
+if (require.main === module) {
+  setupImportCommand(
+    'import-salesreceipt',
+    'Import sales receipt data from QuickBooks CSV export',
+    importSalesReceipts
+  );
+}

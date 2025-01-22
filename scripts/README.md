@@ -1,218 +1,99 @@
 # Import Scripts
 
-This directory contains TypeScript scripts for importing data from QuickBooks CSV exports into the database. The scripts use `tsx` (via `pnpx`) to execute TypeScript files directly without a separate compilation step.
+This directory contains scripts for importing data from various sources.
 
-## Available Scripts
+## Daily Import Process
 
-### Sales Receipt Import
-```bash
-pnpx tsx --expose-gc scripts/import-salesreceipt.ts <file> [options]
+The `process-daily-imports.ts` script handles automated daily imports of customer, invoice, and sales receipt data. It processes CSV files that are generated daily and maintains a history of imports.
+
+### Configuration
+
+Create a configuration file (e.g., `import-config.json`) with the following structure:
+
+```json
+{
+  "importDir": "/path/to/import/directory",
+  "archiveDir": "/path/to/archive/directory",
+  "failedDir": "/path/to/failed/directory",
+  "logDir": "/path/to/log/directory",
+  
+  "filePatterns": {
+    "customers": "Customer_\\d{2}_\\d{2}_\\d{4}_\\d{1,2}_\\d{2}_\\d{2}.csv",
+    "invoices": "Invoice_\\d{2}_\\d{2}_\\d{4}_\\d{1,2}_\\d{2}_\\d{2}.csv",
+    "salesReceipts": "Sales Receipt_\\d{2}_\\d{2}_\\d{4}_\\d{1,2}_\\d{2}_\\d{2}.csv"
+  },
+  
+  "retentionDays": 30,
+  "batchSize": 100,
+  "maxRetries": 3,
+  "debug": false
+}
 ```
 
-Options:
+### File Naming Convention
+
+Files should follow these naming patterns:
+- Customers: `Customer_MM_DD_YYYY_H_MM_SS.csv` (e.g., `Customer_01_20_2025_1_00_02.csv`)
+- Invoices: `Invoice_MM_DD_YYYY_H_MM_SS.csv` (e.g., `Invoice_01_20_2025_1_00_02.csv`)
+- Sales Receipts: `Sales Receipt_MM_DD_YYYY_H_MM_SS.csv` (e.g., `Sales Receipt_01_20_2025_1_00_02.csv`)
+
+### Directory Structure
+
+- `importDir`: Where new CSV files are placed
+- `archiveDir`: Successfully processed files are moved here
+- `failedDir`: Files that failed to process are moved here
+- `logDir`: Import logs are stored here
+
+### Running the Import
+
+```bash
+# Run manually
+node dist/scripts/process-daily-imports.js /path/to/import-config.json
+
+# Setup cron job (runs at 2 AM daily)
+0 2 * * * cd /path/to/project && /usr/local/bin/node dist/scripts/process-daily-imports.js /path/to/import-config.json
+```
+
+### Import Process
+
+1. Scans import directory for files matching patterns
+2. Processes files modified in the last 24 hours
+3. For each file:
+   - Validates CSV format
+   - Imports data using appropriate processor
+   - Moves file to archive or failed directory
+4. Generates import log with results
+5. Cleans up old files based on retention policy
+
+### Logging
+
+Import logs are stored in JSON format with the following information:
+- Date of import
+- Files processed
+- Success/failure status
+- Error messages
+- Import statistics
+
+### Error Handling
+
+- Failed imports don't stop the entire process
+- Files that fail to import are moved to the failed directory
+- Detailed error logs are generated
+- Process exits with code 1 if any imports fail
+
+### Individual Import Scripts
+
+The following scripts can also be run individually:
+
+- `import-customer.ts`: Import customer data
+- `import-invoice.ts`: Import invoice data
+- `import-salesreceipt.ts`: Import sales receipt data
+
+Each script accepts these options:
 - `-d, --debug`: Enable debug logging
-- `-s, --skip-lines <number>`: Skip first N lines of CSV file after header
+- `-s, --skip-lines <number>`: Skip first N lines of CSV file
 
-### Invoice Import
+Example:
 ```bash
-pnpx tsx --expose-gc scripts/import-invoice.ts <file> [options]
+node dist/scripts/import-customer.js customers.csv --debug
 ```
-
-Options:
-- `-d, --debug`: Enable debug logging
-
-### Customer Import
-```bash
-pnpx tsx --expose-gc scripts/import-customer.ts <file> [options]
-```
-
-Options:
-- `-d, --debug`: Enable debug logging
-
-## Prerequisites
-
-- pnpm installed (the project uses pnpm for package management)
-- Node.js 16 or higher
-- Database connection configured in environment
-
-## Memory Management
-
-### Node.js Runtime Flags with tsx
-
-The `--expose-gc` flag is a Node.js runtime flag that enables manual garbage collection. It must come BEFORE the script name because it configures how Node.js itself runs:
-
-```bash
-pnpx tsx [runtime flags] script.ts [script arguments]
-```
-
-For example:
-```bash
-# Correct:
-pnpx tsx --expose-gc scripts/import-salesreceipt.ts --debug
-
-# Incorrect:
-pnpx tsx scripts/import-salesreceipt.ts --expose-gc --debug
-```
-
-Other useful Node.js runtime flags:
-- `--max-old-space-size=4096`: Increase memory limit to 4GB
-- `--trace-gc`: Log when garbage collection occurs
-
-You can combine multiple runtime flags:
-```bash
-pnpx tsx --expose-gc --max-old-space-size=4096 scripts/import-salesreceipt.ts
-```
-
-### Import Processing Approaches
-
-Both invoice and sales receipt imports use a similar approach for handling multi-line orders:
-
-#### Common Processing Pattern
-- Groups all rows for each order by their identifier (Invoice No or QuickBooks ID)
-- Uses the first row of each group as the primary row containing header information
-- Processes line items from all rows, filtering out special rows (tax, shipping, etc.)
-- Maintains data integrity by processing orders one at a time
-
-#### Invoice Import
-- Groups rows by Invoice No
-- Processes line items from all rows except:
-  - Empty product lines
-  - Tax lines ('NJ Sales Tax')
-  - Shipping lines
-  - Handling Fee lines
-  - Discount lines
-
-#### Sales Receipt Import
-- Groups rows by QuickBooks Internal Id
-- Processes line items from all rows except:
-  - Empty product lines
-  - Tax lines ('NJ Sales Tax')
-  - Shipping lines
-  - Discount lines
-- Automatically determines order class based on order number patterns (eStore, Amazon FBA, Amazon Direct)
-
-### Memory Usage
-
-The import scripts are designed to handle large datasets efficiently by:
-- Processing records in batches
-- Cleaning up resources after each batch
-- Using manual garbage collection at strategic points
-
-If you encounter memory issues:
-1. Enable garbage collection with `--expose-gc`
-2. Increase memory limit if needed with `--max-old-space-size`
-3. Use debug mode (`-d`) to monitor processing
-4. For sales receipts, use `-s` to skip problematic rows if needed
-
-## CSV File Requirements
-
-### Sales Receipt Import
-- Required columns:
-  - QuickBooks Internal Id
-  - Sales Receipt No
-  - Customer
-  - Total Amount
-  - Product/Service details
-
-### Invoice Import
-- Required columns:
-  - QuickBooks Internal Id
-  - Invoice No
-  - Customer
-  - Total Amount
-  - Product/Service details
-
-### Customer Import
-- Required columns:
-  - QuickBooks Internal Id (unique identifier)
-  - Customer Name
-  - Company Name
-  - Main Email (used to determine company domain)
-  - Status
-  - Created Date
-  - Modified Date
-  - Address details:
-    - Billing Address (Line 1-3, City, State, Postal Code, Country)
-    - Shipping Address (Line 1-3, City, State, Postal Code, Country)
-  - Contact information:
-    - Main Email, CC Email
-    - Main Phone, Alt. Phone, Work Phone, Mobile
-  - Business details:
-    - Tax Code, Tax Item
-    - Resale No
-    - Credit Limit
-    - Terms
-
-#### Import Process and Order of Operations
-
-The customer import follows a specific order to maintain data integrity and handle relationships correctly:
-
-1. Companies Creation (First Pass)
-   - Extract domains from email addresses
-   - Create company records for unique domains
-   - Companies must exist before customers can reference them
-
-2. Addresses Processing (First Pass)
-   - Process billing and shipping addresses
-   - Create unique address records
-   - Handle identical billing/shipping addresses efficiently
-
-3. Customer Creation (Second Pass)
-   - Create customer records with:
-     - References to existing companies (via domain)
-     - References to created addresses
-   - Must happen after companies exist to maintain foreign key constraints
-
-4. Contact Information (Final Pass)
-   - Process emails and phones
-   - Link to created customers
-   - Handle primary/secondary designations
-
-This strict ordering ensures that:
-- All foreign key relationships are valid
-- Data integrity is maintained
-- Batch processing remains efficient
-
-Common issues:
-- Foreign key violations: Usually means the import order was not followed
-- Missing relationships: Check if companies were created successfully
-- Duplicate records: Verify unique constraints in the CSV data
-
-## Examples
-
-Import sales receipts with debug logging:
-```bash
-pnpx tsx --expose-gc scripts/import-salesreceipt.ts data.csv -d
-```
-
-Import invoices with increased memory:
-```bash
-pnpx tsx --expose-gc --max-old-space-size=4096 scripts/import-invoice.ts data.csv
-```
-
-Skip first 100 rows in sales receipt import:
-```bash
-pnpx tsx --expose-gc scripts/import-salesreceipt.ts data.csv -s 100
-```
-
-## Troubleshooting
-
-1. Random failures with large datasets:
-   - Ensure you're using the `--expose-gc` flag
-   - Try increasing memory with `--max-old-space-size`
-   - Use debug mode to identify where failures occur
-
-2. Import seems stuck:
-   - Use debug mode (-d) to see detailed progress
-   - Check CPU and memory usage
-   - Consider processing in smaller batches
-
-3. Data validation errors:
-   - Check CSV format matches requirements
-   - Look for special characters or encoding issues
-   - Verify required columns are present
-
-4. Memory leaks:
-   - The scripts implement automatic cleanup
-   - Manual garbage collection is triggered at strategic points
-   - Monitor memory usage with debug mode

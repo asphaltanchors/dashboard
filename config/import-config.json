@@ -1,0 +1,17 @@
+{
+  "importDir": "/var/import/quickbooks",
+  "archiveDir": "/var/import/quickbooks/archive",
+  "failedDir": "/var/import/quickbooks/failed",
+  "logDir": "/var/log/quickbooks-import",
+  
+  "filePatterns": {
+    "customers": "Customer_\\d{2}_\\d{2}_\\d{4}_\\d{1,2}_\\d{2}_\\d{2}.csv",
+    "invoices": "Invoice_\\d{2}_\\d{2}_\\d{4}_\\d{1,2}_\\d{2}_\\d{2}.csv",
+    "salesReceipts": "Sales Receipt_\\d{2}_\\d{2}_\\d{4}_\\d{1,2}_\\d{2}_\\d{2}.csv"
+  },
+  
+  "retentionDays": 30,
+  "batchSize": 100,
+  "maxRetries": 3,
+  "debug": false
+}

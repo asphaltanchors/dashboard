@@ -6,7 +6,7 @@ import { InvoiceProcessor } from './processors/invoice-processor';
 
 const prisma = new PrismaClient();
 
-async function importInvoices(filePath: string, debug: boolean) {
+async function importInvoices(filePath: string, debug: boolean, options: { skipLines?: number }) {
   const stats: OrderImportStats = {
     processed: 0,
     ordersCreated: 0,
@@ -23,9 +23,11 @@ async function importInvoices(filePath: string, debug: boolean) {
     stats,
   };
 
-  const processor = new InvoiceProcessor(ctx, 100); // Process in batches of 100
-  const parser = await createCsvParser(filePath);
-  await processImport(ctx, parser, (row) => processor.processRow(row));
+  const processor = new InvoiceProcessor(ctx);
+  const parser = await createCsvParser(filePath, options.skipLines);
+  await processImport(ctx, parser, async (row) => {
+    await processor.processRow(row);
+  });
   
   // Process collected invoices
   await processor.finalize();
@@ -38,8 +40,14 @@ async function importInvoices(filePath: string, debug: boolean) {
   console.log(`- Addresses created: ${stats.addressesCreated}`);
 }
 
-setupImportCommand(
-  'import-invoice',
-  'Import invoice data from CSV export',
-  importInvoices
-);
+// Export the main function for programmatic use
+export { importInvoices };
+
+// Setup CLI command when run directly
+if (require.main === module) {
+  setupImportCommand(
+    'import-invoice',
+    'Import invoice data from CSV export',
+    importInvoices
+  );
+}

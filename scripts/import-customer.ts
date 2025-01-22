@@ -509,7 +509,7 @@ function formatPhone(phone: string): string {
     .trim();
 }
 
-async function importCustomers(filePath: string, debug: boolean) {
+async function importCustomers(filePath: string, debug: boolean, options: { skipLines?: number }) {
   const stats: CustomerImportStats = {
     processed: 0,
     companiesCreated: 0,
@@ -744,8 +744,14 @@ async function processFlush(ctx: CustomerImportContext) {
   ctx.pendingContactInfo.clear();
 }
 
-setupImportCommand(
-  'import-customer',
-  'Import customer data from QuickBooks CSV export',
-  importCustomers
-);
+// Export the main function for programmatic use
+export { importCustomers };
+
+// Setup CLI command when run directly
+if (require.main === module) {
+  setupImportCommand(
+    'import-customer',
+    'Import customer data from QuickBooks CSV export',
+    importCustomers
+  );
+}
