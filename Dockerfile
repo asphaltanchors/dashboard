@@ -26,12 +26,9 @@ COPY . .
 
 RUN corepack enable pnpm && pnpm dlx prisma generate
 
-RUN \
-    if [ -f yarn.lock ]; then yarn run build; \
-    elif [ -f package-lock.json ]; then npm run build; \
-    elif [ -f pnpm-lock.yaml ]; then corepack enable pnpm && pnpm run build; \
-    else echo "Lockfile not found." && exit 1; \
-    fi
+RUN --mount=type=secret,id=DATABASE_URL \
+    DATABASE_URL=$(cat /run/secrets/DATABASE_URL) \
+    corepack enable pnpm && pnpm run build; \
 
 # Production image, copy all the files and run next
 FROM base AS runner
