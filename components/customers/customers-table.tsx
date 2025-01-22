@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useState, useCallback, useTransition } from "react"
 import Link from "next/link"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -8,21 +8,81 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { Customer } from "@/lib/customers"
 import { ChevronLeft, ChevronRight } from "lucide-react"
+import { useRouter, useSearchParams, usePathname } from "next/navigation"
+import debounce from "lodash/debounce"
+import { fetchCustomers } from "@/app/actions/data"
 
-interface CustomersTableProps {
+interface TableData {
   customers: Customer[]
+  totalCount: number
+  recentCount: number
 }
 
-export function CustomersTable({ customers }: CustomersTableProps) {
-  const [page, setPage] = useState(1)
-  const pageSize = 10
-  const [searchTerm, setSearchTerm] = useState("")
+interface CustomersTableProps {
+  initialCustomers: TableData
+}
 
-  const filteredCustomers = customers.filter((customer) =>
-    customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customer.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customer.email.toLowerCase().includes(searchTerm.toLowerCase())
+export function CustomersTable({ initialCustomers }: CustomersTableProps) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  
+  const [data, setData] = useState<TableData>(initialCustomers)
+  const [isPending, startTransition] = useTransition()
+  const [searchValue, setSearchValue] = useState(searchParams.get("search") || "")
+  
+  const page = Number(searchParams.get("page")) || 1
+  const pageSize = 10
+  const searchTerm = searchParams.get("search") || ""
+  const sortColumn = searchParams.get("sort") || "customerName"
+  const sortDirection = (searchParams.get("dir") as "asc" | "desc") || "asc"
+
+  const createQueryString = useCallback(
+    (params: Record<string, string | number | null>) => {
+      const newSearchParams = new URLSearchParams(searchParams.toString())
+      
+      Object.entries(params).forEach(([key, value]) => {
+        if (value === null) {
+          newSearchParams.delete(key)
+        } else {
+          newSearchParams.set(key, String(value))
+        }
+      })
+      
+      return newSearchParams.toString()
+    },
+    [searchParams]
   )
+
+  const refreshData = useCallback(async () => {
+    startTransition(async () => {
+      try {
+        const newData = await fetchCustomers({
+          page,
+          searchTerm,
+          sortColumn,
+          sortDirection,
+        })
+        setData(newData)
+      } catch (error) {
+        console.error("Failed to fetch customers:", error)
+      }
+    })
+  }, [page, searchTerm, sortColumn, sortDirection])
+
+  React.useEffect(() => {
+    refreshData()
+  }, [refreshData])
+
+  const debouncedSearch = debounce((value: string) => {
+    router.replace(
+      `${pathname}?${createQueryString({
+        search: value || null,
+        page: 1,
+      })}`,
+      { scroll: false }
+    )
+  }, 300)
 
   return (
     <Card>
@@ -34,11 +94,20 @@ export function CustomersTable({ customers }: CustomersTableProps) {
           <Input
             type="text"
             placeholder="Search by name, company, or email..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            value={searchValue}
+            onChange={(e) => {
+              setSearchValue(e.target.value)
+              debouncedSearch(e.target.value)
+            }}
           />
         </div>
-        <Table>
+        <div className="relative">
+          {isPending && (
+            <div className="absolute inset-0 bg-white/50 flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+            </div>
+          )}
+          <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
@@ -51,9 +120,7 @@ export function CustomersTable({ customers }: CustomersTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredCustomers
-              .slice((page - 1) * pageSize, page * pageSize)
-              .map((customer) => (
+            {data.customers.map((customer) => (
               <TableRow key={customer.id}>
                 <TableCell>
                   <Link 
@@ -94,18 +161,23 @@ export function CustomersTable({ customers }: CustomersTableProps) {
             ))}
           </TableBody>
         </Table>
-        {filteredCustomers.length === 0 && (
+        {data.customers.length === 0 && (
           <p className="text-center text-gray-500 mt-4">No customers found.</p>
         )}
         <div className="flex items-center justify-between mt-4">
           <p className="text-sm text-gray-500">
-            Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, filteredCustomers.length)} of {filteredCustomers.length} customers
+            Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, data.totalCount)} of {data.totalCount} customers
           </p>
           <div className="flex gap-2">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setPage(page - 1)}
+              onClick={() => router.replace(
+                `${pathname}?${createQueryString({
+                  page: page - 1,
+                })}`,
+                { scroll: false }
+              )}
               disabled={page <= 1}
             >
               <ChevronLeft className="h-4 w-4" />
@@ -113,12 +185,18 @@ export function CustomersTable({ customers }: CustomersTableProps) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setPage(page + 1)}
-              disabled={page * pageSize >= filteredCustomers.length}
+              onClick={() => router.replace(
+                `${pathname}?${createQueryString({
+                  page: page + 1,
+                })}`,
+                { scroll: false }
+              )}
+              disabled={page * pageSize >= data.totalCount}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
+        </div>
         </div>
       </CardContent>
     </Card>

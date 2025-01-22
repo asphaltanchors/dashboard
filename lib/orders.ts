@@ -1,7 +1,62 @@
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 
-export async function getOrders() {
+interface GetOrdersParams {
+  page?: number
+  pageSize?: number
+  searchTerm?: string
+  sortColumn?: string
+  sortDirection?: 'asc' | 'desc'
+}
+
+export async function getOrders({
+  page = 1,
+  pageSize = 10,
+  searchTerm = '',
+  sortColumn = 'orderDate',
+  sortDirection = 'desc'
+}: GetOrdersParams = {}) {
+  // Calculate pagination
+  const skip = (page - 1) * pageSize
+
+  // Build where clause for search
+  const where = searchTerm ? {
+    OR: [
+      { orderNumber: { contains: searchTerm, mode: 'insensitive' as const } },
+      { 
+        customer: {
+          is: {
+            customerName: { contains: searchTerm, mode: 'insensitive' as const }
+          }
+        } 
+      }
+    ]
+  } : {}
+
+  // Build order by object dynamically
+  let orderBy: any = {}
+  if (sortColumn === 'customerName') {
+    orderBy = {
+      customer: {
+        customerName: sortDirection
+      }
+    }
+  } else if (sortColumn === 'orderDate') {
+    orderBy = { orderDate: sortDirection }
+  } else if (sortColumn === 'orderNumber') {
+    orderBy = { orderNumber: sortDirection }
+  } else if (sortColumn === 'status') {
+    orderBy = { status: sortDirection }
+  } else if (sortColumn === 'paymentStatus') {
+    orderBy = { paymentStatus: sortDirection }
+  } else if (sortColumn === 'totalAmount') {
+    orderBy = { totalAmount: sortDirection }
+  } else if (sortColumn === 'dueDate') {
+    orderBy = { dueDate: sortDirection }
+  } else if (sortColumn === 'paymentMethod') {
+    orderBy = { paymentMethod: sortDirection }
+  }
+
   const [orders, totalCount, recentCount] = await Promise.all([
     prisma.order.findMany({
       select: {
@@ -20,16 +75,24 @@ export async function getOrders() {
         paymentMethod: true,
         quickbooksId: true,
       },
-      orderBy: {
-        orderDate: "desc",
-      },
+      where,
+      orderBy,
+      skip,
+      take: pageSize,
     }),
-    prisma.order.count(),
+    prisma.order.count({
+      where
+    }),
     prisma.order.count({
       where: {
-        orderDate: {
-          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // Last 30 days
-        }
+        AND: [
+          where,
+          {
+            orderDate: {
+              gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // Last 30 days
+            }
+          }
+        ]
       }
     })
   ])

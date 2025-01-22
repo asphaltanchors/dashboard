@@ -1,35 +1,87 @@
 import { prisma } from "./prisma"
 
-export async function getCompanies() {
+interface GetCompaniesParams {
+  page?: number
+  pageSize?: number
+  searchTerm?: string
+  sortColumn?: string
+  sortDirection?: 'asc' | 'desc'
+}
+
+export async function getCompanies({
+  page = 1,
+  pageSize = 10,
+  searchTerm = '',
+  sortColumn = 'domain',
+  sortDirection = 'asc'
+}: GetCompaniesParams = {}) {
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-  const companies = await prisma.company.findMany({
-    select: {
-      id: true,
-      domain: true,
-      name: true,
-      enriched: true,
-      enrichedAt: true,
-      enrichedSource: true,
-      customers: {
-        select: {
-          id: true,
-          orders: {
-            select: {
-              totalAmount: true
+  // Calculate pagination
+  const skip = (page - 1) * pageSize
+
+  // Build where clause for search
+  const where = searchTerm ? {
+    OR: [
+      { name: { contains: searchTerm, mode: 'insensitive' as const } },
+      { domain: { contains: searchTerm, mode: 'insensitive' as const } }
+    ]
+  } : {}
+
+  // Build order by object
+  let orderBy: any = {}
+  if (sortColumn === 'name') {
+    orderBy = { name: sortDirection }
+  } else if (sortColumn === 'domain') {
+    orderBy = { domain: sortDirection }
+  } else if (sortColumn === 'enrichedAt') {
+    orderBy = { enrichedAt: sortDirection }
+  } else if (sortColumn === 'enriched') {
+    orderBy = { enriched: sortDirection }
+  }
+
+  const [companies, totalCount, recentCount] = await Promise.all([
+    prisma.company.findMany({
+      skip,
+      take: pageSize,
+      where,
+      orderBy,
+      select: {
+        id: true,
+        domain: true,
+        name: true,
+        enriched: true,
+        enrichedAt: true,
+        enrichedSource: true,
+        customers: {
+          select: {
+            id: true,
+            orders: {
+              select: {
+                totalAmount: true
+              }
             }
           }
         }
       }
-    },
-    orderBy: {
-      domain: 'asc',
-    },
-  })
-
-  const totalCount = companies.length;
-  const recentCount = companies.filter(company => company.enrichedAt && company.enrichedAt > thirtyDaysAgo).length;
+    }),
+    prisma.company.count({
+      where
+    }),
+    prisma.company.count({
+      where: {
+        AND: [
+          where,
+          {
+            enrichedAt: {
+              gte: thirtyDaysAgo
+            }
+          }
+        ]
+      }
+    })
+  ]);
 
   return {
     companies: companies.map(company => {

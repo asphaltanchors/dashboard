@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useState, useCallback, useTransition } from "react"
 import { ArrowUpDown } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,51 +9,91 @@ import { Input } from "@/components/ui/input"
 import type { Order } from "@/lib/orders"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import Link from "next/link"
+import { useRouter, useSearchParams, usePathname } from "next/navigation"
+import debounce from "lodash/debounce"
+import { fetchOrders } from "@/app/actions/data"
 
-interface OrdersTableProps {
+interface TableData {
   orders: Order[]
+  totalCount: number
+  recentCount: number
 }
 
-export function OrdersTable({ orders }: OrdersTableProps) {
-  const [page, setPage] = useState(1)
+interface OrdersTableProps {
+  initialOrders: TableData
+}
+
+export function OrdersTable({ initialOrders }: OrdersTableProps) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  
+  const [data, setData] = useState<TableData>(initialOrders)
+  const [isPending, startTransition] = useTransition()
+  const [searchValue, setSearchValue] = useState(searchParams.get("search") || "")
+  
+  const page = Number(searchParams.get("page")) || 1
   const pageSize = 10
-  const [searchTerm, setSearchTerm] = useState("")
-  const [sortColumn, setSortColumn] = useState<keyof Order | null>(null)
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
+  const searchTerm = searchParams.get("search") || ""
+  const sortColumn = (searchParams.get("sort") as keyof Order) || "orderDate"
+  const sortDirection = (searchParams.get("dir") as "asc" | "desc") || "desc"
 
-  const requestSort = (column: keyof Order) => {
-    if (sortColumn === column) {
-      setSortDirection(sortDirection === "asc" ? "desc" : "asc")
-    } else {
-      setSortColumn(column)
-      setSortDirection("asc")
-    }
-  }
-
-  let filteredOrders = orders.filter((order) =>
-    order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    order.customerName.toLowerCase().includes(searchTerm.toLowerCase())
+  const createQueryString = useCallback(
+    (params: Record<string, string | number | null>) => {
+      const newSearchParams = new URLSearchParams(searchParams.toString())
+      
+      Object.entries(params).forEach(([key, value]) => {
+        if (value === null) {
+          newSearchParams.delete(key)
+        } else {
+          newSearchParams.set(key, String(value))
+        }
+      })
+      
+      return newSearchParams.toString()
+    },
+    [searchParams]
   )
 
-  if (sortColumn) {
-    filteredOrders = [...filteredOrders].sort((a, b) => {
-      const aValue = a[sortColumn]
-      const bValue = b[sortColumn]
-
-      if (aValue === null) return 1
-      if (bValue === null) return -1
-
-      let comparison = 0
-      if (typeof aValue === 'number' && typeof bValue === 'number') {
-        comparison = aValue - bValue
-      } else if (typeof aValue === 'string' && typeof bValue === 'string') {
-        comparison = aValue.localeCompare(bValue)
-      } else if (aValue instanceof Date && bValue instanceof Date) {
-        comparison = aValue.getTime() - bValue.getTime()
+  const refreshData = useCallback(async () => {
+    startTransition(async () => {
+      try {
+        const newData = await fetchOrders({
+          page,
+          searchTerm,
+          sortColumn,
+          sortDirection,
+        })
+        setData(newData)
+      } catch (error) {
+        console.error("Failed to fetch orders:", error)
       }
-
-      return sortDirection === "asc" ? comparison : -comparison
     })
+  }, [page, searchTerm, sortColumn, sortDirection])
+
+  React.useEffect(() => {
+    refreshData()
+  }, [refreshData])
+
+  const debouncedSearch = debounce((value: string) => {
+    router.replace(
+      `${pathname}?${createQueryString({
+        search: value || null,
+        page: 1,
+      })}`,
+      { scroll: false }
+    )
+  }, 300)
+
+  const requestSort = (column: keyof Order) => {
+    const newDirection = sortColumn === column && sortDirection === "asc" ? "desc" : "asc"
+    router.replace(
+      `${pathname}?${createQueryString({
+        sort: column,
+        dir: newDirection,
+      })}`,
+      { scroll: false }
+    )
   }
 
   const formatCurrency = (amount: number) => {
@@ -73,11 +113,20 @@ export function OrdersTable({ orders }: OrdersTableProps) {
           <Input
             type="text"
             placeholder="Search by order number or customer..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            value={searchValue}
+            onChange={(e) => {
+              setSearchValue(e.target.value)
+              debouncedSearch(e.target.value)
+            }}
           />
         </div>
-        <Table>
+        <div className="relative">
+          {isPending && (
+            <div className="absolute inset-0 bg-white/50 flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+            </div>
+          )}
+          <Table>
           <TableHeader>
             <TableRow>
               {[
@@ -104,9 +153,7 @@ export function OrdersTable({ orders }: OrdersTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredOrders
-              .slice((page - 1) * pageSize, page * pageSize)
-              .map((order) => (
+            {data.orders.map((order) => (
               <TableRow key={order.id}>
                 <TableCell>
                   <Link 
@@ -155,18 +202,23 @@ export function OrdersTable({ orders }: OrdersTableProps) {
             ))}
           </TableBody>
         </Table>
-        {filteredOrders.length === 0 && (
+        {data.orders.length === 0 && (
           <p className="text-center text-gray-500 mt-4">No orders found.</p>
         )}
         <div className="flex items-center justify-between mt-4">
           <p className="text-sm text-gray-500">
-            Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, filteredOrders.length)} of {filteredOrders.length} orders
+            Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, data.totalCount)} of {data.totalCount} orders
           </p>
           <div className="flex gap-2">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setPage(page - 1)}
+              onClick={() => router.replace(
+                `${pathname}?${createQueryString({
+                  page: page - 1,
+                })}`,
+                { scroll: false }
+              )}
               disabled={page <= 1}
             >
               <ChevronLeft className="h-4 w-4" />
@@ -174,12 +226,18 @@ export function OrdersTable({ orders }: OrdersTableProps) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setPage(page + 1)}
-              disabled={page * pageSize >= filteredOrders.length}
+              onClick={() => router.replace(
+                `${pathname}?${createQueryString({
+                  page: page + 1,
+                })}`,
+                { scroll: false }
+              )}
+              disabled={page * pageSize >= data.totalCount}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
+        </div>
         </div>
       </CardContent>
     </Card>

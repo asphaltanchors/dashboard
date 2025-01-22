@@ -1,8 +1,50 @@
 import { prisma } from "./prisma"
 
-export async function getCustomers() {
+interface GetCustomersParams {
+  page?: number
+  pageSize?: number
+  searchTerm?: string
+  sortColumn?: string
+  sortDirection?: 'asc' | 'desc'
+}
+
+export async function getCustomers({
+  page = 1,
+  pageSize = 10,
+  searchTerm = '',
+  sortColumn = 'customerName',
+  sortDirection = 'asc'
+}: GetCustomersParams = {}) {
+  // Calculate pagination
+  const skip = (page - 1) * pageSize
+
+  // Build where clause for search
+  const where = searchTerm ? {
+    OR: [
+      { customerName: { contains: searchTerm, mode: 'insensitive' as const } },
+      { company: { name: { contains: searchTerm, mode: 'insensitive' as const } } },
+      { emails: { some: { email: { contains: searchTerm, mode: 'insensitive' as const } } } }
+    ]
+  } : {}
+
+  // Build order by object
+  let orderBy: any = {}
+  if (sortColumn === 'name') {
+    orderBy = { customerName: sortDirection }
+  } else if (sortColumn === 'company') {
+    orderBy = { company: { name: sortDirection } }
+  } else if (sortColumn === 'createdAt') {
+    orderBy = { createdAt: sortDirection }
+  } else if (sortColumn === 'status') {
+    orderBy = { status: sortDirection }
+  }
+
   const [customers, totalCount, recentCount] = await Promise.all([
     prisma.customer.findMany({
+      skip,
+      take: pageSize,
+      where,
+      orderBy,
       select: {
         id: true,
         customerName: true,
@@ -39,16 +81,20 @@ export async function getCustomers() {
           }
         }
       },
-      orderBy: {
-        customerName: 'asc',
-      },
     }),
-    prisma.customer.count(),
+    prisma.customer.count({
+      where
+    }),
     prisma.customer.count({
       where: {
-        createdAt: {
-          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // Last 30 days
-        }
+        AND: [
+          where,
+          {
+            createdAt: {
+              gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // Last 30 days
+            }
+          }
+        ]
       }
     })
   ])

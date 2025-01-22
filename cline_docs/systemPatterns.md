@@ -24,20 +24,25 @@ The application follows a modern Next.js architecture with clear separation of c
    - Type-safe database operations
    - Efficient query optimization
    - Connection pooling
+   - Server Actions for data mutations
+   - Centralized data fetching patterns
 
 2. Business Logic
    - Order processing workflows
    - Customer relationship management
    - Company data enrichment
    - Metric calculations
+   - Server-side data filtering and pagination
 
 ### Presentation Layer
 1. UI Components
    - Shadcn UI integration
-   - Responsive data tables
-   - Search and filtering
-   - Status indicators
-   - Loading states
+   - Server-side paginated data tables with Server Actions
+   - URL-based state management
+   - Debounced search and filtering
+   - React useTransition for loading states
+   - Scroll position preservation
+   - Client components with server-side data fetching
 
 2. Page Structure
    - App Router organization
@@ -51,6 +56,8 @@ The application follows a modern Next.js architecture with clear separation of c
    - JSON storage for flexible data
    - Strategic indexing for performance
    - Normalized address management
+   - Efficient pagination queries
+   - Case-insensitive search optimization
 
 2. Type System
    - Comprehensive TypeScript coverage
@@ -63,6 +70,8 @@ The application follows a modern Next.js architecture with clear separation of c
    - Shared utility functions
    - Standardized error handling
    - Import statistics tracking
+   - Server-side data filtering
+   - Paginated data fetching
 
 ## Code Organization
 1. Feature Modules
