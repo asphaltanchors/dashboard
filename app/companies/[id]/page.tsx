@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { notFound } from "next/navigation"
-import { OrdersTable } from "@/components/orders/orders-table"
+import { StaticOrdersTable } from "@/components/orders/static-orders-table"
 
 interface PageProps {
   params: Promise<{
@@ -257,15 +257,19 @@ export default async function CompanyPage(props: PageProps) {
           <CardTitle>All Orders</CardTitle>
         </CardHeader>
         <CardContent>
-          <OrdersTable 
-            orders={company.customers.flatMap(customer => 
-              customer.orders.map(order => ({
-                ...order,
-                customerName: customer.customerName,
-                totalAmount: Number(order.totalAmount),
-                orderDate: order.orderDate || new Date(),
-              }))
-            )} 
+          <StaticOrdersTable 
+            initialOrders={{
+              orders: company.customers.flatMap(customer => 
+                customer.orders.map(order => ({
+                  ...order,
+                  customerName: customer.customerName,
+                  totalAmount: Number(order.totalAmount),
+                  orderDate: order.orderDate || new Date(),
+                }))
+              ),
+              totalCount: company.customers.reduce((sum, customer) => sum + customer.orders.length, 0),
+              recentCount: company.customers.reduce((sum, customer) => sum + customer.orders.length, 0)
+            }}
           />
         </CardContent>
       </Card>

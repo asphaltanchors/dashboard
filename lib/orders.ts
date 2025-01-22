@@ -34,7 +34,18 @@ export async function getOrders({
   } : {}
 
   // Build order by object dynamically
-  let orderBy: any = {}
+  let orderBy: {
+    customer?: {
+      customerName: 'asc' | 'desc'
+    }
+    orderDate?: 'asc' | 'desc'
+    orderNumber?: 'asc' | 'desc'
+    status?: 'asc' | 'desc'
+    paymentStatus?: 'asc' | 'desc'
+    totalAmount?: 'asc' | 'desc'
+    dueDate?: 'asc' | 'desc'
+    paymentMethod?: 'asc' | 'desc'
+  } = {}
   if (sortColumn === 'customerName') {
     orderBy = {
       customer: {

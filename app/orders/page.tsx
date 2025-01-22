@@ -1,4 +1,4 @@
-import { OrdersTable } from "@/components/orders/orders-table"
+import { ServerOrdersTable } from "@/components/orders/server-orders-table"
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { getOrders } from "@/lib/orders"
 import { FileText, Clock } from "lucide-react"
@@ -39,7 +39,7 @@ export default async function OrdersPage(
             />
       </div>
       <div className="mt-4">
-        <OrdersTable initialOrders={data} />
+        <ServerOrdersTable initialOrders={data} />
       </div>
     </div>
   )

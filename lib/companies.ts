@@ -30,7 +30,12 @@ export async function getCompanies({
   } : {}
 
   // Build order by object
-  let orderBy: any = {}
+  let orderBy: {
+    name?: 'asc' | 'desc'
+    domain?: 'asc' | 'desc'
+    enrichedAt?: 'asc' | 'desc'
+    enriched?: 'asc' | 'desc'
+  } = {}
   if (sortColumn === 'name') {
     orderBy = { name: sortDirection }
   } else if (sortColumn === 'domain') {

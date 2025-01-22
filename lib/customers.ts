@@ -28,7 +28,14 @@ export async function getCustomers({
   } : {}
 
   // Build order by object
-  let orderBy: any = {}
+  let orderBy: {
+    customerName?: 'asc' | 'desc'
+    company?: {
+      name: 'asc' | 'desc'
+    }
+    createdAt?: 'asc' | 'desc'
+    status?: 'asc' | 'desc'
+  } = {}
   if (sortColumn === 'name') {
     orderBy = { customerName: sortDirection }
   } else if (sortColumn === 'company') {
