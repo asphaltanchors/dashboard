@@ -28,7 +28,8 @@ async function getThirtyDayMetrics() {
     where: {
       orderDate: {
         gte: thirtyDaysAgo
-      }
+      },
+      status: 'CLOSED'
     },
     select: {
       totalAmount: true
@@ -41,7 +42,8 @@ async function getThirtyDayMetrics() {
       orderDate: {
         gte: lastYearStart,
         lte: lastYearEnd
-      }
+      },
+      status: 'CLOSED'
     },
     select: {
       totalAmount: true

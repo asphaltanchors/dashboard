@@ -47,7 +47,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <LayoutDashboard className="size-4" />
                 </div>
                 <div className="flex flex-col gap-0.5 leading-none">
-                  <span className="font-semibold">AAC Digital</span>
+                  <span className="font-semibold">Asphalt Anchors</span>
                   <span className="">Dashboard</span>
                 </div>
               </Link>
