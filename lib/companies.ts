@@ -1,5 +1,28 @@
 import { prisma } from "./prisma"
 
+const CONSUMER_DOMAINS = [
+  'gmail.com',
+  'yahoo.com',
+  'hotmail.com',
+  'outlook.com',
+  'aol.com',
+  'icloud.com',
+  'protonmail.com',
+  'marketplace.amazon.com',
+  'comcast.net',
+  'verizon.net',
+  'msn.com',
+  'me.com',
+  'att.net',
+  'live.com',
+  'bellsouth.net',
+  'sbcglobal.net',
+  'cox.net',
+  'bellsouth.net',
+  'mac.com',
+  'mail.com'
+]
+
 interface GetCompaniesParams {
   page?: number
   pageSize?: number
@@ -35,7 +58,7 @@ export async function getCompanies({
       filterConsumer ? {
         domain: {
           not: {
-            endsWith: '.com'
+            in: CONSUMER_DOMAINS
           }
         }
       } : {}
