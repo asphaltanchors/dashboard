@@ -1,4 +1,5 @@
 import { prisma } from "./prisma"
+import { Prisma } from "@prisma/client"
 
 interface EnrichmentResponse {
   success: boolean
@@ -27,28 +28,57 @@ export async function enrichCompany(domain: string): Promise<EnrichmentResponse>
     )
 
     if (!response.ok) {
-      throw new Error(`API request failed: ${response.statusText}`)
+      // Handle failed enrichment by updating record with error info
+      await prisma.company.update({
+        where: { domain },
+        data: {
+          enriched: false,
+          enrichedAt: new Date(),
+          enrichedSource: 'thecompaniesapi.com',
+          enrichmentData: Prisma.JsonNull,
+          enrichmentError: `API request failed: ${response.statusText}`
+        }
+      })
+      return {
+        success: false,
+        error: `API request failed: ${response.statusText}`
+      }
     }
 
     const enrichmentData = await response.json()
 
-    // Update company record
+    // Update company record with successful enrichment
     await prisma.company.update({
       where: { domain },
       data: {
         enriched: true,
         enrichedAt: new Date(),
         enrichedSource: 'thecompaniesapi.com',
-        enrichmentData
+        enrichmentData,
+        enrichmentError: null
       }
     })
 
     return { success: true }
   } catch (error) {
-    console.error('Enrichment failed:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+    console.error('Enrichment failed:', errorMessage)
+    
+    // Update company record with error info even for unexpected errors
+    await prisma.company.update({
+      where: { domain },
+      data: {
+        enriched: false,
+        enrichedAt: new Date(),
+        enrichedSource: 'thecompaniesapi.com',
+          enrichmentData: Prisma.JsonNull,
+        enrichmentError: errorMessage
+      }
+    })
+
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred'
+      error: errorMessage
     }
   }
 }
