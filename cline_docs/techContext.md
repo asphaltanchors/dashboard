@@ -1,62 +1,44 @@
-# Technical Context
+# API Dependencies
 
-## Technology Stack
+## The Companies API
+- Base URL: https://api.thecompaniesapi.com/v2
+- Authentication: Bearer token via COMPANIES_API_KEY environment variable
+- Used for: Company data enrichment
+- Endpoints:
+  - GET /companies/{domain} - Fetch company information by domain
 
-### Frontend
-- Next.js 15 (App Router)
-- TypeScript
-- TailwindCSS
-- React Components
-- Shadcn UI Components
+# Environment Variables
 
-### Backend
-- Next.js API Routes
-- Prisma ORM
-- PostgreSQL Database
-- CSV Processing System
+Required environment variables:
+- COMPANIES_API_KEY: API key for thecompaniesapi.com
+- DATABASE_URL: PostgreSQL connection string
 
-### Development Tools
-- ESLint
-- PostCSS
-- TypeScript Configuration
-- Prisma Studio
+# Database Schema Updates
 
-## Project Structure
-```
-/app                - Next.js app router pages
-/components        - Reusable React components
-  /ui             - Shadcn UI components
-  /customers      - Customer-related components
-  /companies      - Company-related components
-  /dashboard      - Dashboard components
-/lib               - Utility functions and data access
-/prisma            - Database schema and migrations
-/scripts           - Import and processing scripts
-  /processors     - Data processing logic
-  /shared         - Shared types and utilities
-/types             - TypeScript type definitions
-/public            - Static assets
-```
+## Company Table
+- enriched: Boolean (default: false)
+- enrichedAt: DateTime (nullable)
+- enrichedSource: String (nullable)
+- enrichmentData: Json (nullable)
 
-## Key Dependencies
-- Next.js 15
-- Prisma ORM
-- PostgreSQL
-- TailwindCSS
-- TypeScript
-- Shadcn UI
+# UI Components
 
-## Development Setup
-1. Node.js environment
-2. PostgreSQL database
-3. Environment variables configuration
-4. Prisma database migrations
-5. Local development server
+## Client Components
+- Located in app/providers.tsx
+- Wraps client-side providers (Toast, Sidebar)
+- Keeps root layout as server component
 
-## Technical Requirements
-1. TypeScript for type safety
-2. Prisma for database operations
-3. CSV parsing for QuickBooks data
-4. Data visualization (pending selection)
-5. Company data enrichment capabilities
-6. Batch processing system
+## Toast Notifications
+- Located in components/ui/use-toast.tsx (client component)
+- Provider wrapped in Providers component
+- Used for: Showing success/error messages for async operations
+- Auto-dismisses after 3 seconds
+
+## Company Components
+- EnrichButton: Client component for bulk enrichment from companies list
+- SingleEnrichButton: Client component for individual company enrichment
+- Both components handle:
+  - Loading states
+  - Error feedback via toast
+  - Disabled states when enriched
+  - Auto-refresh after success

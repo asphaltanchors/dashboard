@@ -1,93 +1,40 @@
-# System Patterns
+# Data Enrichment Pattern
 
-## Architecture Overview
-The application follows a modern Next.js architecture with clear separation of concerns:
+## Core Principles
+1. Separation of Concerns
+   - Core logic in dedicated library files
+   - Server actions for UI interactions
+   - Client components for user feedback
 
-### Data Layer
-1. Prisma Schema
-   - Complex entity relationships (Customer, Company, Order, Product)
-   - Flexible address management system
-   - Contact information modeling (emails, phones)
-   - Rich metadata storage with JSON fields
-   - Comprehensive indexing strategy
+2. Error Handling
+   - Graceful API error handling
+   - User-friendly error messages via toast
+   - Type-safe error responses
 
-2. Data Import System
-   - Specialized processors for different order types
-   - Shared order processing utilities
-   - Type-safe data transformation
-   - Robust validation rules
-   - Import statistics tracking
+3. State Management
+   - Loading states for UI feedback
+   - Automatic refresh after updates
+   - Optimistic updates where possible
 
-### Application Layer
-1. Data Access Layer
-   - Prisma Client integration
-   - Type-safe database operations
-   - Efficient query optimization
-   - Connection pooling
-   - Server Actions for data mutations
-   - Centralized data fetching patterns
+## Implementation Pattern
+1. Library Layer (`lib/`)
+   - Core business logic
+   - API interactions
+   - Database operations
 
-2. Business Logic
-   - Order processing workflows
-   - Customer relationship management
-   - Company data enrichment
-   - Metric calculations
-   - Server-side data filtering and pagination
+2. Server Actions (`app/actions/`)
+   - Bridge between UI and library
+   - Handle server-side operations
+   - Return structured responses
 
-### Presentation Layer
-1. UI Components
-   - Shadcn UI integration
-   - Server-side paginated data tables with Server Actions
-   - URL-based state management
-   - Debounced search and filtering
-   - React useTransition for loading states
-   - Scroll position preservation
-   - Client components with server-side data fetching
+3. UI Components (`components/`)
+   - Client-side interactivity
+   - Loading states
+   - Error handling
+   - Success feedback
 
-2. Page Structure
-   - App Router organization
-   - Nested layouts
-   - Dynamic routing
-   - Error boundaries
-
-## Key Technical Decisions
-1. Database Design
-   - PostgreSQL for complex relationships
-   - JSON storage for flexible data
-   - Strategic indexing for performance
-   - Normalized address management
-   - Efficient pagination queries
-   - Case-insensitive search optimization
-
-2. Type System
-   - Comprehensive TypeScript coverage
-   - Shared type definitions
-   - Prisma-generated types
-   - Import/Export type safety
-
-3. Data Processing
-   - Modular processor architecture
-   - Shared utility functions
-   - Standardized error handling
-   - Import statistics tracking
-   - Server-side data filtering
-   - Paginated data fetching
-
-## Code Organization
-1. Feature Modules
-   - Customer management
-   - Company management
-   - Order processing
-   - Dashboard metrics
-
-2. Shared Infrastructure
-   - UI component library
-   - Data access utilities
-   - Type definitions
-   - Processing utilities
-
-3. Processing Pipeline
-   - CSV parsing
-   - Data validation
-   - Entity creation/updates
-   - Relationship management
+4. Data Flow
+   - UI triggers server action
+   - Server action calls library function
+   - Library handles core logic
+   - Results flow back up with proper error handling

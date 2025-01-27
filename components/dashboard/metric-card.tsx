@@ -6,9 +6,10 @@ interface MetricCardProps {
   value: string | number
   change: string
   icon: LucideIcon
+  action?: React.ReactNode
 }
 
-export function MetricCard({ title, value, change, icon: Icon }: MetricCardProps) {
+export function MetricCard({ title, value, change, icon: Icon, action }: MetricCardProps) {
   const changeNum = Number(change)
   
   return (
@@ -22,6 +23,7 @@ export function MetricCard({ title, value, change, icon: Icon }: MetricCardProps
         <p className={`text-xs ${changeNum >= 0 ? "text-green-500" : "text-red-500"}`}>
           {change}% change vs
         </p>
+        {action && <div className="mt-4">{action}</div>}
       </CardContent>
     </Card>
   )

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { notFound } from "next/navigation"
 import { StaticOrdersTable } from "@/components/orders/static-orders-table"
+import { SingleEnrichButton } from "@/components/companies/single-enrich-button"
 
 interface PageProps {
   params: Promise<{
@@ -72,10 +73,12 @@ export default async function CompanyPage(props: PageProps) {
   }, 0)
 
   return (
+    <div className="p-8">
+      <h1 className="text-3xl font-bold mb-8">Company Details</h1>
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Company Details</CardTitle>
+          <CardTitle>Details</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-2">
@@ -99,7 +102,10 @@ export default async function CompanyPage(props: PageProps) {
               </dl>
             </div>
             <div>
-              <h3 className="font-semibold">Enrichment Details</h3>
+              <h3 className="font-semibold flex items-center justify-between">
+                Enrichment Details
+                <SingleEnrichButton domain={company.domain} isEnriched={company.enriched} />
+              </h3>
               <dl className="mt-2 space-y-2">
                 <div>
                   <dt className="text-sm font-medium text-gray-500">Status</dt>
@@ -274,5 +280,6 @@ export default async function CompanyPage(props: PageProps) {
         </CardContent>
       </Card>
     </div>
+  </div>
   )
 }

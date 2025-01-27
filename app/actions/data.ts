@@ -3,6 +3,7 @@
 import { getCustomers } from "@/lib/customers"
 import { getCompanies } from "@/lib/companies"
 import { getOrders } from "@/lib/orders"
+import { enrichCompany } from "@/lib/enrichment"
 
 export type FetchParams = {
   page: number
@@ -58,4 +59,8 @@ export async function fetchCompanies({
     sortColumn,
     sortDirection,
   })
+}
+
+export async function enrichCompanyAction(domain: string) {
+  return enrichCompany(domain)
 }

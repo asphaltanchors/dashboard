@@ -2,13 +2,14 @@ import { CompaniesTable } from "@/components/companies/companies-table"
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { getCompanies } from "@/lib/companies"
 import { Building, Plus } from "lucide-react"
+import { EnrichButton } from "@/components/companies/enrich-button"
 
 export default async function CompaniesPage(
   props: {
-    searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+    searchParams: { [key: string]: string | string[] | undefined }
   }
 ) {
-  const searchParams = await props.searchParams;
+  const searchParams = props.searchParams;
   const page = Number(searchParams.page) || 1
   const search = (searchParams.search as string) || ""
   const sort = (searchParams.sort as string) || "domain"
@@ -30,6 +31,7 @@ export default async function CompaniesPage(
               value={data.totalCount}
               change=""
               icon={Building}
+              action={<EnrichButton companies={data.companies} />}
             />
             <MetricCard
               title="New Companies (30d)"
