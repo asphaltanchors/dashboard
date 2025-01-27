@@ -112,6 +112,9 @@ export function ServerOrdersTable({ initialOrders }: ServerOrdersTableProps) {
         <div className="mb-4">
           <Input
             type="text"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck="false"
             placeholder="Search by order number or customer..."
             value={searchValue}
             onChange={(e) => {

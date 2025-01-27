@@ -93,6 +93,9 @@ export function CustomersTable({ initialCustomers }: CustomersTableProps) {
         <div className="mb-4">
           <Input
             type="text"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck="false"
             placeholder="Search by name, company, or email..."
             value={searchValue}
             onChange={(e) => {

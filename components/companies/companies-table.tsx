@@ -107,6 +107,9 @@ export function CompaniesTable({ initialCompanies }: CompaniesTableProps) {
           <div className="flex gap-4 items-center">
             <Input
               type="text"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck="false"
               placeholder="Search by name or domain..."
               value={searchValue}
               onChange={(e) => {
