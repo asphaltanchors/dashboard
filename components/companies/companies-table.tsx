@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { Company } from "@/lib/companies"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { ChevronLeft, ChevronRight, ArrowUpDown } from "lucide-react"
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import debounce from "lodash/debounce"
 import { fetchCompanies } from "@/app/actions/data"
@@ -34,7 +34,7 @@ export function CompaniesTable({ initialCompanies }: CompaniesTableProps) {
   const page = Number(searchParams.get("page")) || 1
   const pageSize = 10
   const searchTerm = searchParams.get("search") || ""
-  const sortColumn = searchParams.get("sort") || "domain"
+  const sortColumn = (searchParams.get("sort") as keyof Company) || "domain"
   const sortDirection = (searchParams.get("dir") as "asc" | "desc") || "asc"
 
   const createQueryString = useCallback(
@@ -74,6 +74,17 @@ export function CompaniesTable({ initialCompanies }: CompaniesTableProps) {
     refreshData()
   }, [refreshData])
 
+  const requestSort = (column: keyof Company) => {
+    const newDirection = sortColumn === column && sortDirection === "asc" ? "desc" : "asc"
+    router.replace(
+      `${pathname}?${createQueryString({
+        sort: column,
+        dir: newDirection,
+      })}`,
+      { scroll: false }
+    )
+  }
+
   const debouncedSearch = debounce((value: string) => {
     router.replace(
       `${pathname}?${createQueryString({
@@ -110,13 +121,30 @@ export function CompaniesTable({ initialCompanies }: CompaniesTableProps) {
           <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Domain</TableHead>
-              <TableHead>Total Orders</TableHead>
-              <TableHead>Customers</TableHead>
-              <TableHead>Enrichment Status</TableHead>
-              <TableHead>Last Enriched</TableHead>
-              <TableHead>Source</TableHead>
+              {[
+                { key: "name", label: "Name", sortable: true },
+                { key: "domain", label: "Domain", sortable: true },
+                { key: "totalOrders", label: "Total Orders", sortable: false },
+                { key: "customerCount", label: "Customers", sortable: false },
+                { key: "enriched", label: "Enrichment Status", sortable: true },
+                { key: "enrichedAt", label: "Last Enriched", sortable: true },
+                { key: "enrichedSource", label: "Source", sortable: false }
+              ].map(({ key, label, sortable }) => (
+                <TableHead key={key}>
+                  {sortable ? (
+                    <Button 
+                      variant="ghost" 
+                      onClick={() => requestSort(key as keyof Company)}
+                      className="h-8 p-0 font-semibold"
+                    >
+                      {label}
+                      <ArrowUpDown className="ml-2 h-4 w-4" />
+                    </Button>
+                  ) : (
+                    <span className="font-semibold">{label}</span>
+                  )}
+                </TableHead>
+              ))}
             </TableRow>
           </TableHeader>
           <TableBody>
