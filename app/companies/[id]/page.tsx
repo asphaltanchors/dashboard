@@ -1,8 +1,49 @@
 import { prisma } from "@/lib/prisma"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { notFound } from "next/navigation"
+import { EnrichedCompanyCard } from "@/components/companies/enriched-company-card"
 import { StaticOrdersTable } from "@/components/orders/static-orders-table"
 import { SingleEnrichButton } from "@/components/companies/single-enrich-button"
+import { Prisma, OrderStatus, PaymentStatus } from "@prisma/client"
+import type { Order } from "@/lib/orders"
+
+interface PrismaOrder {
+  id: string
+  orderNumber: string
+  orderDate: Date | null
+  status: OrderStatus
+  paymentStatus: PaymentStatus
+  totalAmount: Prisma.Decimal
+  dueDate: Date | null
+  paymentMethod: string | null
+  quickbooksId: string | null
+}
+
+interface Customer {
+  id: string
+  customerName: string
+  status: string
+  emails: Array<{
+    email: string
+    isPrimary: boolean
+  }>
+  phones: Array<{
+    phone: string
+    isPrimary: boolean
+  }>
+  orders: PrismaOrder[]
+}
+
+interface Company {
+  id: string
+  name: string | null
+  domain: string
+  enriched: boolean
+  enrichedAt: Date | null
+  enrichedSource: string | null
+  enrichmentData: Prisma.JsonValue
+  customers: Customer[]
+}
 
 interface PageProps {
   params: Promise<{
@@ -22,6 +63,7 @@ export default async function CompanyPage(props: PageProps) {
       enriched: true,
       enrichedAt: true,
       enrichedSource: true,
+      enrichmentData: true,
       customers: {
         select: {
           id: true,
@@ -64,9 +106,9 @@ export default async function CompanyPage(props: PageProps) {
     notFound()
   }
 
-  const totalOrders = company.customers.reduce((sum, customer) => {
+  const totalOrders = company.customers.reduce((sum: number, customer: Customer) => {
     const customerTotal = customer.orders.reduce(
-      (orderSum, order) => orderSum + Number(order.totalAmount),
+      (orderSum: number, order: PrismaOrder) => orderSum + Number(order.totalAmount),
       0
     )
     return sum + customerTotal
@@ -75,8 +117,16 @@ export default async function CompanyPage(props: PageProps) {
   return (
     <div className="p-8">
       <h1 className="text-3xl font-bold mb-8">Company Details</h1>
-    <div className="space-y-6">
-      <Card>
+      <div className="space-y-6">
+        {company.enriched && company.enrichmentData ? (
+          <EnrichedCompanyCard 
+            enrichedData={company.enrichmentData}
+            totalOrders={totalOrders}
+            domain={company.domain}
+            isEnriched={company.enriched}
+          />
+        ) : (
+          <Card>
         <CardHeader>
           <CardTitle>Details</CardTitle>
         </CardHeader>
@@ -135,7 +185,8 @@ export default async function CompanyPage(props: PageProps) {
             </div>
           </div>
         </CardContent>
-      </Card>
+          </Card>
+        )}
 
       <Card>
         <CardHeader>
@@ -153,9 +204,9 @@ export default async function CompanyPage(props: PageProps) {
                 </tr>
               </thead>
               <tbody>
-                {company.customers.map((customer) => {
+                {company.customers.map((customer: Customer) => {
                   const customerTotal = customer.orders.reduce(
-                    (sum, order) => sum + Number(order.totalAmount),
+                    (sum: number, order: PrismaOrder) => sum + Number(order.totalAmount),
                     0
                   )
                   return (
@@ -195,8 +246,8 @@ export default async function CompanyPage(props: PageProps) {
               <h3 className="font-semibold mb-4">Email Addresses</h3>
               <div className="space-y-2">
                 {Array.from(new Set(
-                  company.customers.flatMap(customer => 
-                    customer.emails.map(e => ({
+                  company.customers.flatMap((customer: Customer) => 
+                    customer.emails.map((e: { email: string; isPrimary: boolean }) => ({
                       email: e.email,
                       isPrimary: e.isPrimary,
                       customer: customer.customerName
@@ -227,8 +278,8 @@ export default async function CompanyPage(props: PageProps) {
               <h3 className="font-semibold mb-4">Phone Numbers</h3>
               <div className="space-y-2">
                 {Array.from(new Set(
-                  company.customers.flatMap(customer => 
-                    customer.phones.map(p => ({
+                  company.customers.flatMap((customer: Customer) => 
+                    customer.phones.map((p: { phone: string; isPrimary: boolean }) => ({
                       phone: p.phone,
                       isPrimary: p.isPrimary,
                       customer: customer.customerName
@@ -265,16 +316,16 @@ export default async function CompanyPage(props: PageProps) {
         <CardContent>
           <StaticOrdersTable 
             initialOrders={{
-              orders: company.customers.flatMap(customer => 
-                customer.orders.map(order => ({
+              orders: company.customers.flatMap((customer: Customer) => 
+                customer.orders.map((order: PrismaOrder) => ({
                   ...order,
                   customerName: customer.customerName,
                   totalAmount: Number(order.totalAmount),
                   orderDate: order.orderDate || new Date(),
                 }))
               ),
-              totalCount: company.customers.reduce((sum, customer) => sum + customer.orders.length, 0),
-              recentCount: company.customers.reduce((sum, customer) => sum + customer.orders.length, 0)
+              totalCount: company.customers.reduce((sum: number, customer: Customer) => sum + customer.orders.length, 0),
+              recentCount: company.customers.reduce((sum: number, customer: Customer) => sum + customer.orders.length, 0)
             }}
           />
         </CardContent>
