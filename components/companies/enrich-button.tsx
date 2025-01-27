@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { RefreshCw } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
-import { enrichCompanyAction, fetchCompanies } from "@/app/actions/data"
+import { enrichCompanyAction } from "@/app/actions/data"
 import type { Company } from "@/lib/companies"
 import { useRouter } from "next/navigation"
 

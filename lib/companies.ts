@@ -6,6 +6,7 @@ interface GetCompaniesParams {
   searchTerm?: string
   sortColumn?: string
   sortDirection?: 'asc' | 'desc'
+  filterConsumer?: boolean
 }
 
 export async function getCompanies({
@@ -13,7 +14,8 @@ export async function getCompanies({
   pageSize = 10,
   searchTerm = '',
   sortColumn = 'domain',
-  sortDirection = 'asc'
+  sortDirection = 'asc',
+  filterConsumer = true
 }: GetCompaniesParams = {}) {
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -21,22 +23,32 @@ export async function getCompanies({
   // Calculate pagination
   const skip = (page - 1) * pageSize
 
-  // Build where clause for search
-  const where = searchTerm ? {
-    OR: [
-      { name: { contains: searchTerm, mode: 'insensitive' as const } },
-      { domain: { contains: searchTerm, mode: 'insensitive' as const } }
+  // Build where clause for search and filtering
+  const where = {
+    AND: [
+      searchTerm ? {
+        OR: [
+          { name: { contains: searchTerm, mode: 'insensitive' as const } },
+          { domain: { contains: searchTerm, mode: 'insensitive' as const } }
+        ]
+      } : {},
+      filterConsumer ? {
+        domain: {
+          not: {
+            endsWith: '.com'
+          }
+        }
+      } : {}
     ]
-  } : {}
+  }
 
-  // Build order by object
-  let orderBy: {
-    name?: 'asc' | 'desc'
-    domain?: 'asc' | 'desc'
-    enrichedAt?: 'asc' | 'desc'
-    enriched?: 'asc' | 'desc'
-  } = {}
-  if (sortColumn === 'name') {
+  // Build order by based on sort column
+  let orderBy: Record<string, { [key: string]: 'asc' | 'desc' } | 'asc' | 'desc'> = {}
+  if (sortColumn === 'customerCount') {
+    orderBy = { companyStats: { customerCount: sortDirection } }
+  } else if (sortColumn === 'totalOrders') {
+    orderBy = { companyStats: { totalOrders: sortDirection } }
+  } else if (sortColumn === 'name') {
     orderBy = { name: sortDirection }
   } else if (sortColumn === 'domain') {
     orderBy = { domain: sortDirection }
@@ -59,14 +71,10 @@ export async function getCompanies({
         enriched: true,
         enrichedAt: true,
         enrichedSource: true,
-        customers: {
+        companyStats: {
           select: {
-            id: true,
-            orders: {
-              select: {
-                totalAmount: true
-              }
-            }
+            customerCount: true,
+            totalOrders: true
           }
         }
       }
@@ -89,24 +97,16 @@ export async function getCompanies({
   ]);
 
   return {
-    companies: companies.map(company => {
-    const totalOrders = company.customers.reduce((sum, customer) => {
-      const customerTotal = customer.orders.reduce((orderSum, order) => 
-        orderSum + Number(order.totalAmount), 0)
-      return sum + customerTotal
-    }, 0)
-
-      return {
-        id: company.id,
-        domain: company.domain,
-        name: company.name ?? company.domain,
-        enriched: company.enriched,
-        enrichedAt: company.enrichedAt,
-        enrichedSource: company.enrichedSource ?? '',
-        customerCount: company.customers.length,
-        totalOrders: totalOrders
-      }
-    }),
+    companies: companies.map(company => ({
+      id: company.id,
+      domain: company.domain,
+      name: company.name ?? company.domain,
+      enriched: company.enriched,
+      enrichedAt: company.enrichedAt,
+      enrichedSource: company.enrichedSource ?? '',
+      customerCount: company.companyStats?.customerCount ?? 0,
+      totalOrders: company.companyStats?.totalOrders ? Number(company.companyStats.totalOrders) : 0
+    })),
     totalCount,
     recentCount
   }

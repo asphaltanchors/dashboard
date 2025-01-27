@@ -4,8 +4,39 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { MapPin, Users, DollarSign, Globe, Twitter, Facebook, Linkedin, Receipt } from "lucide-react"
 import { SingleEnrichButton } from "@/components/companies/single-enrich-button"
 
+export interface EnrichmentData {
+  about?: {
+    name?: string
+    industries?: string[]
+    yearFounded?: number
+    totalEmployees?: string
+    totalEmployeesExact?: number
+  }
+  socials?: {
+    twitter?: { url: string }
+    facebook?: { url: string }
+    linkedin?: { url: string }
+  }
+  finances?: {
+    revenue?: string
+  }
+  analytics?: {
+    monthlyVisitors?: string
+  }
+  locations?: {
+    headquarters?: {
+      city?: { name: string }
+      state?: { name: string }
+      country?: { name: string }
+    }
+  }
+  descriptions?: {
+    primary?: string
+  }
+}
+
 interface EnrichedCompanyCardProps {
-  enrichedData: any
+  enrichedData: EnrichmentData
   totalOrders: number
   domain: string
   isEnriched: boolean

@@ -35,8 +35,8 @@ export function CompaniesTable({ initialCompanies }: CompaniesTableProps) {
   const page = Number(searchParams.get("page")) || 1
   const pageSize = 10
   const searchTerm = searchParams.get("search") || ""
-  const sortColumn = (searchParams.get("sort") as keyof Company) || "domain"
-  const sortDirection = (searchParams.get("dir") as "asc" | "desc") || "asc"
+  const sortColumn = searchParams.get("sort") || "domain"
+  const sortDirection = searchParams.get("dir") === "desc" ? "desc" : "asc"
 
   const createQueryString = useCallback(
     (params: Record<string, string | number | null>) => {
@@ -70,13 +70,13 @@ export function CompaniesTable({ initialCompanies }: CompaniesTableProps) {
         console.error("Failed to fetch companies:", error)
       }
     })
-  }, [page, searchTerm, sortColumn, sortDirection])
+  }, [page, searchTerm, sortColumn, sortDirection, filterConsumer])
 
   React.useEffect(() => {
     refreshData()
   }, [refreshData])
 
-  const requestSort = (column: keyof Company) => {
+  const requestSort = (column: string) => {
     const newDirection = sortColumn === column && sortDirection === "asc" ? "desc" : "asc"
     router.replace(
       `${pathname}?${createQueryString({
@@ -150,8 +150,8 @@ export function CompaniesTable({ initialCompanies }: CompaniesTableProps) {
               {[
                 { key: "name", label: "Name", sortable: true },
                 { key: "domain", label: "Domain", sortable: true },
-                { key: "totalOrders", label: "Total Orders", sortable: false },
-                { key: "customerCount", label: "Customers", sortable: false },
+                { key: "totalOrders", label: "Total Orders", sortable: true },
+                { key: "customerCount", label: "Customers", sortable: true },
                 { key: "enriched", label: "Enrichment Status", sortable: true },
                 { key: "enrichedAt", label: "Last Enriched", sortable: true },
                 { key: "enrichedSource", label: "Source", sortable: false }
@@ -160,7 +160,7 @@ export function CompaniesTable({ initialCompanies }: CompaniesTableProps) {
                   {sortable ? (
                     <Button 
                       variant="ghost" 
-                      onClick={() => requestSort(key as keyof Company)}
+                      onClick={() => requestSort(key)}
                       className="h-8 p-0 font-semibold"
                     >
                       {label}

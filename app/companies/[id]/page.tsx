@@ -1,11 +1,10 @@
 import { prisma } from "@/lib/prisma"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { notFound } from "next/navigation"
-import { EnrichedCompanyCard } from "@/components/companies/enriched-company-card"
+import { EnrichedCompanyCard, EnrichmentData } from "@/components/companies/enriched-company-card"
 import { StaticOrdersTable } from "@/components/orders/static-orders-table"
 import { SingleEnrichButton } from "@/components/companies/single-enrich-button"
 import { Prisma, OrderStatus, PaymentStatus } from "@prisma/client"
-import type { Order } from "@/lib/orders"
 
 interface PrismaOrder {
   id: string
@@ -32,17 +31,6 @@ interface Customer {
     isPrimary: boolean
   }>
   orders: PrismaOrder[]
-}
-
-interface Company {
-  id: string
-  name: string | null
-  domain: string
-  enriched: boolean
-  enrichedAt: Date | null
-  enrichedSource: string | null
-  enrichmentData: Prisma.JsonValue
-  customers: Customer[]
 }
 
 interface PageProps {
@@ -120,7 +108,7 @@ export default async function CompanyPage(props: PageProps) {
       <div className="space-y-6">
         {company.enriched && company.enrichmentData ? (
           <EnrichedCompanyCard 
-            enrichedData={company.enrichmentData}
+            enrichedData={company.enrichmentData as EnrichmentData}
             totalOrders={totalOrders}
             domain={company.domain}
             isEnriched={company.enriched}

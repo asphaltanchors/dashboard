@@ -2,18 +2,18 @@ import { CompaniesTable } from "@/components/companies/companies-table"
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { getCompanies } from "@/lib/companies"
 import { Building, Plus } from "lucide-react"
-import { EnrichButton } from "@/components/companies/enrich-button"
 
 export default async function CompaniesPage(
   props: {
-    searchParams: { [key: string]: string | string[] | undefined }
+    searchParams: Promise<{ [key: string]: string | string[] | undefined }>
   }
 ) {
-  const searchParams = props.searchParams;
+  const searchParams = await props.searchParams;
   const page = Number(searchParams.page) || 1
   const search = (searchParams.search as string) || ""
   const sort = (searchParams.sort as string) || "domain"
   const dir = (searchParams.dir as "asc" | "desc") || "asc"
+  const filterConsumer = searchParams.filterConsumer !== "false"
 
   const data = await getCompanies({
     page,
@@ -21,7 +21,9 @@ export default async function CompaniesPage(
     searchTerm: search,
     sortColumn: sort,
     sortDirection: dir,
+    filterConsumer
   })
+
   return (
     <div className="p-8">
       <h1 className="text-3xl font-bold mb-8">Companies</h1>

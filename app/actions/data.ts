@@ -11,6 +11,7 @@ export type FetchParams = {
   searchTerm: string
   sortColumn: string
   sortDirection: 'asc' | 'desc'
+  filterConsumer?: boolean
 }
 
 export async function fetchCustomers({
@@ -51,6 +52,7 @@ export async function fetchCompanies({
   searchTerm,
   sortColumn,
   sortDirection,
+  filterConsumer,
 }: FetchParams) {
   return getCompanies({
     page,
@@ -58,6 +60,7 @@ export async function fetchCompanies({
     searchTerm,
     sortColumn,
     sortDirection,
+    filterConsumer,
   })
 }
 
