@@ -48,10 +48,10 @@ Files should follow these naming patterns:
 
 ```bash
 # Run manually
-node dist/scripts/process-daily-imports.js /path/to/import-config.json
+pnpx tsx dist/scripts/process-daily-imports.js /path/to/import-config.json
 
 # Setup cron job (runs at 2 AM daily)
-0 2 * * * cd /path/to/project && /usr/local/bin/node dist/scripts/process-daily-imports.js /path/to/import-config.json
+0 2 * * * cd /path/to/project && /usr/local/bin/pnpx tsx dist/scripts/process-daily-imports.js /path/to/import-config.json
 ```
 
 ### Import Process
@@ -95,5 +95,5 @@ Each script accepts these options:
 
 Example:
 ```bash
-node dist/scripts/import-customer.js customers.csv --debug
+pnpx tsx --expose-gc scripts/import-invoice.ts invoices.csv
 ```
