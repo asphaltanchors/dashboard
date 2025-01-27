@@ -30,6 +30,7 @@ export function CompaniesTable({ initialCompanies }: CompaniesTableProps) {
   const [data, setData] = useState<TableData>(initialCompanies)
   const [isPending, startTransition] = useTransition()
   const [searchValue, setSearchValue] = useState(searchParams.get("search") || "")
+  const [filterConsumer, setFilterConsumer] = useState(searchParams.get("filterConsumer") !== "false")
   
   const page = Number(searchParams.get("page")) || 1
   const pageSize = 10
@@ -62,6 +63,7 @@ export function CompaniesTable({ initialCompanies }: CompaniesTableProps) {
           searchTerm,
           sortColumn,
           sortDirection,
+          filterConsumer,
         })
         setData(newData)
       } catch (error) {
@@ -102,15 +104,36 @@ export function CompaniesTable({ initialCompanies }: CompaniesTableProps) {
       </CardHeader>
       <CardContent>
         <div className="mb-4">
-          <Input
-            type="text"
-            placeholder="Search by name or domain..."
-            value={searchValue}
-            onChange={(e) => {
-              setSearchValue(e.target.value)
-              debouncedSearch(e.target.value)
-            }}
-          />
+          <div className="flex gap-4 items-center">
+            <Input
+              type="text"
+              placeholder="Search by name or domain..."
+              value={searchValue}
+              onChange={(e) => {
+                setSearchValue(e.target.value)
+                debouncedSearch(e.target.value)
+              }}
+              className="flex-1"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const newValue = !filterConsumer
+                setFilterConsumer(newValue)
+                router.replace(
+                  `${pathname}?${createQueryString({
+                    filterConsumer: newValue ? null : "false",
+                    page: 1,
+                  })}`,
+                  { scroll: false }
+                )
+              }}
+              className={filterConsumer ? "bg-blue-50" : ""}
+            >
+              {filterConsumer ? "Hiding" : "Show"} Consumer Domains
+            </Button>
+          </div>
         </div>
         <div className="relative">
           {isPending && (
