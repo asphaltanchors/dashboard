@@ -31,7 +31,6 @@ export default async function CompaniesPage(
               value={data.totalCount}
               change=""
               icon={Building}
-              action={<EnrichButton companies={data.companies} />}
             />
             <MetricCard
               title="New Companies (30d)"
