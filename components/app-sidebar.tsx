@@ -10,6 +10,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
 
 const menuItems = [
@@ -36,7 +39,17 @@ const menuItems = [
   {
     title: "Reports",
     icon: BarChart3,
-    url: "/reports/adhesive-only-orders",
+    url: "/reports",
+    items: [
+      {
+        title: "Adhesive Only Orders",
+        url: "/reports/adhesive-only-orders",
+      },
+      {
+        title: "Pop & Drop",
+        url: "/reports/pop-and-drop",
+      }
+    ]
   },
 ]
 
@@ -65,12 +78,30 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenu className="gap-2">
             {menuItems.map((item) => (
               <SidebarMenuItem key={item.title}>
-                <SidebarMenuButton asChild>
-                  <Link href={item.url} className="font-medium">
-                    <item.icon className="mr-2 size-4" />
-                    {item.title}
-                  </Link>
-                </SidebarMenuButton>
+                {item.items ? (
+                  <>
+                    <SidebarMenuButton className="font-medium">
+                      <item.icon className="mr-2 size-4" />
+                      {item.title}
+                    </SidebarMenuButton>
+                    <SidebarMenuSub>
+                      {item.items.map((subItem) => (
+                        <SidebarMenuSubItem key={subItem.title}>
+                          <SidebarMenuSubButton asChild>
+                            <Link href={subItem.url}>{subItem.title}</Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      ))}
+                    </SidebarMenuSub>
+                  </>
+                ) : (
+                  <SidebarMenuButton asChild>
+                    <Link href={item.url} className="font-medium">
+                      <item.icon className="mr-2 size-4" />
+                      {item.title}
+                    </Link>
+                  </SidebarMenuButton>
+                )}
               </SidebarMenuItem>
             ))}
           </SidebarMenu>

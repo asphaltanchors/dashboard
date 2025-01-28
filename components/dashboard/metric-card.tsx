@@ -4,13 +4,13 @@ import { LucideIcon } from "lucide-react"
 interface MetricCardProps {
   title: string
   value: string | number
-  change: string
+  change?: string
   icon: LucideIcon
   action?: React.ReactNode
 }
 
 export function MetricCard({ title, value, change, icon: Icon, action }: MetricCardProps) {
-  const changeNum = Number(change)
+  const changeNum = change ? Number(change) : null
   
   return (
     <Card>
@@ -20,9 +20,11 @@ export function MetricCard({ title, value, change, icon: Icon, action }: MetricC
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold">{value}</div>
-        <p className={`text-xs ${changeNum >= 0 ? "text-green-500" : "text-red-500"}`}>
-          {change}% change vs
-        </p>
+        {change && (
+          <p className={`text-xs ${changeNum! >= 0 ? "text-green-500" : "text-red-500"}`}>
+            {change}% change vs
+          </p>
+        )}
         {action && <div className="mt-4">{action}</div>}
       </CardContent>
     </Card>

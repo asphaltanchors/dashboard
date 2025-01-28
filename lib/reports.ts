@@ -16,6 +16,130 @@ const ADHESIVE_PRODUCT_CODES = [
   '82-6005'
 ]
 
+export async function getCompanyOrderMetrics(monthsWindow = 6) {
+  const today = new Date()
+  const windowStart = new Date(today)
+  windowStart.setMonth(today.getMonth() - monthsWindow)
+  const previousStart = new Date(windowStart)
+  previousStart.setMonth(windowStart.getMonth() - monthsWindow)
+
+  // Get orders for current period
+  const currentPeriodOrders = await prisma.order.findMany({
+    where: {
+      orderDate: {
+        gte: windowStart
+      }
+    },
+    select: {
+      id: true,
+      totalAmount: true,
+      customer: {
+        select: {
+          company: {
+            select: {
+              id: true,
+              name: true,
+              domain: true
+            }
+          }
+        }
+      }
+    }
+  })
+
+  // Get orders for previous period
+  const previousPeriodOrders = await prisma.order.findMany({
+    where: {
+      orderDate: {
+        gte: previousStart,
+        lt: windowStart
+      }
+    },
+    select: {
+      id: true,
+      totalAmount: true,
+      customer: {
+        select: {
+          company: {
+            select: {
+              id: true,
+              name: true,
+              domain: true
+            }
+          }
+        }
+      }
+    }
+  })
+
+  // Aggregate orders by company
+  const companyMetrics = new Map<string, {
+    id: string,
+    name: string | null,
+    domain: string,
+    currentTotal: number,
+    previousTotal: number
+  }>()
+
+  // Process current period orders
+  currentPeriodOrders.forEach(order => {
+    if (!order.customer.company) return
+    const company = order.customer.company
+    const existing = companyMetrics.get(company.id) || {
+      id: company.id,
+      name: company.name,
+      domain: company.domain,
+      currentTotal: 0,
+      previousTotal: 0
+    }
+    existing.currentTotal += Number(order.totalAmount)
+    companyMetrics.set(company.id, existing)
+  })
+
+  // Process previous period orders
+  previousPeriodOrders.forEach(order => {
+    if (!order.customer.company) return
+    const company = order.customer.company
+    const existing = companyMetrics.get(company.id) || {
+      id: company.id,
+      name: company.name,
+      domain: company.domain,
+      currentTotal: 0,
+      previousTotal: 0
+    }
+    existing.previousTotal += Number(order.totalAmount)
+    companyMetrics.set(company.id, existing)
+  })
+
+  // Convert to array and calculate percentages
+  const results = Array.from(companyMetrics.values())
+    .map(company => ({
+      ...company,
+      percentageChange: company.previousTotal > 0 
+        ? ((company.currentTotal - company.previousTotal) / company.previousTotal * 100)
+        : 0
+    }))
+    .sort((a, b) => b.percentageChange - a.percentageChange)
+
+  // Calculate summary metrics
+  const increasingCompanies = results.filter(c => c.percentageChange > 0)
+  const decreasingCompanies = results.filter(c => c.percentageChange < 0)
+
+  return {
+    companies: results,
+    summary: {
+      increasingCount: increasingCompanies.length,
+      averageIncrease: increasingCompanies.length > 0
+        ? increasingCompanies.reduce((sum, c) => sum + c.percentageChange, 0) / increasingCompanies.length
+        : 0,
+      decreasingCount: decreasingCompanies.length,
+      averageDecrease: decreasingCompanies.length > 0
+        ? decreasingCompanies.reduce((sum, c) => sum + c.percentageChange, 0) / decreasingCompanies.length
+        : 0
+    }
+  }
+}
+
 export async function getAdhesiveMetrics() {
   const today = new Date()
   const twelveMonthsAgo = new Date(today)
