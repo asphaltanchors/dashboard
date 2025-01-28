@@ -24,11 +24,11 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-RUN --mount=type=secret,id=DATABASE_URL \
-    corepack enable pnpm && DATABASE_URL="$(cat /run/secrets/DATABASE_URL)" pnpm dlx prisma generate
+RUN --mount=type=secret,id=PRODUCTION_DATABASE_URL \
+    corepack enable pnpm && DATABASE_URL="$(cat /run/secrets/PRODUCTION_DATABASE_URL)" pnpm dlx prisma generate
 
-RUN --mount=type=secret,id=DATABASE_URL \
-    corepack enable pnpm && DATABASE_URL="$(cat /run/secrets/DATABASE_URL)" pnpm run build
+RUN --mount=type=secret,id=PRODUCTION_DATABASE_URL \
+    corepack enable pnpm && DATABASE_URL="$(cat /run/secrets/PRODUCTION_DATABASE_URL)" pnpm run build
 
 # Production image, copy all the files and run next
 FROM base AS runner
