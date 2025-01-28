@@ -5,21 +5,23 @@ import { notFound } from "next/navigation"
 import { EnrichedCompanyCard, EnrichmentData } from "@/components/companies/enriched-company-card"
 import { StaticOrdersTable } from "@/components/orders/static-orders-table"
 import { SingleEnrichButton } from "@/components/companies/single-enrich-button"
-import { Prisma, OrderStatus, PaymentStatus } from "@prisma/client"
+import { formatCurrency } from "@/lib/utils"
+import { Order } from "@/lib/orders"
+import { Prisma } from "@prisma/client"
 
-interface PrismaOrder {
+// Types
+interface CompanyDetails {
   id: string
-  orderNumber: string
-  orderDate: Date | null
-  status: OrderStatus
-  paymentStatus: PaymentStatus
-  totalAmount: Prisma.Decimal
-  dueDate: Date | null
-  paymentMethod: string | null
-  quickbooksId: string | null
+  name: string | null
+  domain: string
+  enriched: boolean
+  enrichedAt: Date | null
+  enrichedSource: string | null
+  enrichmentData: EnrichmentData | null
+  customers: CustomerDetails[]
 }
 
-interface Customer {
+interface CustomerDetails {
   id: string
   customerName: string
   status: string
@@ -31,7 +33,7 @@ interface Customer {
     phone: string
     isPrimary: boolean
   }>
-  orders: PrismaOrder[]
+  orders: Order[]
 }
 
 interface PageProps {
@@ -41,10 +43,10 @@ interface PageProps {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }
 
-export default async function CompanyPage(props: PageProps) {
-  const params = await props.params;
-  const company = await prisma.company.findUnique({
-    where: { id: params.id },
+// Data fetching
+async function getCompanyDetails(id: string): Promise<CompanyDetails | null> {
+  const result = await prisma.company.findUnique({
+    where: { id },
     select: {
       id: true,
       name: true,
@@ -91,22 +93,37 @@ export default async function CompanyPage(props: PageProps) {
     },
   })
 
-  if (!company) {
-    notFound()
-  }
+  if (!result) return null
 
-  // Calculate total orders
-  const totalOrders = company.customers.reduce((sum: number, customer: Customer) => {
+  return {
+    ...result,
+    enrichmentData: result.enrichmentData as EnrichmentData | null,
+    customers: result.customers.map(customer => ({
+      ...customer,
+      orders: customer.orders.map(order => ({
+        ...order,
+        customerName: customer.customerName,
+        totalAmount: Number(order.totalAmount),
+        orderDate: order.orderDate || new Date()
+      }))
+    }))
+  }
+}
+
+// Helper functions
+function calculateTotalOrders(customers: CustomerDetails[]): number {
+  return customers.reduce((sum, customer) => {
     const customerTotal = customer.orders.reduce(
-      (orderSum: number, order: PrismaOrder) => orderSum + Number(order.totalAmount),
+      (orderSum, order) => orderSum + Number(order.totalAmount),
       0
     )
     return sum + customerTotal
   }, 0)
+}
 
-  // Calculate yearly revenue data
-  const yearlyRevenue = company.customers.reduce((acc: { [key: string]: number }, customer: Customer) => {
-    customer.orders.forEach((order: PrismaOrder) => {
+function calculateYearlyRevenue(customers: CustomerDetails[]) {
+  const yearlyRevenue = customers.reduce((acc: { [key: string]: number }, customer) => {
+    customer.orders.forEach((order) => {
       if (order.orderDate) {
         const year = new Date(order.orderDate).getFullYear()
         acc[year] = (acc[year] || 0) + Number(order.totalAmount)
@@ -115,12 +132,24 @@ export default async function CompanyPage(props: PageProps) {
     return acc
   }, {})
 
-  const revenueData = Object.entries(yearlyRevenue)
+  return Object.entries(yearlyRevenue)
     .map(([year, revenue]) => ({
       year: parseInt(year),
       revenue: Math.round(revenue)
     }))
     .sort((a, b) => a.year - b.year)
+}
+
+export default async function CompanyPage(props: PageProps) {
+  const params = await props.params
+  const company = await getCompanyDetails(params.id)
+
+  if (!company) {
+    notFound()
+  }
+
+  const totalOrders = calculateTotalOrders(company.customers)
+  const revenueData = calculateYearlyRevenue(company.customers)
 
   return (
     <div className="p-8">
@@ -130,7 +159,7 @@ export default async function CompanyPage(props: PageProps) {
           {company.enriched && company.enrichmentData ? (
             <>
               <EnrichedCompanyCard 
-                enrichedData={company.enrichmentData as EnrichmentData}
+                enrichedData={company.enrichmentData}
                 totalOrders={totalOrders}
                 domain={company.domain}
                 isEnriched={company.enriched}
@@ -158,9 +187,7 @@ export default async function CompanyPage(props: PageProps) {
                         </div>
                         <div>
                           <dt className="text-sm font-medium text-gray-500">Total Orders</dt>
-                          <dd className="mt-1">
-                            ${totalOrders.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </dd>
+                          <dd className="mt-1">{formatCurrency(totalOrders)}</dd>
                         </div>
                       </dl>
                     </div>
@@ -220,9 +247,9 @@ export default async function CompanyPage(props: PageProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {company.customers.map((customer: Customer) => {
+                  {company.customers.map((customer) => {
                     const customerTotal = customer.orders.reduce(
-                      (sum: number, order: PrismaOrder) => sum + Number(order.totalAmount),
+                      (sum, order) => sum + Number(order.totalAmount),
                       0
                     )
                     return (
@@ -240,9 +267,7 @@ export default async function CompanyPage(props: PageProps) {
                           </span>
                         </td>
                         <td className="px-4 py-2">{customer.orders.length}</td>
-                        <td className="px-4 py-2">
-                          ${customerTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </td>
+                        <td className="px-4 py-2">{formatCurrency(customerTotal)}</td>
                       </tr>
                     )
                   })}
@@ -262,8 +287,8 @@ export default async function CompanyPage(props: PageProps) {
                 <h3 className="font-semibold mb-4">Email Addresses</h3>
                 <div className="space-y-2">
                   {Array.from(new Set(
-                    company.customers.flatMap((customer: Customer) => 
-                      customer.emails.map((e: { email: string; isPrimary: boolean }) => ({
+                    company.customers.flatMap(customer => 
+                      customer.emails.map(e => ({
                         email: e.email,
                         isPrimary: e.isPrimary,
                         customer: customer.customerName
@@ -294,8 +319,8 @@ export default async function CompanyPage(props: PageProps) {
                 <h3 className="font-semibold mb-4">Phone Numbers</h3>
                 <div className="space-y-2">
                   {Array.from(new Set(
-                    company.customers.flatMap((customer: Customer) => 
-                      customer.phones.map((p: { phone: string; isPrimary: boolean }) => ({
+                    company.customers.flatMap(customer => 
+                      customer.phones.map(p => ({
                         phone: p.phone,
                         isPrimary: p.isPrimary,
                         customer: customer.customerName
@@ -332,16 +357,16 @@ export default async function CompanyPage(props: PageProps) {
           <CardContent>
             <StaticOrdersTable 
               initialOrders={{
-                orders: company.customers.flatMap((customer: Customer) => 
-                  customer.orders.map((order: PrismaOrder) => ({
+                orders: company.customers.flatMap(customer => 
+                  customer.orders.map(order => ({
                     ...order,
                     customerName: customer.customerName,
                     totalAmount: Number(order.totalAmount),
                     orderDate: order.orderDate || new Date(),
                   }))
                 ),
-                totalCount: company.customers.reduce((sum: number, customer: Customer) => sum + customer.orders.length, 0),
-                recentCount: company.customers.reduce((sum: number, customer: Customer) => sum + customer.orders.length, 0)
+                totalCount: company.customers.reduce((sum, customer) => sum + customer.orders.length, 0),
+                recentCount: company.customers.reduce((sum, customer) => sum + customer.orders.length, 0)
               }}
             />
           </CardContent>
