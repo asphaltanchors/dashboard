@@ -51,7 +51,7 @@ export function EnrichedCompanyCard({ enrichedData, totalOrders, domain, isEnric
   const nameInitials = companyName.substring(0, 2).toUpperCase()
 
   return (
-    <Card className="w-full max-w-3xl bg-gradient-to-br from-slate-50 to-slate-100 shadow-lg">
+    <Card className="w-full max-w-3xl bg-gradient-to-br from-slate-50 to-slate-100 shadow-lg flex flex-col h-full">
       <CardHeader className="flex flex-col gap-4">
         <div className="flex items-center gap-4">
           <Avatar className="w-20 h-20">
@@ -124,7 +124,7 @@ export function EnrichedCompanyCard({ enrichedData, totalOrders, domain, isEnric
           </p>
         )}
       </CardContent>
-      <CardFooter className="flex justify-between items-center bg-slate-200 rounded-b-lg py-4">
+      <CardFooter className="flex justify-between items-center bg-slate-200 rounded-b-lg py-4 mt-auto">
         <div className="flex gap-4">
           {socials.twitter?.url && (
             <a
