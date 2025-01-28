@@ -350,27 +350,20 @@ export default async function CompanyPage(props: PageProps) {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>All Orders</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <StaticOrdersTable 
-              initialOrders={{
-                orders: company.customers.flatMap(customer => 
-                  customer.orders.map(order => ({
-                    ...order,
-                    customerName: customer.customerName,
-                    totalAmount: Number(order.totalAmount),
-                    orderDate: order.orderDate || new Date(),
-                  }))
-                ),
-                totalCount: company.customers.reduce((sum, customer) => sum + customer.orders.length, 0),
-                recentCount: company.customers.reduce((sum, customer) => sum + customer.orders.length, 0)
-              }}
-            />
-          </CardContent>
-        </Card>
+        <StaticOrdersTable 
+          initialOrders={{
+            orders: company.customers.flatMap(customer => 
+              customer.orders.map(order => ({
+                ...order,
+                customerName: customer.customerName,
+                totalAmount: Number(order.totalAmount),
+                orderDate: order.orderDate || new Date(),
+              }))
+            ),
+            totalCount: company.customers.reduce((sum, customer) => sum + customer.orders.length, 0),
+            recentCount: company.customers.reduce((sum, customer) => sum + customer.orders.length, 0)
+          }}
+        />
       </div>
     </div>
   )
