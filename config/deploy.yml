@@ -26,11 +26,11 @@ builder:
   arch: amd64
   secrets:
     - DATABASE_URL
-    - COMPANIES_API_TOKEN
   remote: ssh://root@aac
 
 env:
   secret:
     - DATABASE_URL
+    - COMPANIES_API_TOKEN
 
 asset_path: /app/.next
