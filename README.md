@@ -35,6 +35,20 @@ cp .env.example .env
 pnpm prisma migrate dev
 ```
 
+I do a weird thing with a postgres view that you need to manually create. Migations don't seem to currently (2025-01) handle views well.
+
+```sql
+CREATE OR REPLACE VIEW public."CompanyStats"
+ AS
+ SELECT c.id,
+    count(DISTINCT cust.id) AS "customerCount",
+    COALESCE(sum(o."totalAmount"), 0::numeric) AS "totalOrders"
+   FROM "Company" c
+     LEFT JOIN "Customer" cust ON cust."companyDomain" = c.domain
+     LEFT JOIN "Order" o ON o."customerId" = cust.id
+  GROUP BY c.id;
+```
+
 4. Start development server:
 ```bash
 pnpm dev
