@@ -1,6 +1,28 @@
 import { prisma } from "@/lib/prisma"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { notFound } from "next/navigation"
+import { SingleEnrichButton } from "@/components/companies/single-enrich-button"
+
+const needsEnrichment = (company: { 
+  enriched: boolean, 
+  enrichedAt: Date | null,
+  enrichmentError: string | null 
+}) => {
+  // Don't show button if there was a failed attempt (no data available)
+  if (company.enrichmentError) return false;
+  
+  // If not enriched and never attempted, show button
+  if (!company.enriched && !company.enrichedAt) return true;
+  
+  // If successfully enriched, check 3-month threshold
+  if (company.enriched && company.enrichedAt) {
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+    return company.enrichedAt < threeMonthsAgo;
+  }
+  
+  return false;
+}
 
 export default async function CustomerPage(
   props: {
@@ -21,6 +43,7 @@ export default async function CustomerPage(
           enriched: true,
           enrichedAt: true,
           enrichedSource: true,
+          enrichmentError: true,
         },
       },
       emails: {
@@ -122,8 +145,14 @@ export default async function CustomerPage(
 
       {customer.company && (
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Company Information</CardTitle>
+            {needsEnrichment(customer.company) && (
+              <SingleEnrichButton 
+                domain={customer.company.domain}
+                isEnriched={customer.company.enriched}
+              />
+            )}
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 md:grid-cols-2">
