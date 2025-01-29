@@ -7,7 +7,6 @@ import { StaticOrdersTable } from "@/components/orders/static-orders-table"
 import { SingleEnrichButton } from "@/components/companies/single-enrich-button"
 import { formatCurrency } from "@/lib/utils"
 import { Order } from "@/lib/orders"
-import { Prisma } from "@prisma/client"
 
 // Types
 interface CompanyDetails {

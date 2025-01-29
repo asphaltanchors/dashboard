@@ -4,11 +4,19 @@ import { PeriodSelector } from "@/components/reports/period-selector"
 import { PopAndDropTable } from "@/components/reports/pop-and-drop-table"
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { TrendingUp, TrendingDown } from "lucide-react"
-import { useRouter } from "next/navigation"
+
+interface Company {
+  id: string
+  name: string | null
+  domain: string
+  currentTotal: number
+  previousTotal: number
+  percentageChange: number
+}
 
 interface Props {
   months: number
-  companies: any[]
+  companies: Company[]
   summary: {
     increasingCount: number
     decreasingCount: number
