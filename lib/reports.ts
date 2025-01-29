@@ -142,140 +142,72 @@ export async function getCompanyOrderMetrics(monthsWindow = 6) {
 }
 
 export async function getAdhesiveMetrics(filterConsumer = true) {
+  // Get the correctly filtered list of adhesive-only customers first
+  const adhesiveOnlyCustomers = await getAdhesiveOnlyCustomers(filterConsumer)
+  const customerIds = adhesiveOnlyCustomers.map(c => c.id)
+
   const today = new Date()
   const twelveMonthsAgo = new Date(today)
   twelveMonthsAgo.setFullYear(today.getFullYear() - 1)
   const twentyFourMonthsAgo = new Date(twelveMonthsAgo)
   twentyFourMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1)
 
-  // Get orders for last 12 months
+  // Get orders for last 12 months from adhesive-only customers
   const recentOrders = await prisma.order.findMany({
     where: {
+      customerId: {
+        in: customerIds
+      },
       orderDate: {
         gte: twelveMonthsAgo
-      },
-      items: {
-        some: {
-          productCode: {
-            in: ADHESIVE_PRODUCT_CODES
-          }
-        }
-      },
-      // Ensure no orders contain non-adhesive products
-      NOT: {
-        items: {
-          some: {
-            productCode: {
-              notIn: ADHESIVE_PRODUCT_CODES
-            }
-          }
-        }
       }
     },
     select: {
       id: true,
-      createdAt: true,
       items: {
         select: {
           amount: true
-        }
-      },
-      customer: {
-        select: {
-          company: {
-            select: {
-              domain: true,
-              enriched: true,
-              enrichedSource: true
-            }
-          }
         }
       }
     }
   })
 
-  // Get orders for previous 12 months
+  // Get orders for previous 12 months from adhesive-only customers
   const previousOrders = await prisma.order.findMany({
     where: {
+      customerId: {
+        in: customerIds
+      },
       orderDate: {
         gte: twentyFourMonthsAgo,
         lt: twelveMonthsAgo
-      },
-      items: {
-        some: {
-          productCode: {
-            in: ADHESIVE_PRODUCT_CODES
-          }
-        }
-      },
-      // Ensure no orders contain non-adhesive products
-      NOT: {
-        items: {
-          some: {
-            productCode: {
-              notIn: ADHESIVE_PRODUCT_CODES
-            }
-          }
-        }
       }
     },
     select: {
       id: true,
-      createdAt: true,
       items: {
         select: {
           amount: true
-        }
-      },
-      customer: {
-        select: {
-          company: {
-            select: {
-              domain: true,
-              enriched: true,
-              enrichedSource: true
-            }
-          }
         }
       }
     }
   })
 
-  // Filter orders based on consumer domains
-  const filterOrder = (order: typeof recentOrders[0]) => {
-    if (!filterConsumer) return true
-    const company = order.customer.company
-    if (!company) return true
-    
-    // Keep companies that are enriched from a business source
-    if (company.enriched && company.enrichedSource !== 'hunter') {
-      return true
-    }
-    
-    // Filter out consumer domains
-    const domain = company.domain?.toLowerCase()
-    if (!domain) return true
-    return !CONSUMER_DOMAINS.some((consumerDomain: string) => domain.endsWith(consumerDomain))
-  }
-
-  const filteredRecentOrders = recentOrders.filter(filterOrder)
-  const filteredPreviousOrders = previousOrders.filter(filterOrder)
-
-  const recentTotal = filteredRecentOrders.reduce((total, order) => 
+  const recentTotal = recentOrders.reduce((total, order) => 
     total + order.items.reduce((orderTotal, item) => orderTotal + Number(item.amount), 0), 0
   )
-  const previousTotal = filteredPreviousOrders.reduce((total, order) => 
+  const previousTotal = previousOrders.reduce((total, order) => 
     total + order.items.reduce((orderTotal, item) => orderTotal + Number(item.amount), 0), 0
   )
 
-  const recentAvg = recentTotal / (filteredRecentOrders.length || 1)
-  const previousAvg = previousTotal / (filteredPreviousOrders.length || 1)
+  const recentAvg = recentTotal / (recentOrders.length || 1)
+  const previousAvg = previousTotal / (previousOrders.length || 1)
 
   return {
     orderCount: {
-      current: filteredRecentOrders.length,
-      change: filteredPreviousOrders.length ? 
-        ((filteredRecentOrders.length - filteredPreviousOrders.length) / filteredPreviousOrders.length * 100).toFixed(1) : 
+      current: recentOrders.length,
+      change: previousOrders.length ? 
+        ((recentOrders.length - previousOrders.length) / previousOrders.length * 100).toFixed(1) : 
         "0.0"
     },
     totalSpent: {
