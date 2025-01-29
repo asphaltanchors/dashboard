@@ -1,6 +1,6 @@
 import { prisma } from "./prisma"
 
-const CONSUMER_DOMAINS = [
+export const CONSUMER_DOMAINS = [
   'gmail.com',
   'yahoo.com',
   'hotmail.com',

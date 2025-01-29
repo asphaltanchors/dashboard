@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { CONSUMER_DOMAINS } from "@/lib/companies"
 
 const ADHESIVE_PRODUCT_CODES = [
   // EPX2 products
@@ -140,7 +141,7 @@ export async function getCompanyOrderMetrics(monthsWindow = 6) {
   }
 }
 
-export async function getAdhesiveMetrics() {
+export async function getAdhesiveMetrics(filterConsumer = true) {
   const today = new Date()
   const twelveMonthsAgo = new Date(today)
   twelveMonthsAgo.setFullYear(today.getFullYear() - 1)
@@ -178,6 +179,17 @@ export async function getAdhesiveMetrics() {
         select: {
           amount: true
         }
+      },
+      customer: {
+        select: {
+          company: {
+            select: {
+              domain: true,
+              enriched: true,
+              enrichedSource: true
+            }
+          }
+        }
       }
     }
   })
@@ -214,25 +226,56 @@ export async function getAdhesiveMetrics() {
         select: {
           amount: true
         }
+      },
+      customer: {
+        select: {
+          company: {
+            select: {
+              domain: true,
+              enriched: true,
+              enrichedSource: true
+            }
+          }
+        }
       }
     }
   })
 
-  const recentTotal = recentOrders.reduce((total, order) => 
+  // Filter orders based on consumer domains
+  const filterOrder = (order: typeof recentOrders[0]) => {
+    if (!filterConsumer) return true
+    const company = order.customer.company
+    if (!company) return true
+    
+    // Keep companies that are enriched from a business source
+    if (company.enriched && company.enrichedSource !== 'hunter') {
+      return true
+    }
+    
+    // Filter out consumer domains
+    const domain = company.domain?.toLowerCase()
+    if (!domain) return true
+    return !CONSUMER_DOMAINS.some((consumerDomain: string) => domain.endsWith(consumerDomain))
+  }
+
+  const filteredRecentOrders = recentOrders.filter(filterOrder)
+  const filteredPreviousOrders = previousOrders.filter(filterOrder)
+
+  const recentTotal = filteredRecentOrders.reduce((total, order) => 
     total + order.items.reduce((orderTotal, item) => orderTotal + Number(item.amount), 0), 0
   )
-  const previousTotal = previousOrders.reduce((total, order) => 
+  const previousTotal = filteredPreviousOrders.reduce((total, order) => 
     total + order.items.reduce((orderTotal, item) => orderTotal + Number(item.amount), 0), 0
   )
 
-  const recentAvg = recentTotal / (recentOrders.length || 1)
-  const previousAvg = previousTotal / (previousOrders.length || 1)
+  const recentAvg = recentTotal / (filteredRecentOrders.length || 1)
+  const previousAvg = previousTotal / (filteredPreviousOrders.length || 1)
 
   return {
     orderCount: {
-      current: recentOrders.length,
-      change: previousOrders.length ? 
-        ((recentOrders.length - previousOrders.length) / previousOrders.length * 100).toFixed(1) : 
+      current: filteredRecentOrders.length,
+      change: filteredPreviousOrders.length ? 
+        ((filteredRecentOrders.length - filteredPreviousOrders.length) / filteredPreviousOrders.length * 100).toFixed(1) : 
         "0.0"
     },
     totalSpent: {
@@ -250,7 +293,7 @@ export async function getAdhesiveMetrics() {
   }
 }
 
-export async function getAdhesiveOnlyCustomers() {
+export async function getAdhesiveOnlyCustomers(filterConsumer = true) {
   // Find customers who have only ordered adhesive products
   const customers = await prisma.customer.findMany({
     where: {
@@ -282,7 +325,9 @@ export async function getAdhesiveOnlyCustomers() {
       company: {
         select: {
           name: true,
-          domain: true
+          domain: true,
+          enriched: true,
+          enrichedSource: true
         }
       },
       orders: {
@@ -313,7 +358,21 @@ export async function getAdhesiveOnlyCustomers() {
     }
   })
 
-  return customers.map(customer => ({
+  // Filter out consumer domains if requested
+  const filteredCustomers = filterConsumer 
+    ? customers.filter(customer => {
+        // Keep companies that are enriched from a business source
+        if (customer.company?.enriched && customer.company.enrichedSource !== 'hunter') {
+          return true
+        }
+        // Filter out consumer domains
+        const domain = customer.company?.domain?.toLowerCase()
+        if (!domain) return true
+        return !CONSUMER_DOMAINS.some((consumerDomain: string) => domain.endsWith(consumerDomain))
+      })
+    : customers
+
+  return filteredCustomers.map(customer => ({
     id: customer.id,
     customerName: customer.customerName,
     companyName: customer.company?.name ?? null,
