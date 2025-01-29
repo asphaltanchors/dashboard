@@ -55,7 +55,9 @@ export async function enrichCompany(domain: string): Promise<EnrichmentResponse>
         enrichedAt: new Date(),
         enrichedSource: 'thecompaniesapi.com',
         enrichmentData,
-        enrichmentError: null
+        enrichmentError: null,
+        // Update company name if available in enrichment data
+        name: enrichmentData.about?.name || undefined
       }
     })
 

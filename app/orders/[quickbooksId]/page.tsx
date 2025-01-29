@@ -34,17 +34,74 @@ export default async function OrderPage({
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-2xl font-bold mb-1">Order {order.orderNumber}</h1>
-          <p className="text-sm text-gray-500">
-            {order.customer.customerName}
-            {order.customer.company?.name && (
-              <>
-                {" • "}
-                <Link href={`/companies/${order.customer.company.id}`} className="text-gray-700 hover:underline transition-colors">
-                  {order.customer.company.name}
+          <div className="space-y-1">
+            <p className="text-sm text-gray-500">
+              {order.customer.customerName}
+              {order.customer.company?.name && order.customer.company.domain && (
+                <Link href={`/companies/${order.customer.company.domain}`} className="text-gray-700 hover:underline transition-colors">
+                  {" • "}{order.customer.company.name}
                 </Link>
-              </>
+              )}
+            </p>
+            {(order.customer.emails.some(e => e.isPrimary) || order.customer.phones.some(p => p.isPrimary)) && (
+              <div className="text-sm text-gray-500 flex items-center gap-4">
+                {order.customer.emails.find(e => e.isPrimary) && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger className="flex items-center gap-1">
+                        <a 
+                          href={`mailto:${order.customer.emails.find(e => e.isPrimary)?.email}`}
+                          className="hover:underline"
+                        >
+                          {order.customer.emails.find(e => e.isPrimary)?.email}
+                        </a>
+                        {order.customer.emails.length > 1 && (
+                          <span className="text-xs text-gray-400">+{order.customer.emails.length - 1}</span>
+                        )}
+                      </TooltipTrigger>
+                      {order.customer.emails.length > 1 && (
+                        <TooltipContent>
+                          <p className="font-semibold mb-1">Additional Emails</p>
+                          {order.customer.emails.filter(e => !e.isPrimary).map((email, i) => (
+                            <p key={i} className="text-sm">
+                              {email.email} <span className="text-gray-400">({email.type.toLowerCase()})</span>
+                            </p>
+                          ))}
+                        </TooltipContent>
+                      )}
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+                {order.customer.phones.find(p => p.isPrimary) && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger className="flex items-center gap-1">
+                        <a 
+                          href={`tel:${order.customer.phones.find(p => p.isPrimary)?.phone}`}
+                          className="hover:underline"
+                        >
+                          {order.customer.phones.find(p => p.isPrimary)?.phone}
+                        </a>
+                        {order.customer.phones.length > 1 && (
+                          <span className="text-xs text-gray-400">+{order.customer.phones.length - 1}</span>
+                        )}
+                      </TooltipTrigger>
+                      {order.customer.phones.length > 1 && (
+                        <TooltipContent>
+                          <p className="font-semibold mb-1">Additional Phone Numbers</p>
+                          {order.customer.phones.filter(p => !p.isPrimary).map((phone, i) => (
+                            <p key={i} className="text-sm">
+                              {phone.phone} <span className="text-gray-400">({phone.type.toLowerCase()})</span>
+                            </p>
+                          ))}
+                        </TooltipContent>
+                      )}
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </div>
             )}
-          </p>
+          </div>
         </div>
         <div className="text-right">
           <div className="text-sm text-gray-500">Order Date</div>

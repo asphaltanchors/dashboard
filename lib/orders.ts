@@ -145,7 +145,22 @@ export async function getOrderByQuickbooksId(quickbooksId: string) {
           company: {
             select: {
               id: true,
-              name: true
+              name: true,
+              domain: true
+            }
+          },
+          emails: {
+            select: {
+              email: true,
+              type: true,
+              isPrimary: true
+            }
+          },
+          phones: {
+            select: {
+              phone: true,
+              type: true,
+              isPrimary: true
             }
           }
         }

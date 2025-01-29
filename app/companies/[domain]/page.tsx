@@ -37,15 +37,15 @@ interface CustomerDetails {
 
 interface PageProps {
   params: Promise<{
-    id: string
+    domain: string
   }>
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }
 
 // Data fetching
-async function getCompanyDetails(id: string): Promise<CompanyDetails | null> {
+async function getCompanyDetails(domain: string): Promise<CompanyDetails | null> {
   const result = await prisma.company.findUnique({
-    where: { id },
+    where: { domain },
     select: {
       id: true,
       name: true,
@@ -141,7 +141,7 @@ function calculateYearlyRevenue(customers: CustomerDetails[]) {
 
 export default async function CompanyPage(props: PageProps) {
   const params = await props.params
-  const company = await getCompanyDetails(params.id)
+  const company = await getCompanyDetails(params.domain)
 
   if (!company) {
     notFound()

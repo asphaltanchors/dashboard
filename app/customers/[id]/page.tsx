@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { notFound } from "next/navigation"
+import Link from "next/link"
 import { SingleEnrichButton } from "@/components/companies/single-enrich-button"
 
 const needsEnrichment = (company: { 
@@ -100,7 +101,15 @@ export default async function CustomerPage(
                 </div>
                 <div>
                   <dt className="text-sm font-medium text-gray-500">Company</dt>
-                  <dd className="mt-1">{customer.company?.name ?? 'N/A'}</dd>
+                  <dd className="mt-1">
+                    {customer.company ? (
+                      <Link href={`/companies/${customer.company.domain}`} className="text-blue-600 hover:underline">
+                        {customer.company.name ?? customer.company.domain}
+                      </Link>
+                    ) : (
+                      'N/A'
+                    )}
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-sm font-medium text-gray-500">Status</dt>
@@ -146,7 +155,11 @@ export default async function CustomerPage(
       {customer.company && (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Company Information</CardTitle>
+            <CardTitle>
+              <Link href={`/companies/${customer.company.domain}`} className="text-blue-600 hover:underline">
+                Company Information
+              </Link>
+            </CardTitle>
             {needsEnrichment(customer.company) && (
               <SingleEnrichButton 
                 domain={customer.company.domain}
