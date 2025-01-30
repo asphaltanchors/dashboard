@@ -2,7 +2,7 @@
 service: aacd
 
 # Name of the container image.
-image: teich/aacd
+image: asphaltanchors/aacd
 
 # Deploy to these servers.
 servers:
