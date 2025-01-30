@@ -11,6 +11,18 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml*  ./
 RUN  corepack enable pnpm && pnpm i --frozen-lockfile
 
+# Setup scripts runtime dependencies
+FROM base AS scripts-deps
+WORKDIR /scripts-runtime
+COPY package.json pnpm-lock.yaml* ./
+RUN corepack enable pnpm && \
+    pnpm i --frozen-lockfile \
+    @prisma/client \
+    commander \
+    csv-parse \
+    tsx \
+    typescript \
+    zod
 
 # Rebuild the source code only when needed
 FROM base AS builder
@@ -31,18 +43,25 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN corepack enable pnpm
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
 
+# Copy Next.js standalone build
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-## This is broken, commenting out for now.
-## Including node_modules so the script can work, requires commander and things
-# COPY --from=deps --chown=nextjs:nodejs /app/node_modules ./node_modules
-# COPY ./scripts ./scripts
+# Setup scripts runtime
+WORKDIR /scripts-runtime
+COPY --from=scripts-deps /scripts-runtime/node_modules ./node_modules
+COPY scripts ./scripts
+
+# Create script runner
+RUN echo '#!/bin/sh\nNODE_PATH=/scripts-runtime/node_modules exec tsx "/scripts-runtime/scripts/$@"' > /usr/local/bin/run-script && \
+    chmod +x /usr/local/bin/run-script
+
+WORKDIR /app
 
 COPY docker-entrypoint.sh /
 RUN chmod +x /docker-entrypoint.sh

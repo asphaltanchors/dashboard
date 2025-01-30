@@ -17,6 +17,7 @@ proxy:
 
 # Credentials for your image host.
 registry:
+  server: ghcr.io
   username: teich
   password:
     - KAMAL_REGISTRY_PASSWORD
