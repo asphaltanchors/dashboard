@@ -39,9 +39,10 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+## This is broken, commenting out for now.
 ## Including node_modules so the script can work, requires commander and things
-COPY --from=deps --chown=nextjs:nodejs /app/node_modules ./node_modules
-COPY ./scripts ./scripts
+# COPY --from=deps --chown=nextjs:nodejs /app/node_modules ./node_modules
+# COPY ./scripts ./scripts
 
 COPY docker-entrypoint.sh /
 RUN chmod +x /docker-entrypoint.sh
