@@ -18,6 +18,8 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+COPY scripts ./scripts
+
 RUN corepack enable pnpm && pnpm dlx prisma generate
 
 RUN corepack enable pnpm && pnpm run build
