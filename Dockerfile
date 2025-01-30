@@ -18,8 +18,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-RUN corepack enable pnpm && pnpm dlx prisma generate
-RUN corepack enable pnpm && pnpm run build
+RUN corepack enable pnpm && \
+    pnpm dlx prisma generate && \
+    pnpm run build
 
 # Production image, copy all the files and run next
 FROM base AS runner
@@ -38,6 +39,8 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+## Including node_modules so the script can work, requires commander and things
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules ./node_modules
 COPY ./scripts ./scripts
 
 COPY docker-entrypoint.sh /
