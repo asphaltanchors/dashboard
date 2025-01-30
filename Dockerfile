@@ -14,15 +14,8 @@ RUN  corepack enable pnpm && pnpm i --frozen-lockfile
 # Setup scripts runtime dependencies
 FROM base AS scripts-deps
 WORKDIR /scripts-runtime
-COPY package.json pnpm-lock.yaml* ./
 RUN corepack enable pnpm && \
-    pnpm i --frozen-lockfile \
-    @prisma/client \
-    commander \
-    csv-parse \
-    tsx \
-    typescript \
-    zod
+    pnpm add @prisma/client commander csv-parse tsx typescript zod
 
 # Rebuild the source code only when needed
 FROM base AS builder
