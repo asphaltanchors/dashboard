@@ -48,7 +48,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Setup scripts runtime
 WORKDIR /scripts-runtime
 COPY --from=scripts-deps /scripts-runtime/node_modules ./node_modules
-COPY scripts ./scripts
+# Copy generated Prisma client from builder
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
+COPY scripts .
 
 # Create script runner
 RUN echo '#!/bin/sh\nNODE_PATH=/scripts-runtime/node_modules exec tsx "/scripts-runtime/scripts/$@"' > /usr/local/bin/run-script && \
