@@ -4,7 +4,60 @@ import { PrismaClient } from '@prisma/client';
 import path from 'path';
 import fs from 'fs/promises';
 import { existsSync } from 'fs';
-import { ImportConfig, ImportConfigSchema, ImportResult, DailyImportLog } from './shared/import-config';
+import { z } from 'zod';
+
+// Configuration type
+interface ImportConfig {
+  importDir: string;
+  archiveDir: string;
+  failedDir: string;
+  logDir: string;
+  filePatterns: {
+    customers: string;
+    invoices: string;
+    salesReceipts: string;
+  };
+  retentionDays: number;
+  batchSize: number;
+  maxRetries: number;
+  debug: boolean;
+}
+
+// Import result types
+interface ImportResult {
+  filename: string;
+  importType: 'customers' | 'invoices' | 'salesReceipts';
+  success: boolean;
+  startTime: Date;
+  endTime: Date;
+  recordsProcessed: number;
+  errors: string[];
+  warnings: string[];
+}
+
+interface DailyImportLog {
+  date: string;
+  imports: ImportResult[];
+  archiveDir: string;
+}
+
+function getConfig(baseDir: string = '/CSV'): ImportConfig {
+  return {
+    importDir: baseDir,
+    archiveDir: path.join(baseDir, 'archive'),
+    failedDir: path.join(baseDir, 'failed'),
+    logDir: path.join(baseDir, 'logs'),
+    filePatterns: {
+      customers: 'customers_*.csv',
+      invoices: 'invoices_*.csv',
+      salesReceipts: 'sales_receipts_*.csv'
+    },
+    retentionDays: 30,
+    batchSize: 100,
+    maxRetries: 3,
+    debug: false
+  };
+}
 
 const prisma = new PrismaClient();
 
@@ -90,18 +143,50 @@ async function importFile(
   return result;
 }
 
-async function processImports(configPath: string) {
-  // Load and validate config
-  const configFile = await fs.readFile(configPath, 'utf-8');
-  const config = ImportConfigSchema.parse(JSON.parse(configFile));
+async function validateDirectoryStructure(config: ImportConfig) {
+  // Check if import directory exists
+  try {
+    await fs.access(config.importDir);
+  } catch {
+    throw new Error(`Import directory ${config.importDir} does not exist. Please create it and add your CSV files.`);
+  }
 
-  // Ensure required directories exist
+  // Create other directories if they don't exist
   await Promise.all([
-    ensureDirectoryExists(config.importDir),
     ensureDirectoryExists(config.archiveDir),
     ensureDirectoryExists(config.failedDir),
     ensureDirectoryExists(config.logDir)
   ]);
+
+  // Check if any matching files exist
+  const files = await fs.readdir(config.importDir);
+  const importTypes = ['customers', 'invoices', 'salesReceipts'] as const;
+  let hasMatchingFiles = false;
+
+  for (const importType of importTypes) {
+    const pattern = config.filePatterns[importType];
+    const matchingFiles = files.filter(f => f.match(pattern.replace('*', '\\d{8}')));
+    if (matchingFiles.length > 0) {
+      hasMatchingFiles = true;
+      break;
+    }
+  }
+
+  if (!hasMatchingFiles) {
+    throw new Error(
+      `No matching CSV files found in ${config.importDir}. Expected files matching patterns:\n` +
+      Object.entries(config.filePatterns)
+        .map(([type, pattern]) => `  - ${pattern} (${type})`)
+        .join('\n')
+    );
+  }
+}
+
+async function processImports(baseDir?: string) {
+  const config = getConfig(baseDir);
+
+  // Validate directory structure and check for files
+  await validateDirectoryStructure(config);
 
   // Initialize daily log
   const today = new Date().toISOString().split('T')[0];
@@ -169,10 +254,10 @@ const program = new Command();
 program
   .name('process-daily-imports')
   .description('Process daily CSV imports for customers, invoices, and sales receipts')
-  .argument('<config>', 'Path to config file')
-  .action(async (configPath: string) => {
+  .argument('[directory]', 'Base directory for CSV files (defaults to /CSV)')
+  .action(async (directory?: string) => {
     try {
-      await processImports(configPath);
+      await processImports(directory);
     } catch (error) {
       console.error('Import failed:', error);
       process.exit(1);

@@ -6,64 +6,51 @@ This directory contains scripts for importing data from various sources.
 
 The `process-daily-imports.ts` script handles automated daily imports of customer, invoice, and sales receipt data. It processes CSV files that are generated daily and maintains a history of imports.
 
-### Configuration
+### Directory Structure
 
-Create a configuration file (e.g., `import-config.json`) with the following structure:
+By default, the script uses the following structure:
+- `/CSV`: Base directory for new CSV files
+- `/CSV/archive`: Successfully processed files are moved here
+- `/CSV/failed`: Files that failed to process are moved here
+- `/CSV/logs`: Import logs are stored here
 
-```json
-{
-  "importDir": "/path/to/import/directory",
-  "archiveDir": "/path/to/archive/directory",
-  "failedDir": "/path/to/failed/directory",
-  "logDir": "/path/to/log/directory",
-  
-  "filePatterns": {
-    "customers": "Customer_\\d{2}_\\d{2}_\\d{4}_\\d{1,2}_\\d{2}_\\d{2}.csv",
-    "invoices": "Invoice_\\d{2}_\\d{2}_\\d{4}_\\d{1,2}_\\d{2}_\\d{2}.csv",
-    "salesReceipts": "Sales Receipt_\\d{2}_\\d{2}_\\d{4}_\\d{1,2}_\\d{2}_\\d{2}.csv"
-  },
-  
-  "retentionDays": 30,
-  "batchSize": 100,
-  "maxRetries": 3,
-  "debug": false
-}
+You can specify a different base directory when running the script:
+```bash
+pnpx tsx dist/scripts/process-daily-imports.js /path/to/csv/directory
 ```
+
+The script will automatically create the archive, failed, and logs subdirectories if they don't exist.
 
 ### File Naming Convention
 
 Files should follow these naming patterns:
-- Customers: `Customer_MM_DD_YYYY_H_MM_SS.csv` (e.g., `Customer_01_20_2025_1_00_02.csv`)
-- Invoices: `Invoice_MM_DD_YYYY_H_MM_SS.csv` (e.g., `Invoice_01_20_2025_1_00_02.csv`)
-- Sales Receipts: `Sales Receipt_MM_DD_YYYY_H_MM_SS.csv` (e.g., `Sales Receipt_01_20_2025_1_00_02.csv`)
-
-### Directory Structure
-
-- `importDir`: Where new CSV files are placed
-- `archiveDir`: Successfully processed files are moved here
-- `failedDir`: Files that failed to process are moved here
-- `logDir`: Import logs are stored here
+- Customers: `customers_YYYYMMDD.csv` (e.g., `customers_20250120.csv`)
+- Invoices: `invoices_YYYYMMDD.csv` (e.g., `invoices_20250120.csv`)
+- Sales Receipts: `sales_receipts_YYYYMMDD.csv` (e.g., `sales_receipts_20250120.csv`)
 
 ### Running the Import
 
 ```bash
-# Run manually
-pnpx tsx dist/scripts/process-daily-imports.js /path/to/import-config.json
+# Run with default directory (/CSV)
+pnpx tsx dist/scripts/process-daily-imports.js
+
+# Run with custom directory
+pnpx tsx dist/scripts/process-daily-imports.js /path/to/csv/directory
 
 # Setup cron job (runs at 2 AM daily)
-0 2 * * * cd /path/to/project && /usr/local/bin/pnpx tsx dist/scripts/process-daily-imports.js /path/to/import-config.json
+0 2 * * * cd /path/to/project && /usr/local/bin/pnpx tsx dist/scripts/process-daily-imports.js
 ```
 
 ### Import Process
 
-1. Scans import directory for files matching patterns
+1. Validates directory structure and checks for matching files
 2. Processes files modified in the last 24 hours
 3. For each file:
    - Validates CSV format
    - Imports data using appropriate processor
    - Moves file to archive or failed directory
 4. Generates import log with results
-5. Cleans up old files based on retention policy
+5. Cleans up old files based on retention policy (30 days)
 
 ### Logging
 
@@ -80,6 +67,9 @@ Import logs are stored in JSON format with the following information:
 - Files that fail to import are moved to the failed directory
 - Detailed error logs are generated
 - Process exits with code 1 if any imports fail
+- Clear error messages if:
+  - Import directory doesn't exist
+  - No matching CSV files are found
 
 ### Individual Import Scripts
 

@@ -34,4 +34,8 @@ env:
     - DATABASE_URL
     - COMPANIES_API_TOKEN
 
+
+volumes:
+  - /mnt/dropbox/db/AAC/Oren/CSV:/CSV
+
 asset_path: /app/.next
