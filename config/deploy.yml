@@ -38,12 +38,12 @@ env:
 volumes:
   - /mnt/dropbox/db/AAC/Oren/CSV:/CSV
 
+asset_path: /app/.next
+
 accessories:
   maestral:
     image: maestraldbx/maestral:latest
+    host: aac
     volumes:
       - /mnt/dropbox:/dropbox
-    options:
-      rm: true
 
-asset_path: /app/.next
