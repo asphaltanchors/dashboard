@@ -44,6 +44,6 @@ accessories:
     volumes:
       - /mnt/dropbox:/dropbox
     options:
-      - --rm
+      rm: true
 
 asset_path: /app/.next
