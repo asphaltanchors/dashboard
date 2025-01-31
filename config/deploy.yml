@@ -35,9 +35,6 @@ env:
     - DATABASE_URL
     - COMPANIES_API_TOKEN
 
-volumes:
-  - /mnt/dropbox/db/AAC/Oren/CSV:/CSV
-
 asset_path: /app/.next
 
 accessories:
@@ -46,4 +43,12 @@ accessories:
     host: aac
     volumes:
       - /mnt/dropbox:/dropbox
+  importer:
+    image: asphaltanchors/importer:latest
+    host: aac
+    volumes:
+      - /mnt/dropbox/db/AAC/Oren/CSV:/CSV
+    env:
+      secret:
+        - DATABASE_URL
 
