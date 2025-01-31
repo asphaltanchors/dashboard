@@ -44,7 +44,7 @@ accessories:
     volumes:
       - /mnt/dropbox:/dropbox
   importer:
-    image: asphaltanchors/importer:latest
+    image: ghcr.io/asphaltanchors/importer:latest
     host: aac
     volumes:
       - /mnt/dropbox/db/AAC/Oren/CSV:/CSV
