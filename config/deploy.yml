@@ -28,12 +28,12 @@ builder:
   secrets:
     - DATABASE_URL
   remote: ssh://root@aac
+  context: .
 
 env:
   secret:
     - DATABASE_URL
     - COMPANIES_API_TOKEN
-
 
 volumes:
   - /mnt/dropbox/db/AAC/Oren/CSV:/CSV

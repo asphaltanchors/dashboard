@@ -1,6 +1,101 @@
-import { PrismaClient, EmailType, PhoneType, Prisma } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { AddressData, BaseImportStats, ImportContext } from './shared/types';
 import { BatchEmailProcessor, BatchPhoneProcessor, DEFAULT_BATCH_SIZE } from './shared/batch-utils';
+import { BatchAddressProcessor } from './shared/address-processor';
+import { 
+  createCsvParser, 
+  parseDate, 
+  processAddress, 
+  processImport, 
+  setupImportCommand 
+} from './shared/utils';
+
+// Define the enums locally since they're not exported from @prisma/client
+enum EmailType {
+  MAIN = 'MAIN',
+  CC = 'CC'
+}
+
+enum PhoneType {
+  MAIN = 'MAIN',
+  MOBILE = 'MOBILE',
+  WORK = 'WORK',
+  OTHER = 'OTHER'
+}
+
+interface CustomerImportStats extends BaseImportStats {
+  companiesCreated: number;
+  customersCreated: number;
+  customersUpdated: number;
+  addressesCreated: number;
+}
+
+interface CustomerImportContext extends ImportContext {
+  emailProcessor: BatchEmailProcessor;
+  phoneProcessor: BatchPhoneProcessor;
+  companyProcessor: BatchCompanyProcessor;
+  addressProcessor: BatchAddressProcessor;
+  customerProcessor: BatchCustomerProcessor;
+  pendingContactInfo: Map<string, {
+    emails: Array<{ email: string; type: 'MAIN' | 'CC'; isPrimary: boolean }>;
+    phones: Array<{ number: string; type: PhoneType; isPrimary: boolean }>;
+  }>;
+}
+
+interface CustomerRow {
+  'QuickBooks Internal Id': string;
+  'Customer Name': string;
+  'Company Name': string;
+  'First Name': string;
+  'Middle Name': string;
+  'Last Name': string;
+  'Main Email': string;
+  'CC Email': string;
+  'Main Phone': string;
+  'Alt. Phone': string;
+  'Work Phone': string;
+  'Mobile': string;
+  'Status': string;
+  'Created Date': string;
+  'Modified Date': string;
+  'Tax Code': string;
+  'Tax Item': string;
+  'Resale No': string;
+  'Credit Limit': string;
+  'Terms': string;
+  'Billing Address Line 1': string;
+  'Billing Address Line 2': string;
+  'Billing Address Line 3': string;
+  'Billing Address City': string;
+  'Billing Address State': string;
+  'Billing Address Postal Code': string;
+  'Billing Address Country': string;
+  'Shipping Address Line 1': string;
+  'Shipping Address Line 2': string;
+  'Shipping Address Line 3': string;
+  'Shipping Address City': string;
+  'Shipping Address State': string;
+  'Shipping Address Postal Code': string;
+  'Shipping Address Country': string;
+}
+
+interface CustomerBatchRecord {
+  quickbooksId: string;
+  customerName: string | null;
+  companyDomain: string | null;
+  status: 'ACTIVE' | 'INACTIVE';
+  createdAt: Date;
+  modifiedAt: Date;
+  taxCode: string | null;
+  taxItem: string | null;
+  resaleNumber: string | null;
+  creditLimit: number | null;
+  terms: string | null;
+  billingAddressId: string | null;
+  shippingAddressId: string | null;
+  sourceData: any;
+  isUpdate: boolean;
+}
 
 class BatchCompanyProcessor {
   private batch: Map<string, {
@@ -85,183 +180,6 @@ class BatchCompanyProcessor {
   }
 }
 
-class BatchAddressProcessor {
-  private batch: Array<AddressData & { hash: string }> = [];
-  private processedAddresses = new Map<string, string>();
-  
-  private stats?: CustomerImportStats;
-
-  constructor(
-    private prisma: PrismaClient,
-    private batchSize: number = DEFAULT_BATCH_SIZE,
-    stats?: CustomerImportStats
-  ) {
-    this.stats = stats;
-  }
-
-  private hashAddress(address: AddressData): string {
-    return JSON.stringify({
-      line1: address.line1,
-      line2: address.line2,
-      line3: address.line3,
-      city: address.city,
-      state: address.state,
-      postalCode: address.postalCode,
-      country: address.country
-    });
-  }
-
-  async add(address: AddressData): Promise<string | null> {
-    if (!address.line1) return null;
-    
-    const hash = this.hashAddress(address);
-    
-    // Return existing address ID if we've processed this address before
-    if (this.processedAddresses.has(hash)) {
-      return this.processedAddresses.get(hash)!;
-    }
-    
-    this.batch.push({ ...address, hash });
-    
-    if (this.batch.length >= this.batchSize) {
-      await this.flush();
-    }
-    
-    return null; // Will be processed during flush
-  }
-
-  async flush(tx?: Prisma.TransactionClient): Promise<void> {
-    if (this.batch.length === 0) return;
-
-    const client = tx || this.prisma;
-    
-    // First find any existing addresses
-    const existingAddresses = await client.address.findMany({
-      where: {
-        OR: this.batch.map(({ hash, ...address }) => ({
-          AND: {
-            line1: address.line1,
-            line2: address.line2 ?? null,
-            line3: address.line3 ?? null,
-            city: address.city,
-            state: address.state,
-            postalCode: address.postalCode,
-            country: address.country
-          }
-        }))
-      },
-      select: {
-        id: true,
-        line1: true,
-        line2: true,
-        line3: true,
-        city: true,
-        state: true,
-        postalCode: true,
-        country: true
-      }
-    });
-
-    // Create a map of existing addresses by their hash
-    const existingAddressMap = new Map<string, string>();
-    for (const address of existingAddresses) {
-      const addressData: AddressData = {
-        line1: address.line1,
-        line2: address.line2 ?? undefined,
-        line3: address.line3 ?? undefined,
-        city: address.city,
-        state: address.state ?? undefined,
-        postalCode: address.postalCode ?? undefined,
-        country: address.country ?? undefined
-      };
-      const hash = this.hashAddress(addressData);
-      existingAddressMap.set(hash, address.id);
-      this.processedAddresses.set(hash, address.id);
-    }
-
-    // Filter out addresses that already exist
-    const newAddresses = this.batch.filter(({ hash }) => !existingAddressMap.has(hash));
-
-    if (newAddresses.length > 0) {
-      // Create new addresses
-      const result = await client.address.createMany({
-        data: newAddresses.map(({ hash, ...addressData }) => addressData),
-        skipDuplicates: true
-      });
-
-      if (result.count > 0) {
-        // Fetch the newly created addresses to get their IDs
-        const createdAddresses = await client.address.findMany({
-          where: {
-            OR: newAddresses.map(({ hash, ...address }) => ({
-              AND: {
-                line1: address.line1,
-                line2: address.line2 ?? null,
-                line3: address.line3 ?? null,
-                city: address.city,
-                state: address.state,
-                postalCode: address.postalCode,
-                country: address.country
-              }
-            }))
-          },
-          select: {
-            id: true,
-            line1: true,
-            line2: true,
-            line3: true,
-            city: true,
-            state: true,
-            postalCode: true,
-            country: true
-          }
-        });
-
-        // Update our processed addresses map with new addresses
-        for (const address of createdAddresses) {
-          const addressData: AddressData = {
-            line1: address.line1,
-            line2: address.line2 ?? undefined,
-            line3: address.line3 ?? undefined,
-            city: address.city,
-            state: address.state ?? undefined,
-            postalCode: address.postalCode ?? undefined,
-            country: address.country ?? undefined
-          };
-          const hash = this.hashAddress(addressData);
-          this.processedAddresses.set(hash, address.id);
-        }
-      }
-    }
-
-    this.batch = [];
-  }
-
-  getProcessedAddressId(address: AddressData): string | null {
-    if (!address.line1) return null;
-    const hash = this.hashAddress(address);
-    return this.processedAddresses.get(hash) ?? null;
-  }
-}
-
-interface CustomerBatchRecord {
-  quickbooksId: string;
-  customerName: string | null;
-  companyDomain: string | null;
-  status: 'ACTIVE' | 'INACTIVE';
-  createdAt: Date;
-  modifiedAt: Date;
-  taxCode: string | null;
-  taxItem: string | null;
-  resaleNumber: string | null;
-  creditLimit: number | null;
-  terms: string | null;
-  billingAddressId: string | null;
-  shippingAddressId: string | null;
-  sourceData: any;
-  isUpdate: boolean;
-}
-
 class BatchCustomerProcessor {
   private batch: CustomerBatchRecord[] = [];
   private customerIdMap = new Map<string, string>();
@@ -331,7 +249,7 @@ class BatchCustomerProcessor {
       const createdCustomers = await Promise.all(
         creates.map(async data => {
           // Create customer with company relation
-          const createData: Prisma.CustomerUncheckedCreateInput = {
+          const createData = {
             quickbooksId: data.quickbooksId,
             customerName: data.customerName || '', // customerName is required
             status: data.status,
@@ -414,7 +332,7 @@ class BatchCustomerProcessor {
               terms: data.terms ?? undefined,
               billingAddressId: data.billingAddressId ?? undefined,
               shippingAddressId: data.shippingAddressId ?? undefined,
-            } as Prisma.CustomerUpdateInput
+            }
           });
         }));
       }
@@ -424,71 +342,7 @@ class BatchCustomerProcessor {
   }
 }
 
-import { 
-  createCsvParser, 
-  parseDate, 
-  processAddress, 
-  processImport, 
-  setupImportCommand 
-} from './shared/utils';
-
 const prisma = new PrismaClient();
-
-interface CustomerImportStats extends BaseImportStats {
-  companiesCreated: number;
-  customersCreated: number;
-  customersUpdated: number;
-}
-
-interface CustomerImportContext extends ImportContext {
-  emailProcessor: BatchEmailProcessor;
-  phoneProcessor: BatchPhoneProcessor;
-  companyProcessor: BatchCompanyProcessor;
-  addressProcessor: BatchAddressProcessor;
-  customerProcessor: BatchCustomerProcessor;
-  pendingContactInfo: Map<string, {
-    emails: Array<{ email: string; isPrimary: boolean }>;
-    phones: Array<{ number: string; type: PhoneType; isPrimary: boolean }>;
-  }>;
-}
-
-interface CustomerRow {
-  'QuickBooks Internal Id': string;
-  'Customer Name': string;
-  'Company Name': string;
-  'First Name': string;
-  'Middle Name': string;
-  'Last Name': string;
-  'Main Email': string;
-  'CC Email': string;
-  'Main Phone': string;
-  'Alt. Phone': string;
-  'Work Phone': string;
-  'Mobile': string;
-  'Status': string;
-  'Created Date': string;
-  'Modified Date': string;
-  'Tax Code': string;
-  'Tax Item': string;
-  'Resale No': string;
-  'Credit Limit': string;
-  'Terms': string;
-  'Billing Address Line 1': string;
-  'Billing Address Line 2': string;
-  'Billing Address Line 3': string;
-  'Billing Address City': string;
-  'Billing Address State': string;
-  'Billing Address Postal Code': string;
-  'Billing Address Country': string;
-  'Shipping Address Line 1': string;
-  'Shipping Address Line 2': string;
-  'Shipping Address Line 3': string;
-  'Shipping Address City': string;
-  'Shipping Address State': string;
-  'Shipping Address Postal Code': string;
-  'Shipping Address Country': string;
-  [key: string]: string;
-}
 
 function extractDomain(email: string): string | null {
   if (!email) return null;
@@ -515,6 +369,7 @@ async function importCustomers(filePath: string, debug: boolean, options: { skip
     companiesCreated: 0,
     customersCreated: 0,
     customersUpdated: 0,
+    addressesCreated: 0,
     warnings: [],
   };
 
@@ -542,12 +397,14 @@ async function importCustomers(filePath: string, debug: boolean, options: { skip
       return;
     }
 
-    // Process all emails first to extract domains
-    const emails = [row['Main Email'], row['CC Email']]
-      .filter(Boolean)
-      .flatMap(e => e.split(/[;,]/))
-      .map(e => e.trim())
-      .filter(Boolean);
+    // Process main and CC emails separately
+    const mainEmails = row['Main Email']
+      ? row['Main Email'].split(/[;,]/).map(e => e.trim()).filter(Boolean)
+      : [];
+    const ccEmails = row['CC Email']
+      ? row['CC Email'].split(/[;,]/).map(e => e.trim()).filter(Boolean)
+      : [];
+    const emails = [...mainEmails, ...ccEmails];
 
     // Extract domain from first valid email and ensure company exists
     let companyDomain = null;
@@ -653,10 +510,18 @@ async function importCustomers(filePath: string, debug: boolean, options: { skip
       }));
 
     ctx.pendingContactInfo.set(quickbooksId, {
-      emails: emails.map((email, index) => ({
-        email,
-        isPrimary: index === 0
-      })),
+      emails: [
+        ...mainEmails.map((email, index) => ({
+          email,
+          type: EmailType.MAIN,
+          isPrimary: index === 0
+        })),
+        ...ccEmails.map(email => ({
+          email,
+          type: EmailType.CC,
+          isPrimary: false
+        }))
+      ],
       phones
     });
 
@@ -683,12 +548,12 @@ async function importCustomers(filePath: string, debug: boolean, options: { skip
   console.log(`- Customers updated: ${stats.customersUpdated}`);
 }
 
-async function processFlush(ctx: CustomerImportContext) {
+async function processFlush(ctx: CustomerImportContext): Promise<void> {
   // First flush companies to ensure they exist
   await ctx.companyProcessor.flush();
 
   // Then flush addresses and customers
-  await ctx.prisma.$transaction(async (tx) => {
+  await ctx.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await ctx.addressProcessor.flush(tx);
     await ctx.customerProcessor.flush(tx);
   });
@@ -709,11 +574,11 @@ async function processFlush(ctx: CustomerImportContext) {
       }
 
       // Process emails
-      for (const { email, isPrimary } of contactInfo.emails) {
+      for (const emailInfo of contactInfo.emails) {
         await ctx.emailProcessor.add({
-          email,
-          type: 'MAIN' as const,
-          isPrimary,
+          email: emailInfo.email,
+          type: emailInfo.type,
+          isPrimary: emailInfo.isPrimary,
           customerId
         });
       }
@@ -730,7 +595,7 @@ async function processFlush(ctx: CustomerImportContext) {
     }
 
     // Flush this batch's contact info
-    await ctx.prisma.$transaction(async (tx) => {
+    await ctx.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await ctx.emailProcessor.flush(tx);
       await ctx.phoneProcessor.flush(tx);
     });

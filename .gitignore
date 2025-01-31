@@ -47,3 +47,4 @@ next-env.d.ts
 import-config.json
 
 .sailplane/
+scripts/node_modules
