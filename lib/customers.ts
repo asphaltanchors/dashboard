@@ -115,6 +115,7 @@ export async function getCustomers({
       name: customer.customerName,
       company: customer.company?.name ?? customer.company?.domain ?? '',
       companyId: customer.company?.id,
+      companyDomain: customer.company?.domain,
       email: customer.emails[0]?.email ?? '',
       phone: customer.phones[0]?.phone ?? '',
       status: customer.status,

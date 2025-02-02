@@ -178,7 +178,7 @@ export function CompaniesTable({ initialCompanies }: CompaniesTableProps) {
               <TableRow key={company.id}>
                 <TableCell>
                   <Link 
-                    href={`/companies/${company.id}`}
+                    href={`/companies/${company.domain}`}
                     className="text-blue-600 hover:text-blue-800 hover:underline"
                   >
                     {company.name}

@@ -134,9 +134,9 @@ export function CustomersTable({ initialCustomers }: CustomersTableProps) {
                   </Link>
                 </TableCell>
                 <TableCell>
-                  {customer.companyId ? (
+                  {customer.companyDomain ? (
                     <Link 
-                      href={`/companies/${customer.companyId}`}
+                      href={`/companies/${customer.companyDomain}`}
                       className="text-blue-600 hover:text-blue-800 hover:underline"
                     >
                       {customer.company}
