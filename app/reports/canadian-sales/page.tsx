@@ -43,7 +43,7 @@ export default async function CanadianSalesPage() {
           />
         </div>
 
-        <div className="space-y-8">
+        <div className="space-y-12">
           <div>
             <h2 className="text-xl font-semibold mb-4">Top Canadian Customers</h2>
             <div className="rounded-md border">
