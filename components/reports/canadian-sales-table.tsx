@@ -7,6 +7,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { formatCurrency } from "@/lib/utils"
+import Link from "next/link"
 
 interface CanadianCustomer {
   id: string
@@ -37,8 +38,20 @@ export function CanadianSalesTable({
       <TableBody>
         {customers.map((customer) => (
           <TableRow key={customer.id}>
-            <TableCell>{customer.customerName}</TableCell>
-            <TableCell>{customer.companyName || customer.companyDomain || '-'}</TableCell>
+            <TableCell>
+              <Link href={`/customers/${customer.id}`} className="text-blue-600 hover:underline">
+                {customer.customerName}
+              </Link>
+            </TableCell>
+            <TableCell>
+              {customer.companyDomain ? (
+                <Link href={`/companies/${customer.companyDomain}`} className="text-blue-600 hover:underline">
+                  {customer.companyName || customer.companyDomain}
+                </Link>
+              ) : (
+                '-'
+              )}
+            </TableCell>
             <TableCell className="text-right">{customer.orderCount}</TableCell>
             <TableCell className="text-right">{customer.totalUnits}</TableCell>
             <TableCell className="text-right">{formatCurrency(customer.totalRevenue)}</TableCell>
