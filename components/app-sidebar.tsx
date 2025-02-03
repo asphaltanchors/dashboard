@@ -48,6 +48,10 @@ const menuItems = [
       {
         title: "Pop & Drop",
         url: "/reports/pop-and-drop",
+      },
+      {
+        title: "Canadian Sales",
+        url: "/reports/canadian-sales",
       }
     ]
   },

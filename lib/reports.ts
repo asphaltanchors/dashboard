@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/prisma"
 import { CONSUMER_DOMAINS } from "@/lib/companies"
+import { Prisma } from "@prisma/client"
+
+// Canadian address detection patterns
+const CANADIAN_PROVINCES = ['ON', 'BC', 'AB', 'QC', 'MB', 'SK', 'NB', 'NS', 'PE', 'NL', 'YT', 'NT', 'NU']
 
 const ADHESIVE_PRODUCT_CODES = [
   // EPX2 products
@@ -8,6 +12,265 @@ const ADHESIVE_PRODUCT_CODES = [
   // EPX3 products
   '82-6002'
 ]
+
+export async function getCanadianSalesMetrics() {
+  const today = new Date()
+  const currentPeriodStart = new Date(today)
+  currentPeriodStart.setMonth(today.getMonth() - 12)
+  const previousPeriodStart = new Date(currentPeriodStart)
+  previousPeriodStart.setMonth(currentPeriodStart.getMonth() - 12)
+
+  // First get all Canadian customers
+  const canadianCustomers = await prisma.customer.findMany({
+    where: {
+      OR: [
+        {
+          billingAddress: {
+            OR: [
+              { country: { contains: 'canada', mode: 'insensitive' } },
+              { state: { in: CANADIAN_PROVINCES } },
+              { postalCode: { contains: '[A-Z][0-9][A-Z]', mode: 'insensitive' } }
+            ]
+          }
+        },
+        {
+          shippingAddress: {
+            OR: [
+              { country: { contains: 'canada', mode: 'insensitive' } },
+              { state: { in: CANADIAN_PROVINCES } },
+              { postalCode: { contains: '[A-Z][0-9][A-Z]', mode: 'insensitive' } }
+            ]
+          }
+        }
+      ]
+    },
+    select: {
+      id: true
+    }
+  })
+
+  // Then get their orders
+  const orders = await prisma.order.findMany({
+    where: {
+      customerId: {
+        in: canadianCustomers.map(c => c.id)
+      },
+      orderDate: {
+        gte: previousPeriodStart
+      }
+    },
+    include: {
+      items: {
+        select: {
+          quantity: true,
+          amount: true
+        }
+      }
+    }
+  })
+
+  // Split orders by period
+  const currentPeriodOrders = orders.filter(o => o.orderDate >= currentPeriodStart)
+  const previousPeriodOrders = orders.filter(o => o.orderDate >= previousPeriodStart && o.orderDate < currentPeriodStart)
+
+  // Calculate metrics
+  const currentMetrics = {
+    orderCount: currentPeriodOrders.length,
+    totalRevenue: currentPeriodOrders.reduce((sum, order) => sum + Number(order.totalAmount), 0),
+    totalUnits: currentPeriodOrders.reduce((sum, order) => 
+      sum + order.items.reduce((itemSum: number, item) => itemSum + Number(item.quantity), 0), 0
+    )
+  }
+
+  const previousMetrics = {
+    orderCount: previousPeriodOrders.length,
+    totalRevenue: previousPeriodOrders.reduce((sum, order) => sum + Number(order.totalAmount), 0),
+    totalUnits: previousPeriodOrders.reduce((sum, order) => 
+      sum + order.items.reduce((itemSum: number, item) => itemSum + Number(item.quantity), 0), 0
+    )
+  }
+
+  return {
+    currentPeriod: {
+      label: "Last 12 Months",
+      ...currentMetrics
+    },
+    previousPeriod: {
+      label: "Previous 12 Months",
+      ...previousMetrics
+    },
+    changes: {
+      orderCount: previousMetrics.orderCount ? 
+        ((currentMetrics.orderCount - previousMetrics.orderCount) / previousMetrics.orderCount * 100).toFixed(1) : 
+        "0.0",
+      totalRevenue: previousMetrics.totalRevenue ? 
+        ((currentMetrics.totalRevenue - previousMetrics.totalRevenue) / previousMetrics.totalRevenue * 100).toFixed(1) : 
+        "0.0",
+      totalUnits: previousMetrics.totalUnits ? 
+        ((currentMetrics.totalUnits - previousMetrics.totalUnits) / previousMetrics.totalUnits * 100).toFixed(1) : 
+        "0.0"
+    }
+  }
+}
+
+export async function getCanadianTopCustomers() {
+  const today = new Date()
+  const startDate = new Date(today)
+  startDate.setMonth(today.getMonth() - 12)
+  
+  const customers = await prisma.customer.findMany({
+    where: {
+      OR: [
+        {
+          billingAddress: {
+            OR: [
+              { country: { contains: 'canada', mode: 'insensitive' } },
+              { state: { in: CANADIAN_PROVINCES } },
+              { postalCode: { contains: '[A-Z][0-9][A-Z]', mode: 'insensitive' } }
+            ]
+          }
+        },
+        {
+          shippingAddress: {
+            OR: [
+              { country: { contains: 'canada', mode: 'insensitive' } },
+              { state: { in: CANADIAN_PROVINCES } },
+              { postalCode: { contains: '[A-Z][0-9][A-Z]', mode: 'insensitive' } }
+            ]
+          }
+        }
+      ],
+      orders: {
+        some: {
+          orderDate: {
+            gte: startDate
+          }
+        }
+      }
+    },
+    include: {
+      company: {
+        select: {
+          name: true,
+          domain: true
+        }
+      },
+      orders: {
+        where: {
+          orderDate: {
+            gte: startDate
+          }
+        },
+        include: {
+          items: {
+            select: {
+              quantity: true,
+              amount: true
+            }
+          }
+        }
+      }
+    }
+  })
+
+  return customers.map(customer => ({
+    id: customer.id,
+    customerName: customer.customerName,
+    companyName: customer.company?.name ?? null,
+    companyDomain: customer.company?.domain ?? null,
+    orderCount: customer.orders.length,
+    totalRevenue: customer.orders.reduce((sum: number, order) => sum + Number(order.totalAmount), 0),
+    totalUnits: customer.orders.reduce((sum: number, order) => 
+      sum + order.items.reduce((itemSum: number, item) => itemSum + Number(item.quantity), 0), 0
+    )
+  })).sort((a, b) => b.totalRevenue - a.totalRevenue)
+}
+
+export async function getCanadianUnitsSold() {
+  const today = new Date()
+  const startDate = new Date(today)
+  startDate.setMonth(today.getMonth() - 12)
+  
+  // First get all Canadian customers
+  const canadianCustomers = await prisma.customer.findMany({
+    where: {
+      OR: [
+        {
+          billingAddress: {
+            OR: [
+              { country: { contains: 'canada', mode: 'insensitive' } },
+              { state: { in: CANADIAN_PROVINCES } },
+              { postalCode: { contains: '[A-Z][0-9][A-Z]', mode: 'insensitive' } }
+            ]
+          }
+        },
+        {
+          shippingAddress: {
+            OR: [
+              { country: { contains: 'canada', mode: 'insensitive' } },
+              { state: { in: CANADIAN_PROVINCES } },
+              { postalCode: { contains: '[A-Z][0-9][A-Z]', mode: 'insensitive' } }
+            ]
+          }
+        }
+      ]
+    },
+    select: {
+      id: true
+    }
+  })
+
+  // Then get their orders
+  const orders = await prisma.order.findMany({
+    where: {
+      customerId: {
+        in: canadianCustomers.map(c => c.id)
+      },
+      orderDate: {
+        gte: startDate
+      }
+    },
+    include: {
+      items: {
+        include: {
+          product: {
+            select: {
+              name: true,
+              description: true
+            }
+          }
+        }
+      }
+    }
+  })
+
+  // Aggregate units by product
+  const productTotals = new Map<string, {
+    productCode: string,
+    productName: string,
+    description: string,
+    totalUnits: number,
+    totalRevenue: number
+  }>()
+
+  orders.forEach(order => {
+    order.items.forEach(item => {
+      const existing = productTotals.get(item.productCode) || {
+        productCode: item.productCode,
+        productName: item.product?.name ?? item.productCode,
+    description: item.product?.description ?? '',
+        totalUnits: 0,
+        totalRevenue: 0
+      }
+      existing.totalUnits += Number(item.quantity)
+      existing.totalRevenue += Number(item.amount)
+      productTotals.set(item.productCode, existing)
+    })
+  })
+
+  return Array.from(productTotals.values())
+    .sort((a, b) => b.totalUnits - a.totalUnits)
+}
 
 export async function getCompanyOrderMetrics(monthsWindow = 6) {
   const today = new Date()
