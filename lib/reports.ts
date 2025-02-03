@@ -3,18 +3,10 @@ import { CONSUMER_DOMAINS } from "@/lib/companies"
 
 const ADHESIVE_PRODUCT_CODES = [
   // EPX2 products
-  '82-5002.36L',
-  '82-5002.40L',
   '82-5002.K',
-  '82-5002.K-FBA',
   '82-5002.010',
   // EPX3 products
-  '82-6002',
-  '82-6002 IN',
-  '82-6002 DTH',
-  '82-6002.420',
-  // EPX5 products
-  '82-6005'
+  '82-6002'
 ]
 
 export async function getCompanyOrderMetrics(monthsWindow = 6) {
@@ -165,6 +157,11 @@ export async function getAdhesiveMetrics(filterConsumer = true) {
     select: {
       id: true,
       items: {
+        where: {
+          productCode: {
+            in: ADHESIVE_PRODUCT_CODES
+          }
+        },
         select: {
           amount: true
         }
@@ -186,6 +183,11 @@ export async function getAdhesiveMetrics(filterConsumer = true) {
     select: {
       id: true,
       items: {
+        where: {
+          productCode: {
+            in: ADHESIVE_PRODUCT_CODES
+          }
+        },
         select: {
           amount: true
         }
@@ -193,7 +195,7 @@ export async function getAdhesiveMetrics(filterConsumer = true) {
     }
   })
 
-  const recentTotal = recentOrders.reduce((total, order) => 
+  const recentTotal = recentOrders.reduce((total, order) =>
     total + order.items.reduce((orderTotal, item) => orderTotal + Number(item.amount), 0), 0
   )
   const previousTotal = previousOrders.reduce((total, order) => 
@@ -243,9 +245,18 @@ export async function getAdhesiveOnlyCustomers(filterConsumer = true) {
         none: {
           items: {
             some: {
-              productCode: {
-                notIn: ADHESIVE_PRODUCT_CODES
-              }
+              AND: [
+                {
+                  productCode: {
+                    notIn: ADHESIVE_PRODUCT_CODES
+                  }
+                },
+                {
+                  productCode: {
+                    notIn: ['SYS-SHIPPING', 'SYS-NJ-TAX', 'SYS-DISCOUNT']
+                  }
+                }
+              ]
             }
           }
         }
