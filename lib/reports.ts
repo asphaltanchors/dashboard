@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma"
 import { CONSUMER_DOMAINS } from "@/lib/companies"
-import { Prisma } from "@prisma/client"
 
 // Canadian address detection patterns
 const CANADIAN_PROVINCES = ['ON', 'BC', 'AB', 'QC', 'MB', 'SK', 'NB', 'NS', 'PE', 'NL', 'YT', 'NT', 'NU']
