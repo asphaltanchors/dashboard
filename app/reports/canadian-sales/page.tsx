@@ -2,7 +2,7 @@ import { getCanadianSalesMetrics, getCanadianTopCustomers, getCanadianUnitsSold 
 import { CanadianSalesTable } from "@/components/reports/canadian-sales-table"
 import { CanadianUnitsTable } from "@/components/reports/canadian-units-table"
 import { MetricCard } from "@/components/dashboard/metric-card"
-import { DollarSign, ShoppingCart, Package } from "lucide-react"
+import { DollarSign, ShoppingCart } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 
 export default async function CanadianSalesPage() {

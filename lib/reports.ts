@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { Prisma } from "@prisma/client"
 import { CONSUMER_DOMAINS } from "@/lib/companies"
 
 // Canadian address detection patterns
@@ -76,12 +77,12 @@ export async function getCanadianSalesMetrics() {
   // Calculate metrics
   interface OrderItem {
     productCode: string;
-    amount: any; // Handle Prisma Decimal type
+    amount: Prisma.Decimal;
   }
 
   interface Order {
     items: OrderItem[];
-    totalAmount?: any; // Optional since we don't always use it
+    totalAmount?: Prisma.Decimal;
   }
 
   const calculateNetRevenue = (orders: Order[]) => 
