@@ -36,10 +36,10 @@ export default async function CanadianSalesPage() {
             icon={DollarSign}
           />
           <MetricCard
-            title="Total Units"
-            value={metrics.currentPeriod.totalUnits}
-            change={metrics.changes.totalUnits}
-            icon={Package}
+            title="Net Revenue (ex Shipping)"
+            value={formatCurrency(metrics.currentPeriod.netRevenue)}
+            change={metrics.changes.netRevenue}
+            icon={DollarSign}
           />
         </div>
 

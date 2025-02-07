@@ -61,6 +61,7 @@ export async function getCanadianSalesMetrics() {
     include: {
       items: {
         select: {
+          productCode: true,
           quantity: true,
           amount: true
         }
@@ -73,20 +74,33 @@ export async function getCanadianSalesMetrics() {
   const previousPeriodOrders = orders.filter(o => o.orderDate >= previousPeriodStart && o.orderDate < currentPeriodStart)
 
   // Calculate metrics
+  interface OrderItem {
+    productCode: string;
+    amount: any; // Handle Prisma Decimal type
+  }
+
+  interface Order {
+    items: OrderItem[];
+    totalAmount?: any; // Optional since we don't always use it
+  }
+
+  const calculateNetRevenue = (orders: Order[]) => 
+    orders.reduce((sum, order) => 
+      sum + order.items.reduce((itemSum: number, item: OrderItem) => 
+        !item.productCode.startsWith('SYS-') ? itemSum + Number(item.amount) : itemSum
+      , 0)
+    , 0)
+
   const currentMetrics = {
     orderCount: currentPeriodOrders.length,
     totalRevenue: currentPeriodOrders.reduce((sum, order) => sum + Number(order.totalAmount), 0),
-    totalUnits: currentPeriodOrders.reduce((sum, order) => 
-      sum + order.items.reduce((itemSum: number, item) => itemSum + Number(item.quantity), 0), 0
-    )
+    netRevenue: calculateNetRevenue(currentPeriodOrders)
   }
 
   const previousMetrics = {
     orderCount: previousPeriodOrders.length,
     totalRevenue: previousPeriodOrders.reduce((sum, order) => sum + Number(order.totalAmount), 0),
-    totalUnits: previousPeriodOrders.reduce((sum, order) => 
-      sum + order.items.reduce((itemSum: number, item) => itemSum + Number(item.quantity), 0), 0
-    )
+    netRevenue: calculateNetRevenue(previousPeriodOrders)
   }
 
   return {
@@ -105,8 +119,8 @@ export async function getCanadianSalesMetrics() {
       totalRevenue: previousMetrics.totalRevenue ? 
         ((currentMetrics.totalRevenue - previousMetrics.totalRevenue) / previousMetrics.totalRevenue * 100).toFixed(1) : 
         "0.0",
-      totalUnits: previousMetrics.totalUnits ? 
-        ((currentMetrics.totalUnits - previousMetrics.totalUnits) / previousMetrics.totalUnits * 100).toFixed(1) : 
+      netRevenue: previousMetrics.netRevenue ? 
+        ((currentMetrics.netRevenue - previousMetrics.netRevenue) / previousMetrics.netRevenue * 100).toFixed(1) : 
         "0.0"
     }
   }
