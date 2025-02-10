@@ -1,15 +1,17 @@
-import { getCanadianSalesMetrics, getCanadianTopCustomers, getCanadianUnitsSold } from "@/lib/reports"
+import { getCanadianSalesMetrics, getCanadianTopCustomers, getCanadianUnitsSold, getCanadianOrders } from "@/lib/reports"
 import { CanadianSalesTable } from "@/components/reports/canadian-sales-table"
 import { CanadianUnitsTable } from "@/components/reports/canadian-units-table"
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { DollarSign, ShoppingCart } from "lucide-react"
+import { StaticOrdersTable } from "@/components/orders/static-orders-table"
 import { formatCurrency } from "@/lib/utils"
 
 export default async function CanadianSalesPage() {
-  const [metrics, customers, products] = await Promise.all([
+  const [metrics, customers, products, orders] = await Promise.all([
     getCanadianSalesMetrics(),
     getCanadianTopCustomers(),
-    getCanadianUnitsSold()
+    getCanadianUnitsSold(),
+    getCanadianOrders()
   ])
 
   return (
@@ -55,6 +57,13 @@ export default async function CanadianSalesPage() {
             <h2 className="text-xl font-semibold mb-4">Product Units Sold</h2>
             <div className="rounded-md border">
               <CanadianUnitsTable products={products} />
+            </div>
+          </div>
+
+          <div>
+            <h2 className="text-xl font-semibold mb-4">Canadian Orders</h2>
+            <div className="rounded-md border">
+              <StaticOrdersTable initialOrders={orders} />
             </div>
           </div>
         </div>

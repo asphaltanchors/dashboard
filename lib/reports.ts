@@ -309,6 +309,80 @@ export async function getCanadianTopCustomers() {
   })).sort((a, b) => b.totalRevenue - a.totalRevenue)
 }
 
+export async function getCanadianOrders() {
+  const today = new Date()
+  const startDate = new Date(today)
+  startDate.setMonth(today.getMonth() - 12)
+  
+  // First get all Canadian customers
+  const canadianCustomers = await prisma.customer.findMany({
+    where: {
+      OR: [
+        {
+          billingAddress: {
+            OR: [
+              { country: { contains: 'canada', mode: 'insensitive' } },
+              { state: { in: CANADIAN_PROVINCES } },
+              { postalCode: { contains: '[A-Z][0-9][A-Z]', mode: 'insensitive' } }
+            ]
+          }
+        },
+        {
+          shippingAddress: {
+            OR: [
+              { country: { contains: 'canada', mode: 'insensitive' } },
+              { state: { in: CANADIAN_PROVINCES } },
+              { postalCode: { contains: '[A-Z][0-9][A-Z]', mode: 'insensitive' } }
+            ]
+          }
+        }
+      ]
+    },
+    select: {
+      id: true
+    }
+  })
+
+  // Then get their orders
+  const orders = await prisma.order.findMany({
+    where: {
+      customerId: {
+        in: canadianCustomers.map(c => c.id)
+      },
+      orderDate: {
+        gte: startDate
+      }
+    },
+    include: {
+      customer: {
+        select: {
+          customerName: true
+        }
+      }
+    }
+  })
+
+  // Transform orders to match the TableData interface
+  const transformedOrders = orders.map(order => ({
+    id: order.id,
+    orderNumber: order.orderNumber,
+    orderDate: order.orderDate,
+    customerName: order.customer.customerName,
+    status: order.status,
+    paymentStatus: order.paymentStatus,
+    totalAmount: Number(order.totalAmount),
+    dueDate: order.dueDate,
+    paymentMethod: order.paymentMethod,
+    quickbooksId: order.quickbooksId
+  }))
+
+  return {
+    orders: transformedOrders,
+    totalCount: orders.length,
+    recentCount: orders.length
+  }
+}
+
 export async function getCanadianUnitsSold() {
   const today = new Date()
   const startDate = new Date(today)
