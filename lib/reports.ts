@@ -1,4 +1,113 @@
 import { prisma } from "@/lib/prisma"
+
+// Product line performance data
+export async function getProductLineMetrics() {
+  const today = new Date()
+  const startDate = new Date(today)
+  startDate.setMonth(today.getMonth() - 12)
+
+  const results = await prisma.$queryRaw`
+    SELECT 
+      CASE 
+        WHEN "productCode" LIKE '01-6310%' THEN 'SP10'
+        WHEN "productCode" LIKE '01-6315%' THEN 'SP12'
+        WHEN "productCode" LIKE '01-6318%' THEN 'SP18'
+        WHEN "productCode" LIKE '01-6358%' THEN 'SP58'
+        WHEN "productCode" IN ('82-5002.K', '82-5002.010') THEN 'EPX2'
+        WHEN "productCode" LIKE '82-6002%' THEN 'EPX3'
+        ELSE 'Other'
+      END as product_line,
+      COUNT(DISTINCT "orderId") as order_count,
+      SUM(COALESCE(CAST(quantity AS numeric), 0)) as total_units,
+      SUM(amount) as total_revenue
+    FROM "OrderItem" oi
+    JOIN "Order" o ON o."id" = oi."orderId"
+    WHERE (oi."productCode" LIKE '01-63%' 
+           OR oi."productCode" IN ('82-5002.K', '82-5002.010')
+           OR oi."productCode" LIKE '82-6002%')
+    AND o."orderDate" >= ${startDate}
+    GROUP BY 
+      CASE 
+        WHEN "productCode" LIKE '01-6310%' THEN 'SP10'
+        WHEN "productCode" LIKE '01-6315%' THEN 'SP12'
+        WHEN "productCode" LIKE '01-6318%' THEN 'SP18'
+        WHEN "productCode" LIKE '01-6358%' THEN 'SP58'
+        WHEN "productCode" IN ('82-5002.K', '82-5002.010') THEN 'EPX2'
+        WHEN "productCode" LIKE '82-6002%' THEN 'EPX3'
+        ELSE 'Other'
+      END
+    ORDER BY total_revenue DESC
+  `
+  return results
+}
+
+// Material type analysis data
+export async function getMaterialTypeMetrics() {
+  const today = new Date()
+  const startDate = new Date(today)
+  startDate.setMonth(today.getMonth() - 12)
+
+  const results = await prisma.$queryRaw`
+    SELECT 
+      CASE 
+        WHEN "productCode" LIKE '01-63%' AND "productCode" NOT LIKE '%-D' AND "productCode" NOT LIKE '%3SK%' THEN 'Zinc Plated'
+        WHEN "productCode" LIKE '%3SK%' THEN 'Stainless Steel'
+        WHEN "productCode" LIKE '%-D' THEN 'Dacromet'
+        WHEN "productCode" IN ('82-5002.K', '82-5002.010', '82-6002') THEN 'Epoxy'
+        ELSE 'Other'
+      END as material_type,
+      COUNT(DISTINCT "orderId") as order_count,
+      SUM(COALESCE(CAST(quantity AS numeric), 0)) as total_units,
+      SUM(amount) as total_revenue
+    FROM "OrderItem" oi
+    JOIN "Order" o ON o."id" = oi."orderId"
+    WHERE (oi."productCode" LIKE '01-63%'
+           OR oi."productCode" IN ('82-5002.K', '82-5002.010')
+           OR oi."productCode" LIKE '82-6002%')
+    AND o."orderDate" >= ${startDate}
+    GROUP BY 
+      CASE 
+        WHEN "productCode" LIKE '01-63%' AND "productCode" NOT LIKE '%-D' AND "productCode" NOT LIKE '%3SK%' THEN 'Zinc Plated'
+        WHEN "productCode" LIKE '%3SK%' THEN 'Stainless Steel'
+        WHEN "productCode" LIKE '%-D' THEN 'Dacromet'
+        WHEN "productCode" IN ('82-5002.K', '82-5002.010', '82-6002') THEN 'Epoxy'
+        ELSE 'Other'
+      END
+    ORDER BY total_revenue DESC
+  `
+  return results
+}
+
+// Sales channel insights data
+export async function getSalesChannelMetrics() {
+  const today = new Date()
+  const startDate = new Date(today)
+  startDate.setMonth(today.getMonth() - 12)
+
+  const results = await prisma.$queryRaw`
+    SELECT 
+      CASE 
+        WHEN "productCode" LIKE '%-FBA' THEN 'FBA'
+        ELSE 'Direct'
+      END as sales_channel,
+      COUNT(DISTINCT "orderId") as order_count,
+      SUM(COALESCE(CAST(quantity AS numeric), 0)) as total_units,
+      SUM(amount) as total_revenue,
+      AVG(amount / NULLIF(COALESCE(CAST(quantity AS numeric), 0), 0)) as avg_unit_price
+    FROM "OrderItem" oi
+    JOIN "Order" o ON o."id" = oi."orderId"
+    WHERE (oi."productCode" LIKE '01-63%'
+           OR oi."productCode" IN ('82-5002.K', '82-5002.010')
+           OR oi."productCode" LIKE '82-6002%')
+    AND o."orderDate" >= ${startDate}
+    GROUP BY 
+      CASE 
+        WHEN "productCode" LIKE '%-FBA' THEN 'FBA'
+        ELSE 'Direct'
+      END
+  `
+  return results
+}
 import { Prisma } from "@prisma/client"
 import { CONSUMER_DOMAINS } from "@/lib/companies"
 

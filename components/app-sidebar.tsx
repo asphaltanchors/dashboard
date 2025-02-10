@@ -52,6 +52,10 @@ const menuItems = [
       {
         title: "Canadian Sales",
         url: "/reports/canadian-sales",
+      },
+      {
+        title: "Product Sales",
+        url: "/reports/product-sales",
       }
     ]
   },
