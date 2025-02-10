@@ -47,7 +47,7 @@ accessories:
     image: ghcr.io/asphaltanchors/py-importer:1.0
     host: aac
     volumes:
-      - /mnt/dropbox/db/AAC/Oren/CSV:/CSV
+      - /mnt/dropbox/db/AAC/Oren/CSV:/data
     env:
       secret:
         - DATABASE_URL
