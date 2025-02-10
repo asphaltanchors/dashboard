@@ -2,6 +2,7 @@ import { ProductLinePerformance } from "@/components/reports/product-line-perfor
 import { MaterialTypeAnalysis } from "@/components/reports/material-type-analysis"
 import { SalesChannelInsights } from "@/components/reports/sales-channel-insights"
 import { ProductMetricsGrid } from "@/components/reports/product-metrics-grid"
+import { ProductLineReferenceContainer } from "@/components/reports/product-line-reference-container"
 
 export default async function ProductSalesPage() {
   return (
@@ -19,9 +20,8 @@ export default async function ProductSalesPage() {
         <div className="grid gap-6 md:grid-cols-2">
           <ProductLinePerformance />
           <MaterialTypeAnalysis />
-          <div className="md:col-span-2">
-            <SalesChannelInsights />
-          </div>
+          <SalesChannelInsights />
+          <ProductLineReferenceContainer />
         </div>
       </div>
     </div>
