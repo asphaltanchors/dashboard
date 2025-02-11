@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
 import { CONSUMER_DOMAINS } from "@/lib/companies"
+import { SalesChannelMetric } from "@/types/reports"
 
 interface ProductLineMetric {
   product_line: string
@@ -187,8 +188,10 @@ export async function getMaterialTypeMetrics() {
 // Sales channel insights data
 export async function getSalesChannelMetrics() {
   const today = new Date()
-  const startDate = new Date(today)
-  startDate.setMonth(today.getMonth() - 12)
+  const currentPeriodStart = new Date(today)
+  currentPeriodStart.setMonth(today.getMonth() - 12)
+  const previousPeriodStart = new Date(currentPeriodStart)
+  previousPeriodStart.setMonth(currentPeriodStart.getMonth() - 12)
 
   const results = await prisma.$queryRawUnsafe<Array<{
     sales_channel: string
@@ -196,23 +199,65 @@ export async function getSalesChannelMetrics() {
     total_units: string
     total_revenue: string
     avg_unit_price: string
+    period: string
   }>>(`
     SELECT 
       COALESCE(o.class, 'Unclassified') as sales_channel,
       COUNT(DISTINCT "orderId") as order_count,
       SUM(COALESCE(CAST(quantity AS numeric), 0)) as total_units,
       SUM(amount) as total_revenue,
-      SUM(amount) / COUNT(DISTINCT "orderId") as avg_unit_price
+      SUM(amount) / COUNT(DISTINCT "orderId") as avg_unit_price,
+      CASE 
+        WHEN o."orderDate" >= '${currentPeriodStart.toISOString()}' THEN 'current'
+        ELSE 'previous'
+      END as period
     FROM "OrderItem" oi
     JOIN "Order" o ON o."id" = oi."orderId"
     WHERE (oi."productCode" LIKE '01-63%'
            OR oi."productCode" IN ('82-5002.K', '82-5002.010')
            OR oi."productCode" LIKE '82-6002%'
            OR oi."productCode" LIKE '01-70%')
-    AND o."orderDate" >= '${startDate.toISOString()}'
-    GROUP BY o.class
+    AND o."orderDate" >= '${previousPeriodStart.toISOString()}'
+    GROUP BY 
+      COALESCE(o.class, 'Unclassified'),
+      CASE 
+        WHEN o."orderDate" >= '${currentPeriodStart.toISOString()}' THEN 'current'
+        ELSE 'previous'
+      END
   `)
-  return results
+
+  // Transform results into the new format
+  const metricsByChannel = results.reduce((acc, metric) => {
+    if (!acc[metric.sales_channel]) {
+      acc[metric.sales_channel] = {
+        sales_channel: metric.sales_channel,
+        current_period: {
+          order_count: "0",
+          total_units: "0",
+          total_revenue: "0",
+          avg_unit_price: "0"
+        },
+        previous_period: {
+          order_count: "0",
+          total_units: "0",
+          total_revenue: "0",
+          avg_unit_price: "0"
+        }
+      }
+    }
+
+    const period = metric.period === 'current' ? 'current_period' : 'previous_period'
+    acc[metric.sales_channel][period] = {
+      order_count: String(metric.order_count),
+      total_units: String(metric.total_units),
+      total_revenue: String(metric.total_revenue),
+      avg_unit_price: String(metric.avg_unit_price)
+    }
+
+    return acc
+  }, {} as Record<string, SalesChannelMetric>)
+
+  return Object.values(metricsByChannel)
 }
 
 // Canadian address detection patterns

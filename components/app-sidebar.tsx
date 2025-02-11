@@ -56,6 +56,10 @@ const menuItems = [
       {
         title: "Product Sales",
         url: "/reports/product-sales",
+      },
+      {
+        title: "Channel Analysis",
+        url: "/reports/channel-analysis",
       }
     ]
   },

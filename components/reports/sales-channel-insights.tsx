@@ -1,95 +1,79 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { getSalesChannelMetrics } from "@/lib/reports"
-import { formatCurrency } from "@/lib/utils"
+"use client"
 
-interface SalesChannelMetric {
-  sales_channel: string
-  order_count: string
-  total_units: string
-  total_revenue: string
-  avg_unit_price: string
+import { ChannelCard } from "./channel-card"
+import { SalesChannelMetric } from "@/types/reports"
+
+interface Props {
+  metrics: SalesChannelMetric[]
 }
 
-export async function SalesChannelInsights() {
-  const metrics = await getSalesChannelMetrics() as SalesChannelMetric[]
-  
-  // Calculate totals for percentage calculations
-  const totalRevenue = metrics.reduce((sum, m) => sum + Number(m.total_revenue), 0)
-  const totalUnits = metrics.reduce((sum, m) => sum + Number(m.total_units), 0)
-  const totalOrders = metrics.reduce((sum, m) => sum + Number(m.order_count), 0)
+export default function SalesChannelInsights({ metrics }: Props) {
+  // Filter out Contractor class and zero revenue channels
+  const filteredMetrics = metrics.filter(m => 
+    m.sales_channel !== 'Contractor' && 
+    Number(m.current_period.total_revenue) > 0
+  )
+
+  // Calculate totals for current period
+  const totals = filteredMetrics.reduce(
+    (acc, m) => {
+      acc.revenue += Number(m.current_period.total_revenue)
+      acc.units += Number(m.current_period.total_units)
+      acc.orders += Number(m.current_period.order_count)
+      return acc
+    },
+    { revenue: 0, units: 0, orders: 0 }
+  )
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Sales Channel Insights</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
-          {metrics.map((metric) => {
-            const revenuePercentage = (Number(metric.total_revenue) / totalRevenue) * 100
-            const unitsPercentage = (Number(metric.total_units) / totalUnits) * 100
-            const ordersPercentage = (Number(metric.order_count) / totalOrders) * 100
-            
-            return (
-              <div key={metric.sales_channel} className="rounded-lg border p-4">
-                <h3 className="text-lg font-semibold mb-4">
-                  {metric.sales_channel.startsWith('Amazon Combined:') 
-                    ? metric.sales_channel.split(':')[1].trim()
-                    : metric.sales_channel}
-                </h3>
-                <div className="space-y-6">
-                  {/* Revenue */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="text-sm font-medium text-muted-foreground">Revenue</div>
-                      <div className="text-xs text-muted-foreground">
-                        {revenuePercentage.toFixed(1)}% of total
-                      </div>
-                    </div>
-                    <div className="text-2xl font-bold">
-                      {formatCurrency(Number(metric.total_revenue))}
-                    </div>
-                  </div>
+    <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
+      {filteredMetrics.map((metric) => {
+        const currentRevenue = Number(metric.current_period.total_revenue)
+        const previousRevenue = Number(metric.previous_period.total_revenue)
+        const currentUnits = Number(metric.current_period.total_units)
+        const previousUnits = Number(metric.previous_period.total_units)
+        const currentOrders = Number(metric.current_period.order_count)
 
-                  {/* Units */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="text-sm font-medium text-muted-foreground">Units Sold</div>
-                      <div className="text-xs text-muted-foreground">
-                        {unitsPercentage.toFixed(1)}% of total
-                      </div>
-                    </div>
-                    <div className="text-2xl font-bold">
-                      {Number(metric.total_units).toLocaleString()}
-                    </div>
-                  </div>
+        // Calculate trends
+        const getPercentageChange = (current: number, previous: number) => {
+          if (previous === 0) return 0
+          return Math.round(((current - previous) / previous) * 100)
+        }
 
-                  {/* Orders & Average Price */}
-                  <div className="grid grid-cols-2 gap-4 pt-2 border-t">
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="text-sm font-medium text-muted-foreground">Orders</div>
-                        <div className="text-xs text-muted-foreground">
-                          {ordersPercentage.toFixed(1)}%
-                        </div>
-                      </div>
-                      <div className="text-xl font-semibold">
-                        {Number(metric.order_count).toLocaleString()}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-sm font-medium text-muted-foreground mb-1">Avg Order</div>
-                      <div className="text-xl font-semibold">
-                        {formatCurrency(Number(metric.avg_unit_price))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </CardContent>
-    </Card>
+        const getTrend = (current: number, previous: number): "up" | "down" | "neutral" => {
+          if (current === previous) return "neutral"
+          return current > previous ? "up" : "down"
+        }
+
+        const revenueChange = getPercentageChange(currentRevenue, previousRevenue)
+        const unitsChange = getPercentageChange(currentUnits, previousUnits)
+
+        return (
+          <ChannelCard
+            key={metric.sales_channel}
+            name={metric.sales_channel.startsWith('Amazon Combined:') 
+              ? metric.sales_channel.split(':')[1].trim()
+              : metric.sales_channel}
+            revenue={{
+              value: currentRevenue,
+              percentage: (currentRevenue / totals.revenue) * 100,
+              trend: getTrend(currentRevenue, previousRevenue),
+              change: Math.abs(revenueChange)
+            }}
+            units={{
+              value: currentUnits,
+              percentage: (currentUnits / totals.units) * 100,
+              trend: getTrend(currentUnits, previousUnits),
+              change: Math.abs(unitsChange)
+            }}
+            orders={{
+              value: currentOrders,
+              percentage: (currentOrders / totals.orders) * 100
+            }}
+            averageOrder={Number(metric.current_period.avg_unit_price)}
+          />
+        )
+      })}
+    </div>
   )
 }

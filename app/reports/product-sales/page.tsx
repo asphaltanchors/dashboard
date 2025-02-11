@@ -1,6 +1,5 @@
 import { ProductLinePerformance } from "@/components/reports/product-line-performance"
 import { MaterialTypeAnalysis } from "@/components/reports/material-type-analysis"
-import { SalesChannelInsights } from "@/components/reports/sales-channel-insights"
 import { ProductMetricsGrid } from "@/components/reports/product-metrics-grid"
 import { ProductLineReferenceContainer } from "@/components/reports/product-line-reference-container"
 
@@ -21,9 +20,6 @@ export default async function ProductSalesPage() {
           <ProductLinePerformance />
           <MaterialTypeAnalysis />
         </div>
-
-        {/* Sales Channel Insights in full width */}
-        <SalesChannelInsights />
 
         {/* Product Line Reference in full width */}
         <ProductLineReferenceContainer />
