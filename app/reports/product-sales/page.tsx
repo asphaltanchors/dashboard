@@ -16,13 +16,17 @@ export default async function ProductSalesPage() {
         {/* Key metrics at the top */}
         <ProductMetricsGrid />
         
-        {/* All visualizations in 2 columns */}
+        {/* Performance charts in 2 columns */}
         <div className="grid gap-6 md:grid-cols-2">
           <ProductLinePerformance />
           <MaterialTypeAnalysis />
-          <SalesChannelInsights />
-          <ProductLineReferenceContainer />
         </div>
+
+        {/* Sales Channel Insights in full width */}
+        <SalesChannelInsights />
+
+        {/* Product Line Reference in full width */}
+        <ProductLineReferenceContainer />
       </div>
     </div>
   )

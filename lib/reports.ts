@@ -198,14 +198,11 @@ export async function getSalesChannelMetrics() {
     avg_unit_price: string
   }>>(`
     SELECT 
-      CASE 
-        WHEN "productCode" LIKE '%-FBA' THEN 'FBA'
-        ELSE 'Direct'
-      END as sales_channel,
+      COALESCE(o.class, 'Unclassified') as sales_channel,
       COUNT(DISTINCT "orderId") as order_count,
       SUM(COALESCE(CAST(quantity AS numeric), 0)) as total_units,
       SUM(amount) as total_revenue,
-      AVG(amount / NULLIF(COALESCE(CAST(quantity AS numeric), 0), 0)) as avg_unit_price
+      SUM(amount) / COUNT(DISTINCT "orderId") as avg_unit_price
     FROM "OrderItem" oi
     JOIN "Order" o ON o."id" = oi."orderId"
     WHERE (oi."productCode" LIKE '01-63%'
@@ -213,11 +210,7 @@ export async function getSalesChannelMetrics() {
            OR oi."productCode" LIKE '82-6002%'
            OR oi."productCode" LIKE '01-70%')
     AND o."orderDate" >= '${startDate.toISOString()}'
-    GROUP BY 
-      CASE 
-        WHEN "productCode" LIKE '%-FBA' THEN 'FBA'
-        ELSE 'Direct'
-      END
+    GROUP BY o.class
   `)
   return results
 }
