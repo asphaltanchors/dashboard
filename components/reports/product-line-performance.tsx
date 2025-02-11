@@ -1,6 +1,5 @@
 import { getProductLineMetrics } from "@/lib/reports"
 import { ProductLinePerformanceChart } from "./product-line-performance-chart"
-import { ProductLineReference } from "./product-line-reference"
 
 interface ProductLineMetric {
   product_line: string

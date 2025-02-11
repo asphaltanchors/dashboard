@@ -85,7 +85,14 @@ export async function getProductLineMetrics() {
     }
     
     return acc
-  }, {} as Record<string, any>)
+  }, {} as Record<string, {
+    product_line: string
+    current_revenue: string
+    previous_revenue: string
+    order_count: string
+    total_units: string
+    total_revenue: string
+  }>)
 
   // Convert to array, sort, and filter out 'Other' category
   const combinedMetrics = Object.values(metricsByLine)
