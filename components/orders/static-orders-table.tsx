@@ -21,7 +21,24 @@ interface StaticOrdersTableProps {
 }
 
 export function StaticOrdersTable({ initialOrders }: StaticOrdersTableProps) {
-  const [data, setData] = useState<TableData>(initialOrders)
+  // Helper function to sort orders
+  const sortOrders = (orders: Order[], column: keyof Order, direction: "asc" | "desc") => {
+    return [...orders].sort((a, b) => {
+      const aValue = a[column]
+      const bValue = b[column]
+      if (aValue === null) return direction === "asc" ? 1 : -1
+      if (bValue === null) return direction === "asc" ? -1 : 1
+      if (aValue < bValue) return direction === "asc" ? -1 : 1
+      if (aValue > bValue) return direction === "asc" ? 1 : -1
+      return 0
+    })
+  }
+
+  // Initialize with sorted data
+  const [data, setData] = useState<TableData>({
+    ...initialOrders,
+    orders: sortOrders(initialOrders.orders, "orderDate", "desc")
+  })
   const [searchValue, setSearchValue] = useState("")
   const [sortConfig, setSortConfig] = useState<{
     column: keyof Order
@@ -39,7 +56,7 @@ export function StaticOrdersTable({ initialOrders }: StaticOrdersTableProps) {
     )
     setData({
       ...initialOrders,
-      orders: filtered
+      orders: sortOrders(filtered, sortConfig.column, sortConfig.direction)
     })
   }, 300)
 
@@ -51,15 +68,7 @@ export function StaticOrdersTable({ initialOrders }: StaticOrdersTableProps) {
     
     setSortConfig({ column, direction: newDirection })
     
-    const sorted = [...data.orders].sort((a, b) => {
-      const aValue = a[column]
-      const bValue = b[column]
-      if (aValue === null) return newDirection === "asc" ? 1 : -1
-      if (bValue === null) return newDirection === "asc" ? -1 : 1
-      if (aValue < bValue) return newDirection === "asc" ? -1 : 1
-      if (aValue > bValue) return newDirection === "asc" ? 1 : -1
-      return 0
-    })
+    const sorted = sortOrders(data.orders, column, newDirection)
 
     setData({
       ...data,
