@@ -44,10 +44,10 @@ accessories:
     volumes:
       - /mnt/dropbox:/dropbox
   importer:
-    image: ghcr.io/asphaltanchors/py-importer:1.5.0
+    image: ghcr.io/asphaltanchors/py-importer:1.6.0
     host: aac
     volumes:
-      - /mnt/dropbox/db/AAC/Oren/CSV:/data
+      - /mnt/dropbox/db/AAC/qb-csv:/data
     env:
       secret:
         - DATABASE_URL
