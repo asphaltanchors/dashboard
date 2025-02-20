@@ -7,6 +7,7 @@ interface GetOrdersParams {
   searchTerm?: string
   sortColumn?: string
   sortDirection?: 'asc' | 'desc'
+  paymentStatusFilter?: 'unpaid-only' | null
 }
 
 export async function getOrders({
@@ -14,14 +15,27 @@ export async function getOrders({
   pageSize = 10,
   searchTerm = '',
   sortColumn = 'orderDate',
-  sortDirection = 'desc'
+  sortDirection = 'desc',
+  paymentStatusFilter = null
 }: GetOrdersParams = {}) {
   // Calculate pagination
   const skip = (page - 1) * pageSize
 
-  // Build where clause for search
-  const where = searchTerm ? {
-    OR: [
+  // Build where clause for search and filters
+  const where: {
+    OR?: {
+      orderNumber?: { contains: string; mode: 'insensitive' };
+      customer?: {
+        is: {
+          customerName: { contains: string; mode: 'insensitive' };
+        };
+      };
+    }[];
+    paymentStatus?: { in: ('UNPAID' | 'PARTIAL')[] };
+  } = {}
+  
+  if (searchTerm) {
+    where.OR = [
       { orderNumber: { contains: searchTerm, mode: 'insensitive' as const } },
       { 
         customer: {
@@ -31,7 +45,11 @@ export async function getOrders({
         } 
       }
     ]
-  } : {}
+  }
+
+  if (paymentStatusFilter === 'unpaid-only') {
+    where.paymentStatus = { in: ['UNPAID', 'PARTIAL'] }
+  }
 
   // Build order by object dynamically
   let orderBy: {
@@ -68,7 +86,7 @@ export async function getOrders({
     orderBy = { paymentMethod: sortDirection }
   }
 
-  const [orders, totalCount, recentCount] = await Promise.all([
+  const [orders, totalCount, recentCount, accountsReceivable] = await Promise.all([
     prisma.order.findMany({
       select: {
         id: true,
@@ -105,6 +123,16 @@ export async function getOrders({
           }
         ]
       }
+    }),
+    prisma.order.aggregate({
+      _sum: {
+        totalAmount: true
+      },
+      where: {
+        paymentStatus: {
+          in: ['UNPAID', 'PARTIAL']
+        }
+      }
     })
   ])
 
@@ -124,7 +152,8 @@ export async function getOrders({
   return {
     orders: mappedOrders,
     totalCount,
-    recentCount
+    recentCount,
+    accountsReceivable: Number(accountsReceivable._sum.totalAmount || 0)
   }
 }
 

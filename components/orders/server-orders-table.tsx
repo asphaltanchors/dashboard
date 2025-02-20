@@ -37,6 +37,7 @@ export function ServerOrdersTable({ initialOrders }: ServerOrdersTableProps) {
   const searchTerm = searchParams.get("search") || ""
   const sortColumn = (searchParams.get("sort") as keyof Order) || "orderDate"
   const sortDirection = (searchParams.get("dir") as "asc" | "desc") || "desc"
+  const filter = searchParams.get("filter") || ""
 
   const createQueryString = useCallback(
     (params: Record<string, string | number | null>) => {
@@ -63,13 +64,14 @@ export function ServerOrdersTable({ initialOrders }: ServerOrdersTableProps) {
           searchTerm,
           sortColumn,
           sortDirection,
+          paymentStatusFilter: filter === 'unpaid-only' ? 'unpaid-only' : null
         })
         setData(newData)
       } catch (error) {
         console.error("Failed to fetch orders:", error)
       }
     })
-  }, [page, searchTerm, sortColumn, sortDirection])
+  }, [page, searchTerm, sortColumn, sortDirection, filter])
 
   React.useEffect(() => {
     refreshData()

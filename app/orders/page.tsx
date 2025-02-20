@@ -2,6 +2,7 @@ import { ServerOrdersTable } from "@/components/orders/server-orders-table"
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { getOrders } from "@/lib/orders"
 import { FileText, Clock } from "lucide-react"
+import { FilterMetricCard } from "@/components/orders/filter-metric-card"
 
 export default async function OrdersPage(
   props: {
@@ -13,6 +14,7 @@ export default async function OrdersPage(
   const search = (searchParams.search as string) || ""
   const sort = (searchParams.sort as string) || "orderDate"
   const dir = (searchParams.dir as "asc" | "desc") || "desc"
+  const filter = searchParams.filter as string | undefined
 
   const data = await getOrders({
     page,
@@ -20,6 +22,7 @@ export default async function OrdersPage(
     searchTerm: search,
     sortColumn: sort,
     sortDirection: dir,
+    paymentStatusFilter: filter === 'unpaid-only' ? 'unpaid-only' : null
   })
   return (
     <div className="p-8">
@@ -37,6 +40,7 @@ export default async function OrdersPage(
               change={(data.recentCount / data.totalCount * 100).toFixed(1)}
               icon={Clock}
             />
+            <FilterMetricCard value={data.accountsReceivable} />
       </div>
       <div className="mt-4">
         <ServerOrdersTable initialOrders={data} />
