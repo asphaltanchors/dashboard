@@ -129,9 +129,18 @@ export async function getOrders({
         totalAmount: true
       },
       where: {
-        paymentStatus: {
-          in: ['UNPAID', 'PARTIAL']
-        }
+        AND: [
+          {
+            paymentStatus: {
+              in: ['UNPAID', 'PARTIAL']
+            }
+          },
+          {
+            orderDate: {
+              lt: new Date()
+            }
+          }
+        ]
       }
     })
   ])
