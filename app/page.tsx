@@ -2,18 +2,39 @@ import { MetricCard } from "@/components/dashboard/metric-card"
 import { PaymentMethodCard } from "@/components/dashboard/payment-method-card"
 import { ClassCard } from "@/components/dashboard/class-card"
 import { RecentOrders } from "@/components/dashboard/recent-orders"
+import { ReportHeader } from "@/components/reports/report-header"
 import { formatCurrency } from "@/lib/utils"
 import { DollarSign, ShoppingCart } from "lucide-react"
 import { getOrderMetrics, getPaymentMethodMetrics, getClassMetrics, getRecentOrders } from "@/lib/dashboard"
 
-export default async function Home() {
+interface PageProps {
+  searchParams: Promise<{
+    date_range?: string
+    min_amount?: string
+    max_amount?: string
+  }>
+}
+
+export default async function Home(props: PageProps) {
+  const searchParams = await props.searchParams;
+  const date_range = searchParams.date_range || "365d"
+  const min_amount = searchParams.min_amount
+  const max_amount = searchParams.max_amount
+
+  // Parse filter parameters
+  const filters = {
+    dateRange: date_range,
+    minAmount: min_amount ? parseFloat(min_amount) : undefined,
+    maxAmount: max_amount ? parseFloat(max_amount) : undefined
+  }
+
   const [metrics, paymentMetrics, classMetrics, recentOrders] = await Promise.all([
-    getOrderMetrics(),
-    getPaymentMethodMetrics(),
-    getClassMetrics(),
-    getRecentOrders()
+    getOrderMetrics(filters),
+    getPaymentMethodMetrics(filters),
+    getClassMetrics(filters),
+    getRecentOrders(filters)
   ])
-  
+
   const { 
     currentTotalOrders, 
     orderChange, 
@@ -24,29 +45,32 @@ export default async function Home() {
   } = metrics
 
   return (
-
     <div className="p-8">
-      <h1 className="text-3xl font-bold mb-8">Dashboard</h1>
+      <ReportHeader
+        dateRange={date_range}
+        minAmount={min_amount ? parseFloat(min_amount) : undefined}
+        maxAmount={max_amount ? parseFloat(max_amount) : undefined}
+      />
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <MetricCard
-              title="30d Orders (Seasonal)"
-              value={currentTotalOrders}
-              change={orderChange}
-              icon={ShoppingCart}
-            />
-            <MetricCard
-              title="30d Sales (Seasonal)"
-              value={formatCurrency(currentTotalSales)}
-              change={salesChange}
-              icon={DollarSign}
-            />
-            <MetricCard
-              title="Trailing 12 Months Sales"
-              value={formatCurrency(currentAnnualSales)}
-              change={annualSalesChange}
-              icon={DollarSign}
-            />
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mt-8">
+        <MetricCard
+          title="30d Orders (Seasonal)"
+          value={currentTotalOrders}
+          change={orderChange}
+          icon={ShoppingCart}
+        />
+        <MetricCard
+          title="30d Sales (Seasonal)"
+          value={formatCurrency(currentTotalSales)}
+          change={salesChange}
+          icon={DollarSign}
+        />
+        <MetricCard
+          title="Trailing 12 Months Sales"
+          value={formatCurrency(currentAnnualSales)}
+          change={annualSalesChange}
+          icon={DollarSign}
+        />
       </div>
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
@@ -55,7 +79,7 @@ export default async function Home() {
       </div>
 
       <div className="mt-4">
-            <RecentOrders orders={recentOrders} />
+        <RecentOrders orders={recentOrders} />
       </div>
     </div>
   )

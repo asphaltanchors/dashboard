@@ -1,49 +1,73 @@
 import { prisma } from "@/lib/prisma"
+import { Prisma } from "@prisma/client"
 
-export async function getOrderMetrics() {
-  const [thirtyDayMetrics, annualMetrics] = await Promise.all([
-    getThirtyDayMetrics(),
-    getAnnualMetrics()
+function getDateRangeFromFilter(dateRange: string = "365d"): { start: Date, end: Date } {
+  const end = new Date()
+  const start = new Date()
+  const days = parseInt(dateRange.replace("d", ""))
+  start.setDate(start.getDate() - days)
+  return { start, end }
+}
+
+interface FilterParams {
+  dateRange?: string
+  minAmount?: number
+  maxAmount?: number
+}
+
+type OrderWhereClause = Prisma.OrderWhereInput
+
+export async function getOrderMetrics(filters: FilterParams = {}) {
+  const [periodMetrics, annualMetrics] = await Promise.all([
+    getPeriodMetrics(filters),
+    getAnnualMetrics(filters)
   ])
 
   return {
-    ...thirtyDayMetrics,
+    ...periodMetrics,
     ...annualMetrics
   }
 }
 
-async function getThirtyDayMetrics() {
-  const today = new Date()
-  const thirtyDaysAgo = new Date(today)
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+async function getPeriodMetrics({ dateRange = "365d", minAmount, maxAmount }: FilterParams = {}) {
+  const { start: periodStart, end: periodEnd } = getDateRangeFromFilter(dateRange)
   
   // Same period last year
-  const lastYearStart = new Date(thirtyDaysAgo)
+  const lastYearStart = new Date(periodStart)
   lastYearStart.setFullYear(lastYearStart.getFullYear() - 1)
-  const lastYearEnd = new Date(today)
+  const lastYearEnd = new Date(periodEnd)
   lastYearEnd.setFullYear(lastYearEnd.getFullYear() - 1)
+
+  // Build where clause
+  const whereClause: OrderWhereClause = {
+    orderDate: {
+      gte: periodStart
+    }
+  }
+
+  if (minAmount !== undefined || maxAmount !== undefined) {
+    whereClause.totalAmount = {
+      ...(minAmount !== undefined && { gte: minAmount }),
+      ...(maxAmount !== undefined && { lte: maxAmount })
+    }
+  }
 
   // Current period orders
   const currentOrders = await prisma.order.findMany({
-    where: {
-      orderDate: {
-        gte: thirtyDaysAgo
-      },
-      status: 'CLOSED'
-    },
+    where: whereClause,
     select: {
       totalAmount: true
     }
   })
 
-  // Same period last year orders
+  // Same period last year orders with same filters
   const previousOrders = await prisma.order.findMany({
     where: {
+      ...whereClause,
       orderDate: {
         gte: lastYearStart,
         lte: lastYearEnd
-      },
-      status: 'CLOSED'
+      }
     },
     select: {
       totalAmount: true
@@ -68,7 +92,7 @@ async function getThirtyDayMetrics() {
   }
 }
 
-async function getAnnualMetrics() {
+async function getAnnualMetrics({ minAmount, maxAmount }: FilterParams = {}) {
   const today = new Date()
   
   // Current 12 months
@@ -79,9 +103,20 @@ async function getAnnualMetrics() {
   const twentyFourMonthsAgo = new Date(twelveMonthsAgo)
   twentyFourMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1)
 
+  // Build where clause
+  const whereClause: OrderWhereClause = {}
+
+  if (minAmount !== undefined || maxAmount !== undefined) {
+    whereClause.totalAmount = {
+      ...(minAmount !== undefined && { gte: minAmount }),
+      ...(maxAmount !== undefined && { lte: maxAmount })
+    }
+  }
+
   // Current period orders (last 12 months)
   const currentAnnualOrders = await prisma.order.findMany({
     where: {
+      ...whereClause,
       orderDate: {
         gte: twelveMonthsAgo
       }
@@ -94,6 +129,7 @@ async function getAnnualMetrics() {
   // Previous period orders (12 months before that)
   const previousAnnualOrders = await prisma.order.findMany({
     where: {
+      ...whereClause,
       orderDate: {
         gte: twentyFourMonthsAgo,
         lt: twelveMonthsAgo
@@ -116,20 +152,27 @@ async function getAnnualMetrics() {
   }
 }
 
-export async function getPaymentMethodMetrics() {
-  const today = new Date()
-  const twelveMonthsAgo = new Date(today)
-  twelveMonthsAgo.setFullYear(today.getFullYear() - 1)
+export async function getPaymentMethodMetrics({ dateRange = "365d", minAmount, maxAmount }: FilterParams = {}) {
+  const { start } = getDateRangeFromFilter(dateRange)
+
+  const whereClause: OrderWhereClause = {
+    orderDate: {
+      gte: start
+    },
+    paymentMethod: {
+      not: null
+    }
+  }
+
+  if (minAmount !== undefined || maxAmount !== undefined) {
+    whereClause.totalAmount = {
+      ...(minAmount !== undefined && { gte: minAmount }),
+      ...(maxAmount !== undefined && { lte: maxAmount })
+    }
+  }
 
   const orders = await prisma.order.findMany({
-    where: {
-      orderDate: {
-        gte: twelveMonthsAgo
-      },
-      paymentMethod: {
-        not: null
-      }
-    },
+    where: whereClause,
     select: {
       paymentMethod: true,
       totalAmount: true
@@ -150,20 +193,27 @@ export async function getPaymentMethodMetrics() {
     .sort((a, b) => b.amount - a.amount)
 }
 
-export async function getClassMetrics() {
-  const today = new Date()
-  const twelveMonthsAgo = new Date(today)
-  twelveMonthsAgo.setFullYear(today.getFullYear() - 1)
+export async function getClassMetrics({ dateRange = "365d", minAmount, maxAmount }: FilterParams = {}) {
+  const { start } = getDateRangeFromFilter(dateRange)
+
+  const whereClause: OrderWhereClause = {
+    orderDate: {
+      gte: start
+    },
+    class: {
+      not: null
+    }
+  }
+
+  if (minAmount !== undefined || maxAmount !== undefined) {
+    whereClause.totalAmount = {
+      ...(minAmount !== undefined && { gte: minAmount }),
+      ...(maxAmount !== undefined && { lte: maxAmount })
+    }
+  }
 
   const orders = await prisma.order.findMany({
-    where: {
-      orderDate: {
-        gte: twelveMonthsAgo
-      },
-      class: {
-        not: null
-      }
-    },
+    where: whereClause,
     select: {
       totalAmount: true,
       class: true,
@@ -186,8 +236,18 @@ export async function getClassMetrics() {
     .sort((a, b) => b.amount - a.amount)
 }
 
-export async function getRecentOrders() {
+export async function getRecentOrders({ minAmount, maxAmount }: FilterParams = {}) {
+  const whereClause: OrderWhereClause = {}
+
+  if (minAmount !== undefined || maxAmount !== undefined) {
+    whereClause.totalAmount = {
+      ...(minAmount !== undefined && { gte: minAmount }),
+      ...(maxAmount !== undefined && { lte: maxAmount })
+    }
+  }
+
   return await prisma.order.findMany({
+    where: whereClause,
     take: 10,
     orderBy: {
       orderDate: 'desc'
