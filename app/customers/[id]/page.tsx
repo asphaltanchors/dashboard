@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { SingleEnrichButton } from "@/components/companies/single-enrich-button"
+import { StaticOrdersTable } from "@/components/orders/static-orders-table"
 
 const needsEnrichment = (company: { 
   enriched: boolean, 
@@ -65,11 +66,16 @@ export default async function CustomerPage(
         select: {
           id: true,
           orderNumber: true,
+          orderDate: true,
+          status: true,
+          paymentStatus: true,
           totalAmount: true,
-          createdAt: true,
+          dueDate: true,
+          paymentMethod: true,
+          quickbooksId: true,
         },
         orderBy: {
-          createdAt: 'desc'
+          orderDate: 'desc'
         },
       },
     },
@@ -226,30 +232,21 @@ export default async function CustomerPage(
               Total Order Value: ${totalOrders.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="px-4 py-2 text-left">Order Number</th>
-                  <th className="px-4 py-2 text-left">Date</th>
-                  <th className="px-4 py-2 text-left">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {customer.orders.map((order) => (
-                  <tr key={order.id} className="border-b">
-                    <td className="px-4 py-2">{order.orderNumber}</td>
-                    <td className="px-4 py-2">
-                      {new Date(order.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="px-4 py-2">
-                      ${Number(order.totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <StaticOrdersTable
+            initialOrders={{
+              orders: customer.orders.map(order => ({
+                ...order,
+                customerName: customer.customerName,
+                totalAmount: Number(order.totalAmount)
+              })),
+              totalCount: customer.orders.length,
+              recentCount: customer.orders.filter(order => {
+                const thirtyDaysAgo = new Date();
+                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+                return new Date(order.orderDate) >= thirtyDaysAgo;
+              }).length
+            }}
+          />
         </CardContent>
       </Card>
     </div>
