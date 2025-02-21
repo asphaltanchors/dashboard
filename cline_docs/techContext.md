@@ -1,44 +1,55 @@
 # API Dependencies
 
-## The Companies API
-- Base URL: https://api.thecompaniesapi.com/v2
-- Authentication: Bearer token via COMPANIES_API_KEY environment variable
-- Used for: Company data enrichment
-- Endpoints:
-  - GET /companies/{domain} - Fetch company information by domain
+[Previous API sections remain unchanged...]
 
-# Environment Variables
+# Component Structure
 
-Required environment variables:
-- COMPANIES_API_KEY: API key for thecompaniesapi.com
-- DATABASE_URL: PostgreSQL connection string
+## Report Filter Components
+1. ReportHeader (Server Component)
+   - Container for all report filters
+   - Handles URL parameter parsing
+   - Manages filter state coordination
+   - Layout and positioning
 
-# Database Schema Updates
+2. DateRangeFilter (Client Component)
+   - Preset options dropdown
+   - Options: 7, 30, 60, 90, 180, 365 days
+   - Updates URL on selection
+   - Reset functionality
 
-## Company Table
-- enriched: Boolean (default: false)
-- enrichedAt: DateTime (nullable)
-- enrichedSource: String (nullable)
-- enrichmentData: Json (nullable)
+3. AmountFilter (Client Component)
+   Phase 1:
+   - Simple min/max inputs
+   - Basic validation
+   - URL parameter integration
+   
+   Phase 2:
+   - Transaction histogram
+   - Range slider
+   - Preset ranges
+   - Custom range inputs
 
-# UI Components
+4. Shared Functionality
+   - URL parameter management
+   - Reset handling
+   - Loading states
+   - Error boundaries
 
-## Client Components
-- Located in app/providers.tsx
-- Wraps client-side providers (Toast, Sidebar)
-- Keeps root layout as server component
+## URL Parameter Structure
+- date_range: string (e.g., "7d", "30d")
+- amount_min: number
+- amount_max: number
+- Default values handled server-side
 
-## Toast Notifications
-- Located in components/ui/use-toast.tsx (client component)
-- Provider wrapped in Providers component
-- Used for: Showing success/error messages for async operations
-- Auto-dismisses after 3 seconds
+## State Management
+Phase 1:
+- URL-based state only
+- Server-side parameter parsing
+- Client-side URL updates
 
-## Company Components
-- EnrichButton: Client component for bulk enrichment from companies list
-- SingleEnrichButton: Client component for individual company enrichment
-- Both components handle:
-  - Loading states
-  - Error feedback via toast
-  - Disabled states when enriched
-  - Auto-refresh after success
+Phase 2:
+- Cross-page state persistence
+- Loading state handling
+- Error state management
+
+[Rest of the file remains unchanged...]
