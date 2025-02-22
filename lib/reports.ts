@@ -734,10 +734,34 @@ export async function getCompanyOrderMetrics(months: number) {
 }
 
 // Material type analysis data
-export async function getMaterialTypeMetrics() {
+export async function getMaterialTypeMetrics(filters?: FilterParams) {
   const today = new Date()
+  const days = filters?.dateRange ? parseInt(filters.dateRange.replace("d", "")) : 365
   const startDate = new Date(today)
-  startDate.setMonth(today.getMonth() - 12)
+  startDate.setDate(today.getDate() - days)
+
+  // Build additional WHERE clauses for filters
+  const filterClauses = []
+  if (filters?.minAmount) {
+    filterClauses.push(`o."totalAmount" >= ${filters.minAmount}`)
+  }
+  if (filters?.maxAmount) {
+    filterClauses.push(`o."totalAmount" <= ${filters.maxAmount}`)
+  }
+  if (filters?.filterConsumer) {
+    filterClauses.push(`
+      NOT EXISTS (
+        SELECT 1 FROM "Customer" c
+        JOIN "Company" comp ON c."companyDomain" = comp."domain"
+        WHERE c."id" = o."customerId"
+        AND comp."domain" = ANY(ARRAY[${CONSUMER_DOMAINS.map(d => `'${d}'`).join(',')}])
+      )
+    `)
+  }
+
+  const additionalFilters = filterClauses.length > 0 
+    ? 'AND ' + filterClauses.join(' AND ')
+    : ''
 
   const results = await prisma.$queryRawUnsafe<Array<{
     material_type: string
@@ -763,6 +787,7 @@ export async function getMaterialTypeMetrics() {
            OR oi."productCode" LIKE '82-6002%'
            OR oi."productCode" LIKE '01-70%')
     AND o."orderDate" >= '${startDate.toISOString()}'
+    ${additionalFilters}
     GROUP BY 
       CASE 
         WHEN "productCode" LIKE '01-63%' AND "productCode" NOT LIKE '%-D' AND "productCode" NOT LIKE '%3SK%' THEN 'Zinc Plated'
@@ -777,12 +802,36 @@ export async function getMaterialTypeMetrics() {
 }
 
 // Product line performance data
-export async function getProductLineMetrics() {
+export async function getProductLineMetrics(filters?: FilterParams) {
   const today = new Date()
+  const days = filters?.dateRange ? parseInt(filters.dateRange.replace("d", "")) : 365
   const currentPeriodStart = new Date(today)
-  currentPeriodStart.setMonth(today.getMonth() - 12)
+  currentPeriodStart.setDate(today.getDate() - days)
   const previousPeriodStart = new Date(currentPeriodStart)
-  previousPeriodStart.setMonth(currentPeriodStart.getMonth() - 12)
+  previousPeriodStart.setDate(currentPeriodStart.getDate() - days)
+
+  // Build additional WHERE clauses for filters
+  const filterClauses = []
+  if (filters?.minAmount) {
+    filterClauses.push(`o."totalAmount" >= ${filters.minAmount}`)
+  }
+  if (filters?.maxAmount) {
+    filterClauses.push(`o."totalAmount" <= ${filters.maxAmount}`)
+  }
+  if (filters?.filterConsumer) {
+    filterClauses.push(`
+      NOT EXISTS (
+        SELECT 1 FROM "Customer" c
+        JOIN "Company" comp ON c."companyDomain" = comp."domain"
+        WHERE c."id" = o."customerId"
+        AND comp."domain" = ANY(ARRAY[${CONSUMER_DOMAINS.map(d => `'${d}'`).join(',')}])
+      )
+    `)
+  }
+
+  const additionalFilters = filterClauses.length > 0 
+    ? 'AND ' + filterClauses.join(' AND ')
+    : ''
 
   // Get metrics for both periods
   const metrics = await prisma.$queryRawUnsafe<(ProductLineMetric & { period: string })[]>(`
@@ -810,6 +859,7 @@ export async function getProductLineMetrics() {
            OR oi."productCode" LIKE '82-6002%'
            OR oi."productCode" LIKE '01-70%')
     AND o."orderDate" >= '${previousPeriodStart.toISOString()}'
+    ${additionalFilters}
     GROUP BY 
       CASE 
         WHEN "productCode" LIKE '01-6310%' THEN 'SP10'

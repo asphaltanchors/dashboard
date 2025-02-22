@@ -12,8 +12,26 @@ interface ProductLineMetric {
   }>
 }
 
-export async function ProductLinePerformance() {
-  const metrics = await getProductLineMetrics() as ProductLineMetric[]
+interface ProductLinePerformanceProps {
+  dateRange?: string
+  minAmount?: number
+  maxAmount?: number
+  filterConsumer?: boolean
+}
+
+export async function ProductLinePerformance({
+  dateRange,
+  minAmount,
+  maxAmount,
+  filterConsumer
+}: ProductLinePerformanceProps) {
+  const days = dateRange ? parseInt(dateRange.replace("d", "")) : 365
+  const metrics = await getProductLineMetrics({
+    dateRange,
+    minAmount,
+    maxAmount,
+    filterConsumer
+  }) as ProductLineMetric[]
 
   const chartData = metrics.map(metric => ({
     product: metric.product_line,
@@ -21,5 +39,11 @@ export async function ProductLinePerformance() {
     previous: Number(metric.previous_revenue)
   }))
 
-  return <ProductLinePerformanceChart data={chartData} />
+  return (
+    <ProductLinePerformanceChart 
+      data={chartData}
+      description={`Revenue Comparison - Last ${days} Days vs Previous Period`}
+      dateRange={dateRange}
+    />
+  )
 }

@@ -9,8 +9,25 @@ interface ProductLineMetric {
   total_revenue: string
 }
 
-export async function ProductMetricsGrid() {
-  const metrics = await getProductLineMetrics() as ProductLineMetric[]
+interface ProductMetricsGridProps {
+  dateRange?: string
+  minAmount?: number
+  maxAmount?: number
+  filterConsumer?: boolean
+}
+
+export async function ProductMetricsGrid({
+  dateRange,
+  minAmount,
+  maxAmount,
+  filterConsumer
+}: ProductMetricsGridProps) {
+  const metrics = await getProductLineMetrics({
+    dateRange,
+    minAmount,
+    maxAmount,
+    filterConsumer
+  }) as ProductLineMetric[]
   
   // Calculate totals
   const totalRevenue = metrics.reduce((sum, m) => sum + Number(m.total_revenue), 0)

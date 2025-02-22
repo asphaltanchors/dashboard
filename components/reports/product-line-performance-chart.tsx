@@ -11,25 +11,33 @@ interface ProductLinePerformanceProps {
     current: number
     previous: number
   }>
+  description?: string
+  dateRange?: string
 }
 
-export function ProductLinePerformanceChart({ data }: ProductLinePerformanceProps) {
+export function ProductLinePerformanceChart({ 
+  data,
+  description = "Revenue Comparison - Trailing 12 Months vs Previous Period",
+  dateRange = "365d"
+}: ProductLinePerformanceProps) {
+  const days = parseInt(dateRange.replace("d", ""))
+  const period = days === 365 ? "12 Months" : `${days} Days`
   return (
     <Card className="w-full">
       <CardHeader>
         <CardTitle>Product Line Performance</CardTitle>
-        <CardDescription>Revenue Comparison - Trailing 12 Months vs Previous Period</CardDescription>
+        <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="h-[400px] w-full">
           <ChartContainer
             config={{
               current: {
-                label: "Last 12 Months",
+                label: `Last ${period}`,
                 color: "hsl(222.2, 47.4%, 11.2%)",
               },
               previous: {
-                label: "Previous 12 Months",
+                label: `Previous ${period}`,
                 color: "hsl(15, 100%, 55%)",
               },
             }}
@@ -64,11 +72,11 @@ export function ProductLinePerformanceChart({ data }: ProductLinePerformanceProp
                       <div className="rounded-lg border bg-background p-2 shadow-sm space-y-2">
                         <div className="grid grid-cols-2 gap-2">
                           <div className="flex flex-col">
-                            <span className="text-[0.70rem] uppercase text-muted-foreground">Last 12 Months</span>
+                            <span className="text-[0.70rem] uppercase text-muted-foreground">Last {period}</span>
                             <span className="font-bold text-blue-600">{formatCurrency(currentValue)}</span>
                           </div>
                           <div className="flex flex-col">
-                            <span className="text-[0.70rem] uppercase text-muted-foreground">Previous 12 Months</span>
+                            <span className="text-[0.70rem] uppercase text-muted-foreground">Previous {period}</span>
                             <span className="font-bold text-orange-500">{formatCurrency(previousValue)}</span>
                           </div>
                         </div>
@@ -90,13 +98,13 @@ export function ProductLinePerformanceChart({ data }: ProductLinePerformanceProp
               <Bar
                 dataKey="current"
                 fill="#2563EB"
-                name="Last 12 Months"
+                name={`Last ${period}`}
                 barSize={Math.max(20, Math.min(40, 600 / data.length))}
               />
               <Scatter
                 dataKey="previous"
                 fill="#F97316"
-                name="Previous 12 Months"
+                name={`Previous ${period}`}
                 r={6}
               />
             </ComposedChart>

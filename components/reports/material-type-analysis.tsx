@@ -10,8 +10,25 @@ interface MaterialTypeMetric {
   total_revenue: string
 }
 
-export async function MaterialTypeAnalysis() {
-  const metrics = await getMaterialTypeMetrics() as MaterialTypeMetric[]
+interface MaterialTypeAnalysisProps {
+  dateRange?: string
+  minAmount?: number
+  maxAmount?: number
+  filterConsumer?: boolean
+}
+
+export async function MaterialTypeAnalysis({
+  dateRange,
+  minAmount,
+  maxAmount,
+  filterConsumer
+}: MaterialTypeAnalysisProps) {
+  const metrics = await getMaterialTypeMetrics({
+    dateRange,
+    minAmount,
+    maxAmount,
+    filterConsumer
+  }) as MaterialTypeMetric[]
   
   // Calculate total revenue for percentage calculations
   const totalRevenue = metrics.reduce((sum, m) => sum + Number(m.total_revenue), 0)

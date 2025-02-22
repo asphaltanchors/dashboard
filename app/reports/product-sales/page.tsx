@@ -2,23 +2,58 @@ import { ProductLinePerformance } from "@/components/reports/product-line-perfor
 import { MaterialTypeAnalysis } from "@/components/reports/material-type-analysis"
 import { ProductMetricsGrid } from "@/components/reports/product-metrics-grid"
 import { ProductLineReferenceContainer } from "@/components/reports/product-line-reference-container"
+import { ReportHeader } from "@/components/reports/report-header"
 
-export default async function ProductSalesPage() {
+type PageProps = {
+  searchParams: Promise<{
+    date_range?: string
+    min_amount?: string
+    max_amount?: string
+    filterConsumer?: string
+  }>
+}
+
+export default async function ProductSalesPage(props: PageProps) {
+  const searchParams = await props.searchParams;
+  const date_range = searchParams.date_range || "365d"
+  const filterConsumer = searchParams.filterConsumer !== undefined
+  const min_amount = searchParams.min_amount
+  const max_amount = searchParams.max_amount
+
   return (
     <div className="space-y-6 p-8">
-      <div>
-        <h1 className="text-3xl font-bold">Product Sales Analysis</h1>
-        <p className="text-sm text-muted-foreground mt-1">Last 12 months of sales data</p>
-      </div>
+      <ReportHeader
+        title="Product Sales Analysis"
+        resetPath="/reports/product-sales?date_range=365d"
+        dateRange={date_range}
+        minAmount={min_amount ? parseFloat(min_amount) : undefined}
+        maxAmount={max_amount ? parseFloat(max_amount) : undefined}
+        filterConsumer={filterConsumer}
+      />
       
       <div className="grid gap-8">
         {/* Key metrics at the top */}
-        <ProductMetricsGrid />
+        <ProductMetricsGrid 
+          dateRange={date_range}
+          minAmount={min_amount ? parseFloat(min_amount) : undefined}
+          maxAmount={max_amount ? parseFloat(max_amount) : undefined}
+          filterConsumer={filterConsumer}
+        />
         
         {/* Performance charts in 2 columns */}
         <div className="grid gap-6 md:grid-cols-2">
-          <ProductLinePerformance />
-          <MaterialTypeAnalysis />
+          <ProductLinePerformance 
+            dateRange={date_range}
+            minAmount={min_amount ? parseFloat(min_amount) : undefined}
+            maxAmount={max_amount ? parseFloat(max_amount) : undefined}
+            filterConsumer={filterConsumer}
+          />
+          <MaterialTypeAnalysis 
+            dateRange={date_range}
+            minAmount={min_amount ? parseFloat(min_amount) : undefined}
+            maxAmount={max_amount ? parseFloat(max_amount) : undefined}
+            filterConsumer={filterConsumer}
+          />
         </div>
 
         {/* Product Line Reference in full width */}
