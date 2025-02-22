@@ -14,17 +14,27 @@ export function TransactionAmountFilter({ min, max }: TransactionAmountFilterPro
   const router = useRouter()
   const searchParams = useSearchParams()
   
+  // Raw input values for editing
   const [minValue, setMinValue] = useState(min?.toString() || "")
   const [maxValue, setMaxValue] = useState(max?.toString() || "")
   
+  // Formatted values for display
+  const [formattedMin, setFormattedMin] = useState("")
+  const [formattedMax, setFormattedMax] = useState("")
+  
   // Track if the change was from user input
   const isUserInput = useRef(false)
+  const isEditing = useRef({ min: false, max: false })
 
-  // Sync state with props
+  // Sync state with props and handle initial formatting
   useEffect(() => {
     if (!isUserInput.current) {
-      setMinValue(min?.toString() || "")
-      setMaxValue(max?.toString() || "")
+      const newMin = min?.toString() || ""
+      const newMax = max?.toString() || ""
+      setMinValue(newMin)
+      setMaxValue(newMax)
+      setFormattedMin(newMin ? formatCurrency(parseFloat(newMin)) : "")
+      setFormattedMax(newMax ? formatCurrency(parseFloat(newMax)) : "")
     }
   }, [min, max])
 
@@ -55,25 +65,50 @@ export function TransactionAmountFilter({ min, max }: TransactionAmountFilterPro
     return () => clearTimeout(timer)
   }, [minValue, maxValue, router, searchParams])
 
+  const sanitizeNumber = (value: string) => {
+    // Allow only one decimal point and numbers
+    const parts = value.split('.')
+    if (parts.length > 2) return value.slice(0, -1)
+    return value.replace(/[^\d.]/g, "")
+  }
+
   const handleMinChange = (value: string) => {
     isUserInput.current = true
-    // Remove non-numeric characters except decimal point
-    const sanitized = value.replace(/[^\d.]/g, "")
+    const sanitized = sanitizeNumber(value)
     setMinValue(sanitized)
   }
 
   const handleMaxChange = (value: string) => {
     isUserInput.current = true
-    // Remove non-numeric characters except decimal point
-    const sanitized = value.replace(/[^\d.]/g, "")
+    const sanitized = sanitizeNumber(value)
     setMaxValue(sanitized)
   }
 
-  const formatValue = (value: string) => {
-    if (!value) return ""
+  const handleBlur = (field: 'min' | 'max') => {
+    isEditing.current[field] = false
+    const value = field === 'min' ? minValue : maxValue
+    if (!value) {
+      if (field === 'min') setFormattedMin("")
+      else setFormattedMax("")
+      return
+    }
     const number = parseFloat(value)
-    if (isNaN(number)) return ""
-    return formatCurrency(number)
+    if (isNaN(number)) return
+    const formatted = formatCurrency(number)
+    if (field === 'min') {
+      setFormattedMin(formatted)
+    } else {
+      setFormattedMax(formatted)
+    }
+  }
+
+  const handleFocus = (field: 'min' | 'max') => {
+    // Format the other field if it was being edited
+    const otherField = field === 'min' ? 'max' : 'min'
+    if (isEditing.current[otherField]) {
+      handleBlur(otherField)
+    }
+    isEditing.current[field] = true
   }
 
   return (
@@ -85,16 +120,20 @@ export function TransactionAmountFilter({ min, max }: TransactionAmountFilterPro
       <Input
         type="text"
         placeholder="Min"
-        value={formatValue(minValue)}
+        value={isEditing.current.min ? minValue : formattedMin}
         onChange={(e) => handleMinChange(e.target.value)}
+        onFocus={() => handleFocus('min')}
+        onBlur={() => handleBlur('min')}
         className="w-full"
       />
       <span className="text-gray-500">-</span>
       <Input
         type="text"
         placeholder="Max"
-        value={formatValue(maxValue)}
+        value={isEditing.current.max ? maxValue : formattedMax}
         onChange={(e) => handleMaxChange(e.target.value)}
+        onFocus={() => handleFocus('max')}
+        onBlur={() => handleBlur('max')}
         className="w-full"
       />
       </div>
