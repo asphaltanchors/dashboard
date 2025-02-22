@@ -39,7 +39,11 @@ export async function fetchCustomers(params: Parameters<typeof getCustomers>[0])
 }
 
 export async function fetchOrders(params: Parameters<typeof getOrders>[0]) {
-  return getOrders(params)
+  const { filter, ...otherParams } = params as any
+  return getOrders({
+    ...otherParams,
+    paymentStatusFilter: filter === 'unpaid-only' ? 'unpaid-only' : null
+  })
 }
 
 export async function enrichCompanyAction(domain: string) {
