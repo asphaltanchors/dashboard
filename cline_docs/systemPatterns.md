@@ -145,6 +145,33 @@
    - Responsive design
    - Accessibility focus
 
+4. Table Components
+   - Base patterns:
+     * Static tables for simple data display
+     * Server tables for complex data handling
+   - ServerOrdersTable configuration:
+     * Customizable fetch function
+     * URL parameter preservation
+     * Configurable columns and rendering
+     * Default sort preferences
+     * Search and pagination controls
+   - Implementation:
+     ```typescript
+     interface ServerOrdersTableProps {
+       initialOrders: TableData
+       fetchOrders: (params: FetchParams) => Promise<TableData>
+       preserveParams?: string[]  // URL params to preserve
+       title?: string
+       columns?: Column[]
+       defaultSort?: { column: keyof Order; direction: 'asc' | 'desc' }
+       pageSize?: number
+       searchPlaceholder?: string
+     }
+     ```
+   - Usage examples:
+     * Regular orders: `preserveParams={['filter']}`
+     * Canadian orders: `preserveParams={['date_range', 'min_amount', 'max_amount']}`
+
 ## Error Handling Pattern
 1. Layer-specific Handling
    - Database: Prisma errors

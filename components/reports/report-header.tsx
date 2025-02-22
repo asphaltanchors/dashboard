@@ -7,12 +7,16 @@ import { useRouter } from "next/navigation"
 import { useState } from "react"
 
 interface ReportHeaderProps {
+  title?: string
+  resetPath?: string
   dateRange?: string
   minAmount?: number
   maxAmount?: number
 }
 
 export function ReportHeader({
+  title = "Dashboard",
+  resetPath = "/?date_range=365d",
   dateRange = "365d",
   minAmount,
   maxAmount
@@ -22,12 +26,12 @@ export function ReportHeader({
 
   const handleReset = () => {
     setResetKey(prev => prev + 1)
-    router.push("/?date_range=365d")
+    router.push(resetPath)
   }
 
   return (
     <div className="flex items-center gap-4">
-      <h1 className="text-3xl font-bold">Dashboard</h1>
+      <h1 className="text-3xl font-bold">{title}</h1>
       <div className="flex items-center gap-4 ml-auto">
         <div className="w-[200px]">
           <DateRangeFilter key={`date-${resetKey}`} value={dateRange} />

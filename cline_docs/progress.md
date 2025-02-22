@@ -22,7 +22,11 @@
 
 4. UI Components
    - Server Actions for data operations
-   - Server-side paginated data tables
+   - Enhanced server-side data tables
+     * Configurable fetch functions
+     * URL parameter preservation
+     * Custom column rendering
+     * Consistent pagination and sorting
    - Optimized search and filtering
    - URL-based state management
    - React useTransition loading states
@@ -60,7 +64,13 @@
 
 ## In Progress
 
-1. Report Filtering Enhancement
+1. Table Component Consolidation
+   - Migrate static tables to enhanced ServerOrdersTable
+   - Add simplified mode for small datasets
+   - Maintain consistent behavior across all tables
+   - Test and validate all use cases
+
+2. Report Filtering Enhancement
    Phase 1 (Current Focus):
    - Report header component
    - Date range preset selector

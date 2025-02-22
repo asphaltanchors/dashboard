@@ -19,11 +19,44 @@ interface TableData {
   recentCount: number
 }
 
-interface ServerOrdersTableProps {
-  initialOrders: TableData
+interface Column {
+  key: keyof Order
+  label: string
+  render?: (value: any, order: Order) => React.ReactNode
 }
 
-export function ServerOrdersTable({ initialOrders }: ServerOrdersTableProps) {
+interface FetchParams {
+  page: number
+  searchTerm: string
+  sortColumn: string
+  sortDirection: 'asc' | 'desc'
+  [key: string]: any
+}
+
+interface ServerOrdersTableProps {
+  initialOrders: TableData
+  fetchOrders: (params: FetchParams) => Promise<TableData>
+  preserveParams?: string[]
+  title?: string
+  columns?: Column[]
+  defaultSort?: {
+    column: keyof Order
+    direction: 'asc' | 'desc'
+  }
+  pageSize?: number
+  searchPlaceholder?: string
+}
+
+export function ServerOrdersTable({ 
+  initialOrders,
+  fetchOrders,
+  preserveParams = [],
+  title = "Orders",
+  columns,
+  defaultSort = { column: 'orderDate', direction: 'desc' },
+  pageSize = 10,
+  searchPlaceholder = "Search by order number or customer..."
+}: ServerOrdersTableProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -33,15 +66,19 @@ export function ServerOrdersTable({ initialOrders }: ServerOrdersTableProps) {
   const [searchValue, setSearchValue] = useState(searchParams.get("search") || "")
   
   const page = Number(searchParams.get("page")) || 1
-  const pageSize = 10
   const searchTerm = searchParams.get("search") || ""
-  const sortColumn = (searchParams.get("sort") as keyof Order) || "orderDate"
-  const sortDirection = (searchParams.get("dir") as "asc" | "desc") || "desc"
-  const filter = searchParams.get("filter") || ""
+  const sortColumn = (searchParams.get("sort") as keyof Order) || defaultSort.column
+  const sortDirection = (searchParams.get("dir") as "asc" | "desc") || defaultSort.direction
 
   const createQueryString = useCallback(
     (params: Record<string, string | number | null>) => {
       const newSearchParams = new URLSearchParams(searchParams.toString())
+      
+      // Preserve specified params
+      preserveParams.forEach(param => {
+        const value = searchParams.get(param)
+        if (value) newSearchParams.set(param, value)
+      })
       
       Object.entries(params).forEach(([key, value]) => {
         if (value === null) {
@@ -53,25 +90,31 @@ export function ServerOrdersTable({ initialOrders }: ServerOrdersTableProps) {
       
       return newSearchParams.toString()
     },
-    [searchParams]
+    [searchParams, preserveParams]
   )
 
   const refreshData = useCallback(async () => {
     startTransition(async () => {
       try {
+        // Get all preserved params
+        const preservedParams = Object.fromEntries(
+          preserveParams.map(param => [param, searchParams.get(param)])
+            .filter(([_, value]) => value !== null)
+        )
+
         const newData = await fetchOrders({
           page,
           searchTerm,
           sortColumn,
           sortDirection,
-          paymentStatusFilter: filter === 'unpaid-only' ? 'unpaid-only' : null
+          ...preservedParams
         })
         setData(newData)
       } catch (error) {
         console.error("Failed to fetch orders:", error)
       }
     })
-  }, [page, searchTerm, sortColumn, sortDirection, filter])
+  }, [page, searchTerm, sortColumn, sortDirection, preserveParams, searchParams, fetchOrders])
 
   React.useEffect(() => {
     refreshData()
@@ -108,7 +151,7 @@ export function ServerOrdersTable({ initialOrders }: ServerOrdersTableProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Orders</CardTitle>
+        <CardTitle>{title}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="mb-4">
@@ -117,7 +160,7 @@ export function ServerOrdersTable({ initialOrders }: ServerOrdersTableProps) {
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck="false"
-            placeholder="Search by order number or customer..."
+            placeholder={searchPlaceholder}
             value={searchValue}
             onChange={(e) => {
               setSearchValue(e.target.value)
@@ -134,7 +177,7 @@ export function ServerOrdersTable({ initialOrders }: ServerOrdersTableProps) {
           <Table>
             <TableHeader>
               <TableRow>
-                {[
+                {(columns || [
                   { key: "orderNumber", label: "Order Number" },
                   { key: "orderDate", label: "Date" },
                   { key: "customerName", label: "Customer" },
@@ -143,7 +186,7 @@ export function ServerOrdersTable({ initialOrders }: ServerOrdersTableProps) {
                   { key: "paymentMethod", label: "Payment Method" },
                   { key: "totalAmount", label: "Amount" },
                   { key: "dueDate", label: "Due Date" }
-                ].map(({ key, label }) => (
+                ]).map(({ key, label }) => (
                   <TableHead key={key}>
                     <Button 
                       variant="ghost" 
@@ -160,49 +203,55 @@ export function ServerOrdersTable({ initialOrders }: ServerOrdersTableProps) {
             <TableBody>
               {data.orders.map((order) => (
                 <TableRow key={order.id}>
-                  <TableCell>
-                    <Link 
-                      href={`/orders/${order.quickbooksId}`}
-                      className="text-blue-600 hover:text-blue-800 hover:underline"
-                    >
-                      {order.orderNumber}
-                    </Link>
-                  </TableCell>
-                  <TableCell>{new Date(order.orderDate).toLocaleDateString()}</TableCell>
-                  <TableCell>{order.customerName}</TableCell>
-                  <TableCell>
-                    <span
-                      className={`inline-block px-2 py-1 text-xs font-semibold rounded-full ${
-                        order.status === "CLOSED"
-                          ? "bg-green-100 text-green-800"
-                          : order.status === "OPEN"
-                          ? "bg-blue-100 text-blue-800"
-                          : order.status === "VOID"
-                          ? "bg-red-100 text-red-800"
-                          : "bg-yellow-100 text-yellow-800"
-                      }`}
-                    >
-                      {order.status.charAt(0) + order.status.slice(1).toLowerCase()}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <span
-                      className={`inline-block px-2 py-1 text-xs font-semibold rounded-full ${
-                        order.paymentStatus === "PAID"
-                          ? "bg-green-100 text-green-800"
-                          : order.paymentStatus === "UNPAID"
-                          ? "bg-red-100 text-red-800"
-                          : order.paymentStatus === "PARTIAL"
-                          ? "bg-yellow-100 text-yellow-800"
-                          : "bg-gray-100 text-gray-800"
-                      }`}
-                    >
-                      {order.paymentStatus.charAt(0) + order.paymentStatus.slice(1).toLowerCase()}
-                    </span>
-                  </TableCell>
-                  <TableCell>{order.paymentMethod || "-"}</TableCell>
-                  <TableCell>{formatCurrency(order.totalAmount)}</TableCell>
-                  <TableCell>{order.dueDate ? new Date(order.dueDate).toLocaleDateString() : "-"}</TableCell>
+                  {(columns || [
+                    { key: "orderNumber", label: "Order Number", render: (value, order) => (
+                      <Link 
+                        href={`/orders/${order.quickbooksId}`}
+                        className="text-blue-600 hover:text-blue-800 hover:underline"
+                      >
+                        {value}
+                      </Link>
+                    )},
+                    { key: "orderDate", label: "Date", render: (value) => new Date(value).toLocaleDateString() },
+                    { key: "customerName", label: "Customer" },
+                    { key: "status", label: "Status", render: (value) => (
+                      <span
+                        className={`inline-block px-2 py-1 text-xs font-semibold rounded-full ${
+                          value === "CLOSED"
+                            ? "bg-green-100 text-green-800"
+                            : value === "OPEN"
+                            ? "bg-blue-100 text-blue-800"
+                            : value === "VOID"
+                            ? "bg-red-100 text-red-800"
+                            : "bg-yellow-100 text-yellow-800"
+                        }`}
+                      >
+                        {value.charAt(0) + value.slice(1).toLowerCase()}
+                      </span>
+                    )},
+                    { key: "paymentStatus", label: "Payment Status", render: (value) => (
+                      <span
+                        className={`inline-block px-2 py-1 text-xs font-semibold rounded-full ${
+                          value === "PAID"
+                            ? "bg-green-100 text-green-800"
+                            : value === "UNPAID"
+                            ? "bg-red-100 text-red-800"
+                            : value === "PARTIAL"
+                            ? "bg-yellow-100 text-yellow-800"
+                            : "bg-gray-100 text-gray-800"
+                        }`}
+                      >
+                        {value.charAt(0) + value.slice(1).toLowerCase()}
+                      </span>
+                    )},
+                    { key: "paymentMethod", label: "Payment Method", render: (value) => value || "-" },
+                    { key: "totalAmount", label: "Amount", render: (value) => formatCurrency(value) },
+                    { key: "dueDate", label: "Due Date", render: (value) => value ? new Date(value).toLocaleDateString() : "-" }
+                  ]).map(({ key, render }) => (
+                    <TableCell key={key}>
+                      {render ? render(order[key], order) : String(order[key])}
+                    </TableCell>
+                  ))}
                 </TableRow>
               ))}
             </TableBody>

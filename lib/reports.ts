@@ -3,6 +3,12 @@ import { Prisma } from "@prisma/client"
 import { CONSUMER_DOMAINS } from "@/lib/companies"
 import { SalesChannelMetric } from "@/types/reports"
 
+interface FilterParams {
+  dateRange?: string
+  minAmount?: number
+  maxAmount?: number
+}
+
 interface ProductLineMetric {
   product_line: string
   order_count: string
@@ -16,250 +22,6 @@ interface ProductDetail {
   description: string | null
 }
 
-// Product line performance data
-export async function getProductLineMetrics() {
-  const today = new Date()
-  const currentPeriodStart = new Date(today)
-  currentPeriodStart.setMonth(today.getMonth() - 12)
-  const previousPeriodStart = new Date(currentPeriodStart)
-  previousPeriodStart.setMonth(currentPeriodStart.getMonth() - 12)
-
-  // Get metrics for both periods
-  const metrics = await prisma.$queryRawUnsafe<(ProductLineMetric & { period: string })[]>(`
-    SELECT 
-      CASE 
-        WHEN "productCode" LIKE '01-6310%' THEN 'SP10'
-        WHEN "productCode" LIKE '01-6315%' THEN 'SP12'
-        WHEN "productCode" LIKE '01-6318%' THEN 'SP18'
-        WHEN "productCode" LIKE '01-6358%' THEN 'SP58'
-        WHEN "productCode" IN ('82-5002.K', '82-5002.010') OR "productCode" LIKE '82-6002%' THEN 'Adhesives'
-        WHEN "productCode" LIKE '01-70%' THEN 'Kits'
-        ELSE 'Other'
-      END as product_line,
-      COUNT(DISTINCT "orderId") as order_count,
-      SUM(COALESCE(CAST(quantity AS numeric), 0)) as total_units,
-      SUM(amount) as total_revenue,
-      CASE 
-        WHEN o."orderDate" >= '${currentPeriodStart.toISOString()}' THEN 'current'
-        ELSE 'previous'
-      END as period
-    FROM "OrderItem" oi
-    JOIN "Order" o ON o."id" = oi."orderId"
-    WHERE (oi."productCode" LIKE '01-63%' 
-           OR oi."productCode" IN ('82-5002.K', '82-5002.010')
-           OR oi."productCode" LIKE '82-6002%'
-           OR oi."productCode" LIKE '01-70%')
-    AND o."orderDate" >= '${previousPeriodStart.toISOString()}'
-    GROUP BY 
-      CASE 
-        WHEN "productCode" LIKE '01-6310%' THEN 'SP10'
-        WHEN "productCode" LIKE '01-6315%' THEN 'SP12'
-        WHEN "productCode" LIKE '01-6318%' THEN 'SP18'
-        WHEN "productCode" LIKE '01-6358%' THEN 'SP58'
-        WHEN "productCode" IN ('82-5002.K', '82-5002.010') OR "productCode" LIKE '82-6002%' THEN 'Adhesives'
-        WHEN "productCode" LIKE '01-70%' THEN 'Kits'
-        ELSE 'Other'
-      END,
-      CASE 
-        WHEN o."orderDate" >= '${currentPeriodStart.toISOString()}' THEN 'current'
-        ELSE 'previous'
-      END
-  `)
-
-  // Combine current and previous period data
-  const metricsByLine = metrics.reduce((acc, metric) => {
-    if (!acc[metric.product_line]) {
-      acc[metric.product_line] = {
-        product_line: metric.product_line,
-        current_revenue: "0",
-        previous_revenue: "0",
-        order_count: metric.order_count,
-        total_units: metric.total_units,
-        total_revenue: metric.total_revenue
-      }
-    }
-    
-    if (metric.period === 'current') {
-      acc[metric.product_line].current_revenue = metric.total_revenue
-    } else {
-      acc[metric.product_line].previous_revenue = metric.total_revenue
-    }
-    
-    return acc
-  }, {} as Record<string, {
-    product_line: string
-    current_revenue: string
-    previous_revenue: string
-    order_count: string
-    total_units: string
-    total_revenue: string
-  }>)
-
-  // Convert to array, sort, and filter out 'Other' category
-  const combinedMetrics = Object.values(metricsByLine)
-    .filter(metric => metric.product_line !== 'Other')
-    .sort((a, b) => Number(b.current_revenue) - Number(a.current_revenue))
-
-  // Get product details
-  const productDetails = await prisma.product.findMany({
-    where: {
-      OR: [
-        { productCode: { startsWith: '01-6310' } }, // SP10
-        { productCode: { startsWith: '01-6315' } }, // SP12
-        { productCode: { startsWith: '01-6318' } }, // SP18
-        { productCode: { startsWith: '01-6358' } }, // SP58
-        { productCode: { in: ['82-5002.K', '82-5002.010'] } }, // EPX2
-        { productCode: { startsWith: '82-6002' } }, // EPX3
-        { productCode: { startsWith: '01-70' } }, // Kits
-      ]
-    },
-    select: {
-      productCode: true,
-      name: true,
-      description: true
-    }
-  })
-
-  // Group products by product line
-  const productsByLine = productDetails.reduce((acc, product) => {
-    let line = 'Other'
-    if (product.productCode.startsWith('01-6310')) line = 'SP10'
-    else if (product.productCode.startsWith('01-6315')) line = 'SP12'
-    else if (product.productCode.startsWith('01-6318')) line = 'SP18'
-    else if (product.productCode.startsWith('01-6358')) line = 'SP58'
-    else if (['82-5002.K', '82-5002.010'].includes(product.productCode) || product.productCode.startsWith('82-6002')) line = 'Adhesives'
-    else if (product.productCode.startsWith('01-70')) line = 'Kits'
-
-    if (!acc[line]) acc[line] = []
-    acc[line].push(product)
-    return acc
-  }, {} as Record<string, ProductDetail[]>)
-
-  // Combine metrics with product details
-  return combinedMetrics.map(metric => ({
-    ...metric,
-    products: productsByLine[metric.product_line] || []
-  }))
-}
-
-// Material type analysis data
-export async function getMaterialTypeMetrics() {
-  const today = new Date()
-  const startDate = new Date(today)
-  startDate.setMonth(today.getMonth() - 12)
-
-  const results = await prisma.$queryRawUnsafe<Array<{
-    material_type: string
-    order_count: string
-    total_units: string
-    total_revenue: string
-  }>>(`
-    SELECT 
-      CASE 
-        WHEN "productCode" LIKE '01-63%' AND "productCode" NOT LIKE '%-D' AND "productCode" NOT LIKE '%3SK%' THEN 'Zinc Plated'
-        WHEN "productCode" LIKE '%3SK%' THEN 'Stainless Steel'
-        WHEN "productCode" LIKE '%-D' THEN 'Dacromet'
-        WHEN "productCode" IN ('82-5002.K', '82-5002.010', '82-6002') THEN 'Epoxy'
-        ELSE 'Other'
-      END as material_type,
-      COUNT(DISTINCT "orderId") as order_count,
-      SUM(COALESCE(CAST(quantity AS numeric), 0)) as total_units,
-      SUM(amount) as total_revenue
-    FROM "OrderItem" oi
-    JOIN "Order" o ON o."id" = oi."orderId"
-    WHERE (oi."productCode" LIKE '01-63%'
-           OR oi."productCode" IN ('82-5002.K', '82-5002.010')
-           OR oi."productCode" LIKE '82-6002%'
-           OR oi."productCode" LIKE '01-70%')
-    AND o."orderDate" >= '${startDate.toISOString()}'
-    GROUP BY 
-      CASE 
-        WHEN "productCode" LIKE '01-63%' AND "productCode" NOT LIKE '%-D' AND "productCode" NOT LIKE '%3SK%' THEN 'Zinc Plated'
-        WHEN "productCode" LIKE '%3SK%' THEN 'Stainless Steel'
-        WHEN "productCode" LIKE '%-D' THEN 'Dacromet'
-        WHEN "productCode" IN ('82-5002.K', '82-5002.010', '82-6002') THEN 'Epoxy'
-        ELSE 'Other'
-      END
-    ORDER BY total_revenue DESC
-  `)
-  return results
-}
-
-// Sales channel insights data
-export async function getSalesChannelMetrics() {
-  const today = new Date()
-  const currentPeriodStart = new Date(today)
-  currentPeriodStart.setMonth(today.getMonth() - 12)
-  const previousPeriodStart = new Date(currentPeriodStart)
-  previousPeriodStart.setMonth(currentPeriodStart.getMonth() - 12)
-
-  const results = await prisma.$queryRawUnsafe<Array<{
-    sales_channel: string
-    order_count: string
-    total_units: string
-    total_revenue: string
-    avg_unit_price: string
-    period: string
-  }>>(`
-    SELECT 
-      COALESCE(o.class, 'Unclassified') as sales_channel,
-      COUNT(DISTINCT "orderId") as order_count,
-      SUM(COALESCE(CAST(quantity AS numeric), 0)) as total_units,
-      SUM(amount) as total_revenue,
-      SUM(amount) / COUNT(DISTINCT "orderId") as avg_unit_price,
-      CASE 
-        WHEN o."orderDate" >= '${currentPeriodStart.toISOString()}' THEN 'current'
-        ELSE 'previous'
-      END as period
-    FROM "OrderItem" oi
-    JOIN "Order" o ON o."id" = oi."orderId"
-    WHERE (oi."productCode" LIKE '01-63%'
-           OR oi."productCode" IN ('82-5002.K', '82-5002.010')
-           OR oi."productCode" LIKE '82-6002%'
-           OR oi."productCode" LIKE '01-70%')
-    AND o."orderDate" >= '${previousPeriodStart.toISOString()}'
-    GROUP BY 
-      COALESCE(o.class, 'Unclassified'),
-      CASE 
-        WHEN o."orderDate" >= '${currentPeriodStart.toISOString()}' THEN 'current'
-        ELSE 'previous'
-      END
-  `)
-
-  // Transform results into the new format
-  const metricsByChannel = results.reduce((acc, metric) => {
-    if (!acc[metric.sales_channel]) {
-      acc[metric.sales_channel] = {
-        sales_channel: metric.sales_channel,
-        current_period: {
-          order_count: "0",
-          total_units: "0",
-          total_revenue: "0",
-          avg_unit_price: "0"
-        },
-        previous_period: {
-          order_count: "0",
-          total_units: "0",
-          total_revenue: "0",
-          avg_unit_price: "0"
-        }
-      }
-    }
-
-    const period = metric.period === 'current' ? 'current_period' : 'previous_period'
-    acc[metric.sales_channel][period] = {
-      order_count: String(metric.order_count),
-      total_units: String(metric.total_units),
-      total_revenue: String(metric.total_revenue),
-      avg_unit_price: String(metric.avg_unit_price)
-    }
-
-    return acc
-  }, {} as Record<string, SalesChannelMetric>)
-
-  return Object.values(metricsByChannel)
-}
-
 // Canadian address detection patterns
 const CANADIAN_PROVINCES = ['ON', 'BC', 'AB', 'QC', 'MB', 'SK', 'NB', 'NS', 'PE', 'NL', 'YT', 'NT', 'NU']
 
@@ -271,12 +33,13 @@ const ADHESIVE_PRODUCT_CODES = [
   '82-6002'
 ]
 
-export async function getCanadianSalesMetrics() {
+export async function getCanadianSalesMetrics(filters?: FilterParams) {
   const today = new Date()
+  const days = filters?.dateRange ? parseInt(filters.dateRange.replace("d", "")) : 365
   const currentPeriodStart = new Date(today)
-  currentPeriodStart.setMonth(today.getMonth() - 12)
+  currentPeriodStart.setDate(today.getDate() - days)
   const previousPeriodStart = new Date(currentPeriodStart)
-  previousPeriodStart.setMonth(currentPeriodStart.getMonth() - 12)
+  previousPeriodStart.setDate(currentPeriodStart.getDate() - days)
 
   // First get all Canadian customers
   const canadianCustomers = await prisma.customer.findMany({
@@ -307,7 +70,7 @@ export async function getCanadianSalesMetrics() {
     }
   })
 
-  // Then get their orders
+  // Then get their orders with amount filters
   const orders = await prisma.order.findMany({
     where: {
       customerId: {
@@ -315,7 +78,13 @@ export async function getCanadianSalesMetrics() {
       },
       orderDate: {
         gte: previousPeriodStart
-      }
+      },
+      ...(filters?.minAmount || filters?.maxAmount ? {
+        totalAmount: {
+          ...(filters.minAmount ? { gte: filters.minAmount } : {}),
+          ...(filters.maxAmount ? { lte: filters.maxAmount } : {})
+        }
+      } : {})
     },
     include: {
       items: {
@@ -364,11 +133,11 @@ export async function getCanadianSalesMetrics() {
 
   return {
     currentPeriod: {
-      label: "Last 12 Months",
+      label: `Last ${days} Days`,
       ...currentMetrics
     },
     previousPeriod: {
-      label: "Previous 12 Months",
+      label: `Previous ${days} Days`,
       ...previousMetrics
     },
     changes: {
@@ -385,10 +154,11 @@ export async function getCanadianSalesMetrics() {
   }
 }
 
-export async function getCanadianTopCustomers() {
+export async function getCanadianTopCustomers(filters?: FilterParams) {
   const today = new Date()
+  const days = filters?.dateRange ? parseInt(filters.dateRange.replace("d", "")) : 365
   const startDate = new Date(today)
-  startDate.setMonth(today.getMonth() - 12)
+  startDate.setDate(today.getDate() - days)
   
   const customers = await prisma.customer.findMany({
     where: {
@@ -416,7 +186,13 @@ export async function getCanadianTopCustomers() {
         some: {
           orderDate: {
             gte: startDate
-          }
+          },
+          ...(filters?.minAmount || filters?.maxAmount ? {
+            totalAmount: {
+              ...(filters.minAmount ? { gte: filters.minAmount } : {}),
+              ...(filters.maxAmount ? { lte: filters.maxAmount } : {})
+            }
+          } : {})
         }
       }
     },
@@ -431,7 +207,13 @@ export async function getCanadianTopCustomers() {
         where: {
           orderDate: {
             gte: startDate
-          }
+          },
+          ...(filters?.minAmount || filters?.maxAmount ? {
+            totalAmount: {
+              ...(filters.minAmount ? { gte: filters.minAmount } : {}),
+              ...(filters.maxAmount ? { lte: filters.maxAmount } : {})
+            }
+          } : {})
         },
         include: {
           items: {
@@ -458,11 +240,34 @@ export async function getCanadianTopCustomers() {
   })).sort((a, b) => b.totalRevenue - a.totalRevenue)
 }
 
-export async function getCanadianOrders() {
+interface GetCanadianOrdersParams extends FilterParams {
+  page?: number
+  pageSize?: number
+  searchTerm?: string
+  sortColumn?: string
+  sortDirection?: 'asc' | 'desc'
+}
+
+export async function getCanadianOrders(params: GetCanadianOrdersParams = {}) {
+  const {
+    dateRange,
+    minAmount,
+    maxAmount,
+    page = 1,
+    pageSize = 10,
+    searchTerm = '',
+    sortColumn = 'orderDate',
+    sortDirection = 'desc'
+  } = params
+
   const today = new Date()
+  const days = dateRange ? parseInt(dateRange.replace("d", "")) : 365
   const startDate = new Date(today)
-  startDate.setMonth(today.getMonth() - 12)
-  
+  startDate.setDate(today.getDate() - days)
+
+  // Calculate pagination
+  const skip = (page - 1) * pageSize
+
   // First get all Canadian customers
   const canadianCustomers = await prisma.customer.findMany({
     where: {
@@ -492,24 +297,72 @@ export async function getCanadianOrders() {
     }
   })
 
-  // Then get their orders
-  const orders = await prisma.order.findMany({
-    where: {
-      customerId: {
-        in: canadianCustomers.map(c => c.id)
-      },
-      orderDate: {
-        gte: startDate
-      }
+  // Build where clause for search and filters
+  const where: any = {
+    customerId: {
+      in: canadianCustomers.map(c => c.id)
     },
-    include: {
+    orderDate: {
+      gte: startDate
+    }
+  }
+
+  if (minAmount || maxAmount) {
+    where.totalAmount = {
+      ...(minAmount ? { gte: minAmount } : {}),
+      ...(maxAmount ? { lte: maxAmount } : {})
+    }
+  }
+
+  if (searchTerm) {
+    where.OR = [
+      { orderNumber: { contains: searchTerm, mode: 'insensitive' } },
+      { 
+        customer: {
+          is: {
+            customerName: { contains: searchTerm, mode: 'insensitive' }
+          }
+        } 
+      }
+    ]
+  }
+
+  // Build order by object dynamically
+  let orderBy: any = {}
+  if (sortColumn === 'customerName') {
+    orderBy = {
       customer: {
-        select: {
-          customerName: true
-        }
+        customerName: sortDirection
       }
     }
-  })
+  } else {
+    orderBy = { [sortColumn]: sortDirection }
+  }
+
+  const [orders, totalCount, recentCount] = await Promise.all([
+    prisma.order.findMany({
+      where,
+      orderBy,
+      skip,
+      take: pageSize,
+      include: {
+        customer: {
+          select: {
+            customerName: true
+          }
+        }
+      }
+    }),
+    prisma.order.count({ where }),
+    prisma.order.count({
+      where: {
+        ...where,
+        orderDate: {
+          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // Last 30 days
+        }
+      }
+    })
+  ])
 
   // Transform orders to match the TableData interface
   const transformedOrders = orders.map(order => ({
@@ -527,15 +380,16 @@ export async function getCanadianOrders() {
 
   return {
     orders: transformedOrders,
-    totalCount: orders.length,
-    recentCount: orders.length
+    totalCount,
+    recentCount
   }
 }
 
-export async function getCanadianUnitsSold() {
+export async function getCanadianUnitsSold(filters?: FilterParams) {
   const today = new Date()
+  const days = filters?.dateRange ? parseInt(filters.dateRange.replace("d", "")) : 365
   const startDate = new Date(today)
-  startDate.setMonth(today.getMonth() - 12)
+  startDate.setDate(today.getDate() - days)
   
   // First get all Canadian customers
   const canadianCustomers = await prisma.customer.findMany({
@@ -566,7 +420,7 @@ export async function getCanadianUnitsSold() {
     }
   })
 
-  // Then get their orders
+  // Then get their orders with filters
   const orders = await prisma.order.findMany({
     where: {
       customerId: {
@@ -574,7 +428,13 @@ export async function getCanadianUnitsSold() {
       },
       orderDate: {
         gte: startDate
-      }
+      },
+      ...(filters?.minAmount || filters?.maxAmount ? {
+        totalAmount: {
+          ...(filters.minAmount ? { gte: filters.minAmount } : {}),
+          ...(filters.maxAmount ? { lte: filters.maxAmount } : {})
+        }
+      } : {})
     },
     include: {
       items: {
@@ -604,7 +464,7 @@ export async function getCanadianUnitsSold() {
       const existing = productTotals.get(item.productCode) || {
         productCode: item.productCode,
         productName: item.product?.name ?? item.productCode,
-    description: item.product?.description ?? '',
+        description: item.product?.description ?? '',
         totalUnits: 0,
         totalRevenue: 0
       }
@@ -616,328 +476,4 @@ export async function getCanadianUnitsSold() {
 
   return Array.from(productTotals.values())
     .sort((a, b) => b.totalUnits - a.totalUnits)
-}
-
-export async function getCompanyOrderMetrics(monthsWindow = 6) {
-  const today = new Date()
-  const windowStart = new Date(today)
-  windowStart.setMonth(today.getMonth() - monthsWindow)
-  const previousStart = new Date(windowStart)
-  previousStart.setMonth(windowStart.getMonth() - monthsWindow)
-
-  // Get orders for current period
-  const currentPeriodOrders = await prisma.order.findMany({
-    where: {
-      orderDate: {
-        gte: windowStart
-      }
-    },
-    select: {
-      id: true,
-      totalAmount: true,
-      customer: {
-        select: {
-          company: {
-            select: {
-              id: true,
-              name: true,
-              domain: true
-            }
-          }
-        }
-      }
-    }
-  })
-
-  // Get orders for previous period
-  const previousPeriodOrders = await prisma.order.findMany({
-    where: {
-      orderDate: {
-        gte: previousStart,
-        lt: windowStart
-      }
-    },
-    select: {
-      id: true,
-      totalAmount: true,
-      customer: {
-        select: {
-          company: {
-            select: {
-              id: true,
-              name: true,
-              domain: true
-            }
-          }
-        }
-      }
-    }
-  })
-
-  // Aggregate orders by company
-  const companyMetrics = new Map<string, {
-    id: string,
-    name: string | null,
-    domain: string,
-    currentTotal: number,
-    previousTotal: number
-  }>()
-
-  // Process current period orders
-  currentPeriodOrders.forEach(order => {
-    if (!order.customer.company) return
-    const company = order.customer.company
-    const existing = companyMetrics.get(company.id) || {
-      id: company.id,
-      name: company.name,
-      domain: company.domain,
-      currentTotal: 0,
-      previousTotal: 0
-    }
-    existing.currentTotal += Number(order.totalAmount)
-    companyMetrics.set(company.id, existing)
-  })
-
-  // Process previous period orders
-  previousPeriodOrders.forEach(order => {
-    if (!order.customer.company) return
-    const company = order.customer.company
-    const existing = companyMetrics.get(company.id) || {
-      id: company.id,
-      name: company.name,
-      domain: company.domain,
-      currentTotal: 0,
-      previousTotal: 0
-    }
-    existing.previousTotal += Number(order.totalAmount)
-    companyMetrics.set(company.id, existing)
-  })
-
-  // Convert to array and calculate percentages
-  const results = Array.from(companyMetrics.values())
-    .map(company => ({
-      ...company,
-      percentageChange: company.previousTotal > 0 
-        ? ((company.currentTotal - company.previousTotal) / company.previousTotal * 100)
-        : 0
-    }))
-    .sort((a, b) => b.percentageChange - a.percentageChange)
-
-  // Calculate summary metrics
-  const increasingCompanies = results.filter(c => c.percentageChange > 0)
-  const decreasingCompanies = results.filter(c => c.percentageChange < 0)
-
-  return {
-    companies: results,
-    summary: {
-      increasingCount: increasingCompanies.length,
-      averageIncrease: increasingCompanies.length > 0
-        ? increasingCompanies.reduce((sum, c) => sum + c.percentageChange, 0) / increasingCompanies.length
-        : 0,
-      decreasingCount: decreasingCompanies.length,
-      averageDecrease: decreasingCompanies.length > 0
-        ? decreasingCompanies.reduce((sum, c) => sum + c.percentageChange, 0) / decreasingCompanies.length
-        : 0
-    }
-  }
-}
-
-export async function getAdhesiveMetrics(filterConsumer = true) {
-  // Get the correctly filtered list of adhesive-only customers first
-  const adhesiveOnlyCustomers = await getAdhesiveOnlyCustomers(filterConsumer)
-  const customerIds = adhesiveOnlyCustomers.map(c => c.id)
-
-  const today = new Date()
-  const twelveMonthsAgo = new Date(today)
-  twelveMonthsAgo.setFullYear(today.getFullYear() - 1)
-  const twentyFourMonthsAgo = new Date(twelveMonthsAgo)
-  twentyFourMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1)
-
-  // Get orders for last 12 months from adhesive-only customers
-  const recentOrders = await prisma.order.findMany({
-    where: {
-      customerId: {
-        in: customerIds
-      },
-      orderDate: {
-        gte: twelveMonthsAgo
-      }
-    },
-    select: {
-      id: true,
-      items: {
-        where: {
-          productCode: {
-            in: ADHESIVE_PRODUCT_CODES
-          }
-        },
-        select: {
-          amount: true
-        }
-      }
-    }
-  })
-
-  // Get orders for previous 12 months from adhesive-only customers
-  const previousOrders = await prisma.order.findMany({
-    where: {
-      customerId: {
-        in: customerIds
-      },
-      orderDate: {
-        gte: twentyFourMonthsAgo,
-        lt: twelveMonthsAgo
-      }
-    },
-    select: {
-      id: true,
-      items: {
-        where: {
-          productCode: {
-            in: ADHESIVE_PRODUCT_CODES
-          }
-        },
-        select: {
-          amount: true
-        }
-      }
-    }
-  })
-
-  const recentTotal = recentOrders.reduce((total, order) =>
-    total + order.items.reduce((orderTotal, item) => orderTotal + Number(item.amount), 0), 0
-  )
-  const previousTotal = previousOrders.reduce((total, order) => 
-    total + order.items.reduce((orderTotal, item) => orderTotal + Number(item.amount), 0), 0
-  )
-
-  const recentAvg = recentTotal / (recentOrders.length || 1)
-  const previousAvg = previousTotal / (previousOrders.length || 1)
-
-  return {
-    orderCount: {
-      current: recentOrders.length,
-      change: previousOrders.length ? 
-        ((recentOrders.length - previousOrders.length) / previousOrders.length * 100).toFixed(1) : 
-        "0.0"
-    },
-    totalSpent: {
-      current: recentTotal,
-      change: previousTotal ? 
-        ((recentTotal - previousTotal) / previousTotal * 100).toFixed(1) : 
-        "0.0"
-    },
-    averageOrder: {
-      current: recentAvg,
-      change: previousAvg ? 
-        ((recentAvg - previousAvg) / previousAvg * 100).toFixed(1) : 
-        "0.0"
-    }
-  }
-}
-
-export async function getAdhesiveOnlyCustomers(filterConsumer = true) {
-  // Find customers who have only ordered adhesive products
-  const customers = await prisma.customer.findMany({
-    where: {
-      orders: {
-        some: {
-          items: {
-            some: {
-              productCode: {
-                in: ADHESIVE_PRODUCT_CODES
-              }
-            }
-          }
-        },
-        // Ensure no orders contain non-adhesive products
-        none: {
-          items: {
-            some: {
-              AND: [
-                {
-                  productCode: {
-                    notIn: ADHESIVE_PRODUCT_CODES
-                  }
-                },
-                {
-                  productCode: {
-                    notIn: ['SYS-SHIPPING', 'SYS-NJ-TAX', 'SYS-DISCOUNT']
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    select: {
-      id: true,
-      customerName: true,
-      company: {
-        select: {
-          name: true,
-          domain: true,
-          enriched: true,
-          enrichedSource: true
-        }
-      },
-      orders: {
-        where: {
-          items: {
-            some: {
-              productCode: {
-                in: ADHESIVE_PRODUCT_CODES
-              }
-            }
-          }
-        },
-        select: {
-          id: true,
-          orderNumber: true,
-          items: {
-            where: {
-              productCode: {
-                in: ADHESIVE_PRODUCT_CODES
-              }
-            },
-            select: {
-              amount: true
-            }
-          }
-        }
-      }
-    }
-  })
-
-  // Filter out consumer domains if requested
-  const filteredCustomers = filterConsumer 
-    ? customers.filter(customer => {
-        // Keep companies that are enriched from a business source
-        if (customer.company?.enriched && customer.company.enrichedSource !== 'hunter') {
-          return true
-        }
-        // Filter out consumer domains
-        const domain = customer.company?.domain?.toLowerCase()
-        if (!domain) return true
-        return !CONSUMER_DOMAINS.some((consumerDomain: string) => domain.endsWith(consumerDomain))
-      })
-    : customers
-
-  return filteredCustomers.map(customer => ({
-    id: customer.id,
-    customerName: customer.customerName,
-    companyName: customer.company?.name ?? null,
-    companyDomain: customer.company?.domain ?? null,
-    orderCount: customer.orders.length,
-    orders: customer.orders.map(order => ({
-      id: order.id,
-      orderNumber: order.orderNumber
-    })),
-    totalSpent: customer.orders.reduce((total, order) => 
-      total + order.items.reduce((orderTotal, item) => 
-        orderTotal + Number(item.amount), 0
-      ), 0
-    )
-  }))
 }

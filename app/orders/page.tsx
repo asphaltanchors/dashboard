@@ -1,4 +1,5 @@
 import { ServerOrdersTable } from "@/components/orders/server-orders-table"
+import { fetchOrders } from "@/app/actions/data"
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { getOrders } from "@/lib/orders"
 import { FileText, Clock } from "lucide-react"
@@ -43,7 +44,11 @@ export default async function OrdersPage(
             <FilterMetricCard value={data.accountsReceivable} />
       </div>
       <div className="mt-4">
-        <ServerOrdersTable initialOrders={data} />
+        <ServerOrdersTable 
+          initialOrders={data}
+          fetchOrders={fetchOrders}
+          preserveParams={['filter']}
+        />
       </div>
     </div>
   )

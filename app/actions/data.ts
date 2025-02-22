@@ -1,17 +1,30 @@
 'use server'
 
-import { getCompanyOrderMetrics } from "@/lib/reports"
+import { getCanadianOrders } from "@/lib/reports"
 import { getCompanies } from "@/lib/companies"
 import { getCustomers } from "@/lib/customers"
 import { getOrders } from "@/lib/orders"
 import { enrichCompany } from "@/lib/enrichment"
 
-export async function getPopAndDropData(months: number) {
-  if (months < 1 || months > 24) {
-    throw new Error("Period must be between 1 and 24 months")
-  }
-  
-  return getCompanyOrderMetrics(months)
+export async function fetchCanadianOrders(params: {
+  page: number
+  searchTerm: string
+  sortColumn: string
+  sortDirection: 'asc' | 'desc'
+  dateRange?: string
+  minAmount?: number
+  maxAmount?: number
+}) {
+  return getCanadianOrders({
+    page: params.page,
+    pageSize: 10,
+    searchTerm: params.searchTerm,
+    sortColumn: params.sortColumn,
+    sortDirection: params.sortDirection,
+    dateRange: params.dateRange,
+    minAmount: params.minAmount,
+    maxAmount: params.maxAmount
+  })
 }
 
 export async function fetchCompanies(params: Parameters<typeof getCompanies>[0]) {
