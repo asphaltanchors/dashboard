@@ -32,21 +32,16 @@ export function FilterMetricCard({ value }: FilterMetricCardProps) {
   })
 
   return (
-    <Card 
-      onClick={handleFilterClick}
-      className={`cursor-pointer transition-all hover:bg-secondary/50 ${
-        filter === 'unpaid-only' ? 'ring-2 ring-primary bg-secondary' : ''
-      }`}
-    >
+    <Card onClick={handleFilterClick}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">Accounts Receivable</CardTitle>
-        <DollarSign className={`h-4 w-4 transition-colors ${
-          filter === 'unpaid-only' ? 'text-primary' : 'text-muted-foreground'
-        }`} />
+        <DollarSign className="h-4 w-4 text-muted-foreground" />
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold">{formattedValue}</div>
-        <div className="h-6" /> {/* Spacer to match other cards */}
+        <p className="text-xs text-muted-foreground">
+          {filter === 'unpaid-only' ? 'Click to show all' : 'Click to filter unpaid'}
+        </p>
       </CardContent>
     </Card>
   )

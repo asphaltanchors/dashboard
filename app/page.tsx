@@ -53,7 +53,7 @@ export default async function Home(props: PageProps) {
         filterConsumer={filterConsumer}
       />
 
-      <div className="grid gap-4 md:grid-cols-2 mt-8">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mt-8">
         <MetricCard
           title={`Orders (${days} days)`}
           value={currentTotalOrders}

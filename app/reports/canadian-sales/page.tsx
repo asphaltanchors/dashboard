@@ -71,11 +71,8 @@ export default async function CanadianSalesPage(props: PageProps) {
         maxAmount={max_amount ? parseFloat(max_amount) : undefined}
         filterConsumer={filterConsumer}
       />
-      <p className="text-muted-foreground mt-2">
-        Sales metrics and customer analysis for Canadian market
-      </p>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mt-8">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mt-8">
         <MetricCard
           title="Canadian Orders"
           value={metrics.currentPeriod.orderCount}
@@ -86,12 +83,6 @@ export default async function CanadianSalesPage(props: PageProps) {
           title="Total Revenue"
           value={formatCurrency(metrics.currentPeriod.totalRevenue)}
           change={metrics.changes.totalRevenue}
-          icon={DollarSign}
-        />
-        <MetricCard
-          title="Net Revenue (ex Shipping)"
-          value={formatCurrency(metrics.currentPeriod.netRevenue)}
-          change={metrics.changes.netRevenue}
           icon={DollarSign}
         />
       </div>

@@ -54,9 +54,6 @@ export default async function OrdersPage(props: PageProps) {
         maxAmount={max_amount ? parseFloat(max_amount) : undefined}
         filterConsumer={filterConsumer}
       />
-      <p className="text-muted-foreground mt-2">
-        Overview of all orders and payment status
-      </p>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mt-8">
         <MetricCard
