@@ -33,7 +33,11 @@ export function DateRangeFilter({ value = "365d" }: DateRangeFilterProps) {
   }
 
   return (
-    <div className="relative">
+    <div>
+      <div className="mb-2 text-sm font-medium text-gray-500">
+        Date Range
+      </div>
+      <div className="relative">
       <Button
         variant="outline"
         className="w-full justify-between"
@@ -60,6 +64,7 @@ export function DateRangeFilter({ value = "365d" }: DateRangeFilterProps) {
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }

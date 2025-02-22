@@ -39,13 +39,20 @@ export function ReportHeader({
             max={maxAmount}
           />
         </div>
-        <Button 
-          variant="outline" 
-          onClick={handleReset}
-          size="sm"
-        >
-          Reset
-        </Button>
+        <div>
+          <div className="mb-2 text-sm font-medium text-gray-500 invisible">
+            Actions
+          </div>
+          <div>
+            <Button 
+              variant="outline" 
+              onClick={handleReset}
+              size="sm"
+            >
+              Reset
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   )

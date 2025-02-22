@@ -18,6 +18,8 @@ interface PageProps {
 export default async function Home(props: PageProps) {
   const searchParams = await props.searchParams;
   const date_range = searchParams.date_range || "365d"
+  
+  const days = parseInt(date_range.replace("d", ""))
   const min_amount = searchParams.min_amount
   const max_amount = searchParams.max_amount
 
@@ -39,9 +41,7 @@ export default async function Home(props: PageProps) {
     currentTotalOrders, 
     orderChange, 
     currentTotalSales, 
-    salesChange,
-    currentAnnualSales,
-    annualSalesChange
+    salesChange
   } = metrics
 
   return (
@@ -52,23 +52,17 @@ export default async function Home(props: PageProps) {
         maxAmount={max_amount ? parseFloat(max_amount) : undefined}
       />
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mt-8">
+      <div className="grid gap-4 md:grid-cols-2 mt-8">
         <MetricCard
-          title="30d Orders (Seasonal)"
+          title={`Orders (${days} days)`}
           value={currentTotalOrders}
           change={orderChange}
           icon={ShoppingCart}
         />
         <MetricCard
-          title="30d Sales (Seasonal)"
+          title={`Sales (${days} days)`}
           value={formatCurrency(currentTotalSales)}
           change={salesChange}
-          icon={DollarSign}
-        />
-        <MetricCard
-          title="Trailing 12 Months Sales"
-          value={formatCurrency(currentAnnualSales)}
-          change={annualSalesChange}
           icon={DollarSign}
         />
       </div>

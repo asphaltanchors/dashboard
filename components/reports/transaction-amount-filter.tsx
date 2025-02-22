@@ -77,7 +77,11 @@ export function TransactionAmountFilter({ min, max }: TransactionAmountFilterPro
   }
 
   return (
-    <div className="flex gap-2 items-center">
+    <div>
+      <div className="mb-2 text-sm font-medium text-gray-500">
+        Transaction Amount
+      </div>
+      <div className="flex gap-2 items-center">
       <Input
         type="text"
         placeholder="Min"
@@ -93,6 +97,7 @@ export function TransactionAmountFilter({ min, max }: TransactionAmountFilterPro
         onChange={(e) => handleMaxChange(e.target.value)}
         className="w-full"
       />
+      </div>
     </div>
   )
 }

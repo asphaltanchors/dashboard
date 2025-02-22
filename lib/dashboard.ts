@@ -18,15 +18,7 @@ interface FilterParams {
 type OrderWhereClause = Prisma.OrderWhereInput
 
 export async function getOrderMetrics(filters: FilterParams = {}) {
-  const [periodMetrics, annualMetrics] = await Promise.all([
-    getPeriodMetrics(filters),
-    getAnnualMetrics(filters)
-  ])
-
-  return {
-    ...periodMetrics,
-    ...annualMetrics
-  }
+  return getPeriodMetrics(filters)
 }
 
 async function getPeriodMetrics({ dateRange = "365d", minAmount, maxAmount }: FilterParams = {}) {
@@ -41,7 +33,8 @@ async function getPeriodMetrics({ dateRange = "365d", minAmount, maxAmount }: Fi
   // Build where clause
   const whereClause: OrderWhereClause = {
     orderDate: {
-      gte: periodStart
+      gte: periodStart,
+      lte: periodEnd
     }
   }
 
@@ -92,72 +85,13 @@ async function getPeriodMetrics({ dateRange = "365d", minAmount, maxAmount }: Fi
   }
 }
 
-async function getAnnualMetrics({ minAmount, maxAmount }: FilterParams = {}) {
-  const today = new Date()
-  
-  // Current 12 months
-  const twelveMonthsAgo = new Date(today)
-  twelveMonthsAgo.setFullYear(today.getFullYear() - 1)
-  
-  // Previous 12 months
-  const twentyFourMonthsAgo = new Date(twelveMonthsAgo)
-  twentyFourMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1)
-
-  // Build where clause
-  const whereClause: OrderWhereClause = {}
-
-  if (minAmount !== undefined || maxAmount !== undefined) {
-    whereClause.totalAmount = {
-      ...(minAmount !== undefined && { gte: minAmount }),
-      ...(maxAmount !== undefined && { lte: maxAmount })
-    }
-  }
-
-  // Current period orders (last 12 months)
-  const currentAnnualOrders = await prisma.order.findMany({
-    where: {
-      ...whereClause,
-      orderDate: {
-        gte: twelveMonthsAgo
-      }
-    },
-    select: {
-      totalAmount: true
-    }
-  })
-
-  // Previous period orders (12 months before that)
-  const previousAnnualOrders = await prisma.order.findMany({
-    where: {
-      ...whereClause,
-      orderDate: {
-        gte: twentyFourMonthsAgo,
-        lt: twelveMonthsAgo
-      }
-    },
-    select: {
-      totalAmount: true
-    }
-  })
-
-  const currentAnnualSales = currentAnnualOrders.reduce((sum: number, order) =>
-    sum + Number(order.totalAmount.toString()), 0)
-  const previousAnnualSales = previousAnnualOrders.reduce((sum: number, order) =>
-    sum + Number(order.totalAmount.toString()), 0)
-  const annualSalesChange = ((currentAnnualSales - previousAnnualSales) / previousAnnualSales * 100).toFixed(1)
-
-  return {
-    currentAnnualSales,
-    annualSalesChange
-  }
-}
-
 export async function getPaymentMethodMetrics({ dateRange = "365d", minAmount, maxAmount }: FilterParams = {}) {
   const { start } = getDateRangeFromFilter(dateRange)
 
   const whereClause: OrderWhereClause = {
     orderDate: {
-      gte: start
+      gte: start,
+      lte: new Date()
     },
     paymentMethod: {
       not: null
@@ -198,7 +132,8 @@ export async function getClassMetrics({ dateRange = "365d", minAmount, maxAmount
 
   const whereClause: OrderWhereClause = {
     orderDate: {
-      gte: start
+      gte: start,
+      lte: new Date()
     },
     class: {
       not: null
