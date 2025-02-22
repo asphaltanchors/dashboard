@@ -11,15 +11,15 @@ export default function SalesChannelInsights({ metrics }: Props) {
   // Filter out Contractor class and zero revenue channels
   const filteredMetrics = metrics.filter(m => 
     m.sales_channel !== 'Contractor' && 
-    Number(m.current_period.total_revenue) > 0
+    Number(m.periods[0].total_revenue) > 0
   )
 
   // Calculate totals for current period
   const totals = filteredMetrics.reduce(
     (acc, m) => {
-      acc.revenue += Number(m.current_period.total_revenue)
-      acc.units += Number(m.current_period.total_units)
-      acc.orders += Number(m.current_period.order_count)
+      acc.revenue += Number(m.periods[0].total_revenue)
+      acc.units += Number(m.periods[0].total_units)
+      acc.orders += Number(m.periods[0].order_count)
       return acc
     },
     { revenue: 0, units: 0, orders: 0 }
@@ -28,11 +28,11 @@ export default function SalesChannelInsights({ metrics }: Props) {
   return (
     <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
       {filteredMetrics.map((metric) => {
-        const currentRevenue = Number(metric.current_period.total_revenue)
-        const previousRevenue = Number(metric.previous_period.total_revenue)
-        const currentUnits = Number(metric.current_period.total_units)
-        const previousUnits = Number(metric.previous_period.total_units)
-        const currentOrders = Number(metric.current_period.order_count)
+        const currentRevenue = Number(metric.periods[0].total_revenue)
+        const previousRevenue = Number(metric.periods[1].total_revenue)
+        const currentUnits = Number(metric.periods[0].total_units)
+        const previousUnits = Number(metric.periods[1].total_units)
+        const currentOrders = Number(metric.periods[0].order_count)
 
         // Calculate trends
         const getPercentageChange = (current: number, previous: number) => {
@@ -70,7 +70,7 @@ export default function SalesChannelInsights({ metrics }: Props) {
               value: currentOrders,
               percentage: (currentOrders / totals.orders) * 100
             }}
-            averageOrder={Number(metric.current_period.avg_unit_price)}
+            averageOrder={Number(metric.periods[0].avg_unit_price)}
           />
         )
       })}
