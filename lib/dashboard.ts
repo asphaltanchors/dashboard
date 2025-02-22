@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
+import { CONSUMER_DOMAINS } from "@/lib/companies"
 
 function getDateRangeFromFilter(dateRange: string = "365d"): { start: Date, end: Date } {
   const end = new Date()
@@ -13,6 +14,7 @@ interface FilterParams {
   dateRange?: string
   minAmount?: number
   maxAmount?: number
+  filterConsumer?: boolean
 }
 
 type OrderWhereClause = Prisma.OrderWhereInput
@@ -21,7 +23,7 @@ export async function getOrderMetrics(filters: FilterParams = {}) {
   return getPeriodMetrics(filters)
 }
 
-async function getPeriodMetrics({ dateRange = "365d", minAmount, maxAmount }: FilterParams = {}) {
+async function getPeriodMetrics({ dateRange = "365d", minAmount, maxAmount, filterConsumer = false }: FilterParams = {}) {
   const { start: periodStart, end: periodEnd } = getDateRangeFromFilter(dateRange)
   
   // Same period last year
@@ -35,7 +37,16 @@ async function getPeriodMetrics({ dateRange = "365d", minAmount, maxAmount }: Fi
     orderDate: {
       gte: periodStart,
       lte: periodEnd
-    }
+    },
+    customer: filterConsumer ? {
+      company: {
+        domain: {
+          not: {
+            in: CONSUMER_DOMAINS
+          }
+        }
+      }
+    } : {}
   }
 
   if (minAmount !== undefined || maxAmount !== undefined) {
@@ -85,7 +96,7 @@ async function getPeriodMetrics({ dateRange = "365d", minAmount, maxAmount }: Fi
   }
 }
 
-export async function getPaymentMethodMetrics({ dateRange = "365d", minAmount, maxAmount }: FilterParams = {}) {
+export async function getPaymentMethodMetrics({ dateRange = "365d", minAmount, maxAmount, filterConsumer = false }: FilterParams = {}) {
   const { start } = getDateRangeFromFilter(dateRange)
 
   const whereClause: OrderWhereClause = {
@@ -95,7 +106,16 @@ export async function getPaymentMethodMetrics({ dateRange = "365d", minAmount, m
     },
     paymentMethod: {
       not: null
-    }
+    },
+    customer: filterConsumer ? {
+      company: {
+        domain: {
+          not: {
+            in: CONSUMER_DOMAINS
+          }
+        }
+      }
+    } : {}
   }
 
   if (minAmount !== undefined || maxAmount !== undefined) {
@@ -127,7 +147,7 @@ export async function getPaymentMethodMetrics({ dateRange = "365d", minAmount, m
     .sort((a, b) => b.amount - a.amount)
 }
 
-export async function getClassMetrics({ dateRange = "365d", minAmount, maxAmount }: FilterParams = {}) {
+export async function getClassMetrics({ dateRange = "365d", minAmount, maxAmount, filterConsumer = false }: FilterParams = {}) {
   const { start } = getDateRangeFromFilter(dateRange)
 
   const whereClause: OrderWhereClause = {
@@ -137,7 +157,16 @@ export async function getClassMetrics({ dateRange = "365d", minAmount, maxAmount
     },
     class: {
       not: null
-    }
+    },
+    customer: filterConsumer ? {
+      company: {
+        domain: {
+          not: {
+            in: CONSUMER_DOMAINS
+          }
+        }
+      }
+    } : {}
   }
 
   if (minAmount !== undefined || maxAmount !== undefined) {
@@ -171,9 +200,47 @@ export async function getClassMetrics({ dateRange = "365d", minAmount, maxAmount
     .sort((a, b) => b.amount - a.amount)
 }
 
-export async function getRecentOrders({ minAmount, maxAmount }: FilterParams = {}) {
-  const whereClause: OrderWhereClause = {}
+export async function getRecentOrders({ 
+  minAmount, 
+  maxAmount,
+  page = 1,
+  pageSize = 10,
+  sortColumn = 'orderDate',
+  sortDirection = 'desc',
+  searchTerm = '',
+  dateRange,
+  filterConsumer = false
+}: FilterParams & {
+  page?: number,
+  pageSize?: number,
+  sortColumn?: string,
+  sortDirection?: 'asc' | 'desc',
+  searchTerm?: string,
+  dateRange?: string,
+  filterConsumer?: boolean
+} = {}) {
+  const whereClause: OrderWhereClause = {
+    customer: filterConsumer ? {
+      company: {
+        domain: {
+          not: {
+            in: CONSUMER_DOMAINS
+          }
+        }
+      }
+    } : {}
+  }
 
+  // Handle date range filter
+  if (dateRange) {
+    const { start, end } = getDateRangeFromFilter(dateRange)
+    whereClause.orderDate = {
+      gte: start,
+      lte: end
+    }
+  }
+
+  // Handle amount filters
   if (minAmount !== undefined || maxAmount !== undefined) {
     whereClause.totalAmount = {
       ...(minAmount !== undefined && { gte: minAmount }),
@@ -181,23 +248,55 @@ export async function getRecentOrders({ minAmount, maxAmount }: FilterParams = {
     }
   }
 
-  return await prisma.order.findMany({
-    where: whereClause,
-    take: 10,
-    orderBy: {
-      orderDate: 'desc'
-    },
-    include: {
-      customer: {
-        select: {
-          customerName: true,
-          emails: {
-            where: { isPrimary: true },
-            select: { email: true },
-            take: 1
+  // Handle search term
+  if (searchTerm) {
+    whereClause.OR = [
+      { orderNumber: { contains: searchTerm, mode: 'insensitive' } },
+      { customer: { customerName: { contains: searchTerm, mode: 'insensitive' } } }
+    ]
+  }
+
+  const [totalCount, rawOrders] = await Promise.all([
+    prisma.order.count({ where: whereClause }),
+    prisma.order.findMany({
+      where: whereClause,
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      orderBy: {
+        [sortColumn]: sortDirection
+      },
+      include: {
+        customer: {
+          select: {
+            customerName: true,
+            emails: {
+              where: { isPrimary: true },
+              select: { email: true },
+              take: 1
+            }
           }
         }
       }
-    }
-  })
+    })
+  ])
+
+  // Transform orders to match TableData structure
+  const orders = rawOrders.map(order => ({
+    id: order.id,
+    orderNumber: order.orderNumber,
+    orderDate: order.orderDate,
+    customerName: order.customer.customerName,
+    status: order.status,
+    paymentStatus: order.paymentStatus,
+    totalAmount: Number(order.totalAmount),
+    dueDate: order.dueDate,
+    paymentMethod: order.paymentMethod,
+    quickbooksId: order.quickbooksId
+  }))
+
+  return {
+    orders,
+    totalCount,
+    recentCount: orders.length
+  }
 }

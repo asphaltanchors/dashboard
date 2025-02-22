@@ -11,27 +11,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react"
 import Link from "next/link"
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import debounce from "lodash/debounce"
-import { fetchOrders } from "@/app/actions/data"
-
-interface TableData {
-  orders: Order[]
-  totalCount: number
-  recentCount: number
-}
-
-interface Column {
-  key: keyof Order
-  label: string
-  render?: (value: any, order: Order) => React.ReactNode
-}
-
-interface FetchParams {
-  page: number
-  searchTerm: string
-  sortColumn: string
-  sortDirection: 'asc' | 'desc'
-  [key: string]: any
-}
+import type { TableData, Column, FetchParams, TableOrder } from "@/types/orders"
 
 interface ServerOrdersTableProps {
   initialOrders: TableData
@@ -99,11 +79,12 @@ export function ServerOrdersTable({
         // Get all preserved params
         const preservedParams = Object.fromEntries(
           preserveParams.map(param => [param, searchParams.get(param)])
-            .filter(([_, value]) => value !== null)
+            .filter(([, value]) => value !== null)
         )
 
         const newData = await fetchOrders({
           page,
+          pageSize,
           searchTerm,
           sortColumn,
           sortDirection,
@@ -114,7 +95,7 @@ export function ServerOrdersTable({
         console.error("Failed to fetch orders:", error)
       }
     })
-  }, [page, searchTerm, sortColumn, sortDirection, preserveParams, searchParams, fetchOrders])
+  }, [page, pageSize, searchTerm, sortColumn, sortDirection, preserveParams, searchParams, fetchOrders])
 
   React.useEffect(() => {
     refreshData()
@@ -204,49 +185,63 @@ export function ServerOrdersTable({
               {data.orders.map((order) => (
                 <TableRow key={order.id}>
                   {(columns || [
-                    { key: "orderNumber", label: "Order Number", render: (value, order) => (
+                    { key: "orderNumber", label: "Order Number", render: (value, order: TableOrder) => (
                       <Link 
                         href={`/orders/${order.quickbooksId}`}
                         className="text-blue-600 hover:text-blue-800 hover:underline"
                       >
-                        {value}
+                        {value as string}
                       </Link>
                     )},
-                    { key: "orderDate", label: "Date", render: (value) => new Date(value).toLocaleDateString() },
+                    { key: "orderDate", label: "Date", render: (value) => 
+                      new Date(value as string | number | Date).toLocaleDateString()
+                    },
                     { key: "customerName", label: "Customer" },
-                    { key: "status", label: "Status", render: (value) => (
-                      <span
-                        className={`inline-block px-2 py-1 text-xs font-semibold rounded-full ${
-                          value === "CLOSED"
-                            ? "bg-green-100 text-green-800"
-                            : value === "OPEN"
-                            ? "bg-blue-100 text-blue-800"
-                            : value === "VOID"
-                            ? "bg-red-100 text-red-800"
-                            : "bg-yellow-100 text-yellow-800"
-                        }`}
-                      >
-                        {value.charAt(0) + value.slice(1).toLowerCase()}
-                      </span>
-                    )},
-                    { key: "paymentStatus", label: "Payment Status", render: (value) => (
-                      <span
-                        className={`inline-block px-2 py-1 text-xs font-semibold rounded-full ${
-                          value === "PAID"
-                            ? "bg-green-100 text-green-800"
-                            : value === "UNPAID"
-                            ? "bg-red-100 text-red-800"
-                            : value === "PARTIAL"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-gray-100 text-gray-800"
-                        }`}
-                      >
-                        {value.charAt(0) + value.slice(1).toLowerCase()}
-                      </span>
-                    )},
-                    { key: "paymentMethod", label: "Payment Method", render: (value) => value || "-" },
-                    { key: "totalAmount", label: "Amount", render: (value) => formatCurrency(value) },
-                    { key: "dueDate", label: "Due Date", render: (value) => value ? new Date(value).toLocaleDateString() : "-" }
+                    { key: "status", label: "Status", render: (value) => {
+                      const status = value as string
+                      return (
+                        <span
+                          className={`inline-block px-2 py-1 text-xs font-semibold rounded-full ${
+                            status === "CLOSED"
+                              ? "bg-green-100 text-green-800"
+                              : status === "OPEN"
+                              ? "bg-blue-100 text-blue-800"
+                              : status === "VOID"
+                              ? "bg-red-100 text-red-800"
+                              : "bg-yellow-100 text-yellow-800"
+                          }`}
+                        >
+                          {status.charAt(0) + status.slice(1).toLowerCase()}
+                        </span>
+                      )
+                    }},
+                    { key: "paymentStatus", label: "Payment Status", render: (value) => {
+                      const status = value as string
+                      return (
+                        <span
+                          className={`inline-block px-2 py-1 text-xs font-semibold rounded-full ${
+                            status === "PAID"
+                              ? "bg-green-100 text-green-800"
+                              : status === "UNPAID"
+                              ? "bg-red-100 text-red-800"
+                              : status === "PARTIAL"
+                              ? "bg-yellow-100 text-yellow-800"
+                              : "bg-gray-100 text-gray-800"
+                          }`}
+                        >
+                          {status.charAt(0) + status.slice(1).toLowerCase()}
+                        </span>
+                      )
+                    }},
+                    { key: "paymentMethod", label: "Payment Method", render: (value) => 
+                      (value as string) || "-"
+                    },
+                    { key: "totalAmount", label: "Amount", render: (value) => 
+                      formatCurrency(value as number)
+                    },
+                    { key: "dueDate", label: "Due Date", render: (value) => 
+                      value ? new Date(value as Date).toLocaleDateString() : "-"
+                    }
                   ]).map(({ key, render }) => (
                     <TableCell key={key}>
                       {render ? render(order[key], order) : String(order[key])}

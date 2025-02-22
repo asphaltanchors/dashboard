@@ -7,6 +7,7 @@ interface FilterParams {
   dateRange?: string
   minAmount?: number
   maxAmount?: number
+  filterConsumer?: boolean
 }
 
 interface ProductLineMetric {
@@ -63,7 +64,16 @@ export async function getCanadianSalesMetrics(filters?: FilterParams) {
             ]
           }
         }
-      ]
+      ],
+      ...(filters?.filterConsumer ? {
+        company: {
+          domain: {
+            not: {
+              in: CONSUMER_DOMAINS
+            }
+          }
+        }
+      } : {})
     },
     select: {
       id: true
@@ -162,25 +172,38 @@ export async function getCanadianTopCustomers(filters?: FilterParams) {
   
   const customers = await prisma.customer.findMany({
     where: {
-      OR: [
+      AND: [
         {
-          billingAddress: {
-            OR: [
-              { country: { contains: 'canada', mode: 'insensitive' } },
-              { state: { in: CANADIAN_PROVINCES } },
-              { postalCode: { contains: '[A-Z][0-9][A-Z]', mode: 'insensitive' } }
-            ]
-          }
+          OR: [
+            {
+              billingAddress: {
+                OR: [
+                  { country: { contains: 'canada', mode: 'insensitive' } },
+                  { state: { in: CANADIAN_PROVINCES } },
+                  { postalCode: { contains: '[A-Z][0-9][A-Z]', mode: 'insensitive' } }
+                ]
+              }
+            },
+            {
+              shippingAddress: {
+                OR: [
+                  { country: { contains: 'canada', mode: 'insensitive' } },
+                  { state: { in: CANADIAN_PROVINCES } },
+                  { postalCode: { contains: '[A-Z][0-9][A-Z]', mode: 'insensitive' } }
+                ]
+              }
+            }
+          ]
         },
-        {
-          shippingAddress: {
-            OR: [
-              { country: { contains: 'canada', mode: 'insensitive' } },
-              { state: { in: CANADIAN_PROVINCES } },
-              { postalCode: { contains: '[A-Z][0-9][A-Z]', mode: 'insensitive' } }
-            ]
+        ...(filters?.filterConsumer ? [{
+          company: {
+            domain: {
+              not: {
+                in: CONSUMER_DOMAINS
+              }
+            }
           }
-        }
+        }] : [])
       ],
       orders: {
         some: {
@@ -271,25 +294,38 @@ export async function getCanadianOrders(params: GetCanadianOrdersParams = {}) {
   // First get all Canadian customers
   const canadianCustomers = await prisma.customer.findMany({
     where: {
-      OR: [
+      AND: [
         {
-          billingAddress: {
-            OR: [
-              { country: { contains: 'canada', mode: 'insensitive' } },
-              { state: { in: CANADIAN_PROVINCES } },
-              { postalCode: { contains: '[A-Z][0-9][A-Z]', mode: 'insensitive' } }
-            ]
-          }
+          OR: [
+            {
+              billingAddress: {
+                OR: [
+                  { country: { contains: 'canada', mode: 'insensitive' } },
+                  { state: { in: CANADIAN_PROVINCES } },
+                  { postalCode: { contains: '[A-Z][0-9][A-Z]', mode: 'insensitive' } }
+                ]
+              }
+            },
+            {
+              shippingAddress: {
+                OR: [
+                  { country: { contains: 'canada', mode: 'insensitive' } },
+                  { state: { in: CANADIAN_PROVINCES } },
+                  { postalCode: { contains: '[A-Z][0-9][A-Z]', mode: 'insensitive' } }
+                ]
+              }
+            }
+          ]
         },
-        {
-          shippingAddress: {
-            OR: [
-              { country: { contains: 'canada', mode: 'insensitive' } },
-              { state: { in: CANADIAN_PROVINCES } },
-              { postalCode: { contains: '[A-Z][0-9][A-Z]', mode: 'insensitive' } }
-            ]
+        ...(params.filterConsumer ? [{
+          company: {
+            domain: {
+              not: {
+                in: CONSUMER_DOMAINS
+              }
+            }
           }
-        }
+        }] : [])
       ]
     },
     select: {
@@ -394,25 +430,38 @@ export async function getCanadianUnitsSold(filters?: FilterParams) {
   // First get all Canadian customers
   const canadianCustomers = await prisma.customer.findMany({
     where: {
-      OR: [
+      AND: [
         {
-          billingAddress: {
-            OR: [
-              { country: { contains: 'canada', mode: 'insensitive' } },
-              { state: { in: CANADIAN_PROVINCES } },
-              { postalCode: { contains: '[A-Z][0-9][A-Z]', mode: 'insensitive' } }
-            ]
-          }
+          OR: [
+            {
+              billingAddress: {
+                OR: [
+                  { country: { contains: 'canada', mode: 'insensitive' } },
+                  { state: { in: CANADIAN_PROVINCES } },
+                  { postalCode: { contains: '[A-Z][0-9][A-Z]', mode: 'insensitive' } }
+                ]
+              }
+            },
+            {
+              shippingAddress: {
+                OR: [
+                  { country: { contains: 'canada', mode: 'insensitive' } },
+                  { state: { in: CANADIAN_PROVINCES } },
+                  { postalCode: { contains: '[A-Z][0-9][A-Z]', mode: 'insensitive' } }
+                ]
+              }
+            }
+          ]
         },
-        {
-          shippingAddress: {
-            OR: [
-              { country: { contains: 'canada', mode: 'insensitive' } },
-              { state: { in: CANADIAN_PROVINCES } },
-              { postalCode: { contains: '[A-Z][0-9][A-Z]', mode: 'insensitive' } }
-            ]
+        ...(filters?.filterConsumer ? [{
+          company: {
+            domain: {
+              not: {
+                in: CONSUMER_DOMAINS
+              }
+            }
           }
-        }
+        }] : [])
       ]
     },
     select: {

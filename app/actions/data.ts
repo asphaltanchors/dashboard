@@ -5,6 +5,7 @@ import { getCompanies } from "@/lib/companies"
 import { getCustomers } from "@/lib/customers"
 import { getOrders } from "@/lib/orders"
 import { enrichCompany } from "@/lib/enrichment"
+import { getRecentOrders } from "@/lib/dashboard"
 
 export async function fetchCanadianOrders(params: {
   page: number
@@ -14,6 +15,7 @@ export async function fetchCanadianOrders(params: {
   dateRange?: string
   minAmount?: number
   maxAmount?: number
+  filterConsumer?: boolean
 }) {
   return getCanadianOrders({
     page: params.page,
@@ -23,7 +25,8 @@ export async function fetchCanadianOrders(params: {
     sortDirection: params.sortDirection,
     dateRange: params.dateRange,
     minAmount: params.minAmount,
-    maxAmount: params.maxAmount
+    maxAmount: params.maxAmount,
+    filterConsumer: params.filterConsumer
   })
 }
 
@@ -41,4 +44,28 @@ export async function fetchOrders(params: Parameters<typeof getOrders>[0]) {
 
 export async function enrichCompanyAction(domain: string) {
   return enrichCompany(domain)
+}
+
+export async function fetchRecentOrders(params: {
+  page: number
+  searchTerm: string
+  sortColumn: string
+  sortDirection: 'asc' | 'desc'
+  dateRange?: string
+  minAmount?: number
+  maxAmount?: number
+  pageSize?: number
+  filterConsumer?: boolean
+}) {
+  return getRecentOrders({
+    page: params.page,
+    searchTerm: params.searchTerm,
+    sortColumn: params.sortColumn,
+    sortDirection: params.sortDirection,
+    dateRange: params.dateRange,
+    minAmount: params.minAmount,
+    maxAmount: params.maxAmount,
+    pageSize: params.pageSize || 5,
+    filterConsumer: params.filterConsumer
+  })
 }

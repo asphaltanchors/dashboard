@@ -19,6 +19,7 @@ interface PageProps {
     date_range?: string
     min_amount?: string
     max_amount?: string
+    filterConsumer?: string
   }>
 }
 
@@ -27,12 +28,14 @@ export default async function CanadianSalesPage(props: PageProps) {
   const date_range = searchParams.date_range || "365d"
   const min_amount = searchParams.min_amount
   const max_amount = searchParams.max_amount
+  const filterConsumer = searchParams.filterConsumer !== undefined
 
   // Parse filter parameters
   const filters = {
     dateRange: date_range,
     minAmount: min_amount ? parseFloat(min_amount) : undefined,
-    maxAmount: max_amount ? parseFloat(max_amount) : undefined
+    maxAmount: max_amount ? parseFloat(max_amount) : undefined,
+    filterConsumer
   }
 
   const [metrics, customers, products, orders] = await Promise.all([
@@ -66,6 +69,7 @@ export default async function CanadianSalesPage(props: PageProps) {
         dateRange={date_range}
         minAmount={min_amount ? parseFloat(min_amount) : undefined}
         maxAmount={max_amount ? parseFloat(max_amount) : undefined}
+        filterConsumer={filterConsumer}
       />
       <p className="text-muted-foreground mt-2">
         Sales metrics and customer analysis for Canadian market
@@ -113,7 +117,7 @@ export default async function CanadianSalesPage(props: PageProps) {
             <ServerOrdersTable
               initialOrders={orders}
               fetchOrders={fetchCanadianOrders}
-              preserveParams={['date_range', 'min_amount', 'max_amount']}
+              preserveParams={['date_range', 'min_amount', 'max_amount', 'filterConsumer']}
               title="Canadian Orders"
             />
           </div>
