@@ -1,4 +1,4 @@
-import SalesChannelInsights from "@/components/reports/sales-channel-insights"
+import SalesChannelTable from "@/components/reports/sales-channel-table"
 import { ReportHeader } from "@/components/reports/report-header"
 import { getSalesChannelMetrics } from "@/lib/reports"
 import { SalesChannelMetric } from "@/types/reports"
@@ -39,8 +39,8 @@ export default async function ChannelAnalysisPage(props: PageProps) {
         resetPath="/reports/channel-analysis?date_range=365d"
       />
       
-      <div className="mt-8 grid gap-8">
-        <SalesChannelInsights metrics={metrics} />
+      <div className="mt-8">
+        <SalesChannelTable metrics={metrics} />
       </div>
     </div>
   )

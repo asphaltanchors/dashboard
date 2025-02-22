@@ -906,10 +906,15 @@ export async function getProductLineMetrics() {
 export async function getSalesChannelMetrics(filters?: FilterParams) {
   const today = new Date()
   const days = filters?.dateRange ? parseInt(filters.dateRange.replace("d", "")) : 365
-  const currentPeriodStart = new Date(today)
-  currentPeriodStart.setDate(today.getDate() - days)
-  const previousPeriodStart = new Date(currentPeriodStart)
-  previousPeriodStart.setDate(currentPeriodStart.getDate() - days)
+  
+  // Create 4 periods
+  const periodStarts = Array.from({ length: 4 }, (_, i) => {
+    const date = new Date(today)
+    date.setDate(today.getDate() - days * (i + 1))
+    return date
+  })
+  
+  const periodEnds = [today, ...periodStarts.slice(0, -1)]
 
   // Build additional WHERE clauses for filters
   const filterClauses = []
@@ -940,32 +945,37 @@ export async function getSalesChannelMetrics(filters?: FilterParams) {
     total_units: string
     total_revenue: string
     avg_unit_price: string
-    period: string
+    period_index: number
   }>>(`
+    WITH periods AS (
+      ${periodStarts.map((start, i) => `
+        SELECT 
+          ${i} as period_index,
+          CAST('${start.toISOString()}' AS timestamp) as period_start,
+          CAST('${periodEnds[i].toISOString()}' AS timestamp) as period_end
+      `).join(' UNION ALL ')}
+    )
     SELECT 
       COALESCE(o.class, 'Unclassified') as sales_channel,
       COUNT(DISTINCT "orderId") as order_count,
       SUM(COALESCE(CAST(quantity AS numeric), 0)) as total_units,
       SUM(amount) as total_revenue,
-      SUM(amount) / COUNT(DISTINCT "orderId") as avg_unit_price,
-      CASE 
-        WHEN o."orderDate" >= '${currentPeriodStart.toISOString()}' THEN 'current'
-        ELSE 'previous'
-      END as period
-    FROM "OrderItem" oi
-    JOIN "Order" o ON o."id" = oi."orderId"
+      SUM(amount) / NULLIF(COUNT(DISTINCT "orderId"), 0) as avg_unit_price,
+      p.period_index
+    FROM periods p
+    LEFT JOIN "Order" o ON o."orderDate" >= p.period_start AND o."orderDate" < p.period_end
+    LEFT JOIN "OrderItem" oi ON oi."orderId" = o."id"
     WHERE (oi."productCode" LIKE '01-63%'
            OR oi."productCode" IN ('82-5002.K', '82-5002.010')
            OR oi."productCode" LIKE '82-6002%'
            OR oi."productCode" LIKE '01-70%')
-    AND o."orderDate" >= '${previousPeriodStart.toISOString()}'
     ${additionalFilters}
     GROUP BY 
       COALESCE(o.class, 'Unclassified'),
-      CASE 
-        WHEN o."orderDate" >= '${currentPeriodStart.toISOString()}' THEN 'current'
-        ELSE 'previous'
-      END
+      p.period_index
+    ORDER BY
+      sales_channel,
+      period_index
   `)
 
   // Transform results into the new format
@@ -973,27 +983,20 @@ export async function getSalesChannelMetrics(filters?: FilterParams) {
     if (!acc[metric.sales_channel]) {
       acc[metric.sales_channel] = {
         sales_channel: metric.sales_channel,
-        current_period: {
+        periods: Array(4).fill({
           order_count: "0",
           total_units: "0",
           total_revenue: "0",
           avg_unit_price: "0"
-        },
-        previous_period: {
-          order_count: "0",
-          total_units: "0",
-          total_revenue: "0",
-          avg_unit_price: "0"
-        }
+        })
       }
     }
 
-    const period = metric.period === 'current' ? 'current_period' : 'previous_period'
-    acc[metric.sales_channel][period] = {
-      order_count: String(metric.order_count),
-      total_units: String(metric.total_units),
-      total_revenue: String(metric.total_revenue),
-      avg_unit_price: String(metric.avg_unit_price)
+    acc[metric.sales_channel].periods[metric.period_index] = {
+      order_count: String(metric.order_count || "0"),
+      total_units: String(metric.total_units || "0"),
+      total_revenue: String(metric.total_revenue || "0"),
+      avg_unit_price: String(metric.avg_unit_price || "0")
     }
 
     return acc

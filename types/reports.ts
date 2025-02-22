@@ -1,17 +1,13 @@
+export interface PeriodMetrics {
+  order_count: string
+  total_units: string
+  total_revenue: string
+  avg_unit_price: string
+}
+
 export interface SalesChannelMetric {
   sales_channel: string
-  current_period: {
-    order_count: string
-    total_units: string
-    total_revenue: string
-    avg_unit_price: string
-  }
-  previous_period: {
-    order_count: string
-    total_units: string
-    total_revenue: string
-    avg_unit_price: string
-  }
+  periods: PeriodMetrics[]
 }
 
 export interface ChannelCardProps {
