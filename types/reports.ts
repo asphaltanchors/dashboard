@@ -3,6 +3,8 @@ export interface PeriodMetrics {
   total_units: string
   total_revenue: string
   avg_unit_price: string
+  period_start: string
+  period_end: string
 }
 
 export interface SalesChannelMetric {

@@ -946,6 +946,8 @@ export async function getSalesChannelMetrics(filters?: FilterParams) {
     total_revenue: string
     avg_unit_price: string
     period_index: number
+    period_start: string
+    period_end: string
   }>>(`
     WITH periods AS (
       ${periodStarts.map((start, i) => `
@@ -957,11 +959,13 @@ export async function getSalesChannelMetrics(filters?: FilterParams) {
     )
     SELECT 
       COALESCE(o.class, 'Unclassified') as sales_channel,
-      COUNT(DISTINCT "orderId") as order_count,
-      SUM(COALESCE(CAST(quantity AS numeric), 0)) as total_units,
-      SUM(amount) as total_revenue,
-      SUM(amount) / NULLIF(COUNT(DISTINCT "orderId"), 0) as avg_unit_price,
-      p.period_index
+      COALESCE(COUNT(DISTINCT "orderId"), 0) as order_count,
+      COALESCE(SUM(COALESCE(CAST(quantity AS numeric), 0)), 0) as total_units,
+      COALESCE(SUM(amount), 0) as total_revenue,
+      COALESCE(SUM(amount) / NULLIF(COUNT(DISTINCT "orderId"), 0), 0) as avg_unit_price,
+      p.period_index,
+      CAST(p.period_start AS text) as period_start,
+      CAST(p.period_end AS text) as period_end
     FROM periods p
     LEFT JOIN "Order" o ON o."orderDate" >= p.period_start AND o."orderDate" < p.period_end
     LEFT JOIN "OrderItem" oi ON oi."orderId" = o."id"
@@ -972,7 +976,9 @@ export async function getSalesChannelMetrics(filters?: FilterParams) {
     ${additionalFilters}
     GROUP BY 
       COALESCE(o.class, 'Unclassified'),
-      p.period_index
+      p.period_index,
+      p.period_start,
+      p.period_end
     ORDER BY
       sales_channel,
       period_index
@@ -992,12 +998,14 @@ export async function getSalesChannelMetrics(filters?: FilterParams) {
       }
     }
 
-    acc[metric.sales_channel].periods[metric.period_index] = {
-      order_count: String(metric.order_count || "0"),
-      total_units: String(metric.total_units || "0"),
-      total_revenue: String(metric.total_revenue || "0"),
-      avg_unit_price: String(metric.avg_unit_price || "0")
-    }
+      acc[metric.sales_channel].periods[metric.period_index] = {
+        order_count: String(metric.order_count),
+        total_units: String(metric.total_units),
+        total_revenue: String(metric.total_revenue),
+        avg_unit_price: String(metric.avg_unit_price),
+        period_start: metric.period_start || new Date(periodStarts[metric.period_index]).toISOString(),
+        period_end: metric.period_end || new Date(periodEnds[metric.period_index]).toISOString()
+      }
 
     return acc
   }, {} as Record<string, SalesChannelMetric>)

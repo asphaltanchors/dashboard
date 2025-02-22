@@ -2,6 +2,7 @@
 
 import { Card } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { SalesChannelMetric } from "@/types/reports"
 import { ArrowDown, ArrowUp } from "lucide-react"
 
@@ -9,7 +10,25 @@ interface Props {
   metrics: SalesChannelMetric[]
 }
 
-function MiniSparkline({ values }: { values: number[] }) {
+interface SparklineProps {
+  values: number[]
+  periods: Array<{
+    period_start: string
+    period_end: string
+    total_revenue: string
+  }>
+}
+
+function formatDate(dateStr: string) {
+  const date = new Date(dateStr)
+  return date.toLocaleDateString('en-US', { 
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  })
+}
+
+function MiniSparkline({ values, periods }: SparklineProps) {
   const height = 24
   const width = 64
   const padding = 4
@@ -36,8 +55,23 @@ function MiniSparkline({ values }: { values: number[] }) {
     )
     .join(" ")
   
+  const tooltipContent = periods
+    .filter(period => period.period_start && period.period_end)
+    .map((period) => {
+      const formattedRevenue = new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        maximumFractionDigits: 0
+      }).format(Number(period.total_revenue))
+      
+      return `${formatDate(period.period_start)} - ${formatDate(period.period_end)}: ${formattedRevenue}`
+    })
+    .join('\n')
+
   return (
-    <svg width={width} height={height} className="inline-block">
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <svg width={width} height={height} className="inline-block">
       {/* Trend line */}
       <path 
         d={pathD}
@@ -56,7 +90,12 @@ function MiniSparkline({ values }: { values: number[] }) {
           fill={color} 
         />
       ))}
-    </svg>
+        </svg>
+      </TooltipTrigger>
+      <TooltipContent>
+        <pre className="whitespace-pre">{tooltipContent}</pre>
+      </TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -130,7 +169,9 @@ export default function SalesChannelTable({ metrics }: Props) {
   }
 
   return (
-    <Card>
+    <TooltipProvider>
+
+      <Card className="overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent border-b-2">
@@ -164,9 +205,7 @@ export default function SalesChannelTable({ metrics }: Props) {
             return (
               <TableRow 
                 key={metric.sales_channel} 
-                className={`hover:bg-gray-50 ${
-                  revenuePercentage > 25 ? 'bg-blue-50/50' : ''
-                }`}
+                className="hover:bg-gray-50 even:bg-gray-50/50"
               >
                 <TableCell className="font-semibold">
                   {metric.sales_channel.startsWith('Amazon Combined:') 
@@ -184,7 +223,10 @@ export default function SalesChannelTable({ metrics }: Props) {
                 </TableCell>
                 <TableCell className="text-right border-r">
                   <div className="flex items-center justify-end gap-2">
-                    <MiniSparkline values={revenues.reverse()} />
+                    <MiniSparkline 
+                      values={revenues.reverse()} 
+                      periods={[...metric.periods].reverse()}
+                    />
                     <TrendIndicator change={revenueChange} />
                   </div>
                 </TableCell>
@@ -241,6 +283,7 @@ export default function SalesChannelTable({ metrics }: Props) {
           </TableRow>
         </TableBody>
       </Table>
-    </Card>
+      </Card>
+    </TooltipProvider>
   )
 }
