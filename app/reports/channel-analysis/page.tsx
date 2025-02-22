@@ -1,17 +1,45 @@
 import SalesChannelInsights from "@/components/reports/sales-channel-insights"
+import { ReportHeader } from "@/components/reports/report-header"
 import { getSalesChannelMetrics } from "@/lib/reports"
 import { SalesChannelMetric } from "@/types/reports"
 
-export default async function ChannelAnalysisPage() {
-  const metrics = await getSalesChannelMetrics() as SalesChannelMetric[]
+type PageProps = {
+  searchParams: Promise<{
+    date_range?: string
+    min_amount?: string
+    max_amount?: string
+    filterConsumer?: string
+  }>
+}
+
+export default async function ChannelAnalysisPage(props: PageProps) {
+  const searchParams = await props.searchParams;
+  const date_range = searchParams.date_range || "365d"
+  const filterConsumer = searchParams.filterConsumer !== undefined
+  const min_amount = searchParams.min_amount
+  const max_amount = searchParams.max_amount
+
+  const filters = {
+    dateRange: date_range,
+    minAmount: min_amount ? parseFloat(min_amount) : undefined,
+    maxAmount: max_amount ? parseFloat(max_amount) : undefined,
+    filterConsumer
+  }
+
+  const metrics = await getSalesChannelMetrics(filters) as SalesChannelMetric[]
+
   return (
-    <div className="space-y-6 p-8">
-      <div>
-        <h1 className="text-3xl font-bold">Channel Analysis</h1>
-        <p className="text-sm text-muted-foreground mt-1">Compare revenue, units sold, and order metrics across all sales channels</p>
-      </div>
+    <div className="p-8">
+      <ReportHeader
+        title="Channel Analysis"
+        dateRange={date_range}
+        minAmount={min_amount ? parseFloat(min_amount) : undefined}
+        maxAmount={max_amount ? parseFloat(max_amount) : undefined}
+        filterConsumer={filterConsumer}
+        resetPath="/reports/channel-analysis?date_range=365d"
+      />
       
-      <div className="grid gap-8">
+      <div className="mt-8 grid gap-8">
         <SalesChannelInsights metrics={metrics} />
       </div>
     </div>

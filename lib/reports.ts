@@ -903,12 +903,36 @@ export async function getProductLineMetrics() {
 }
 
 // Sales channel insights data
-export async function getSalesChannelMetrics() {
+export async function getSalesChannelMetrics(filters?: FilterParams) {
   const today = new Date()
+  const days = filters?.dateRange ? parseInt(filters.dateRange.replace("d", "")) : 365
   const currentPeriodStart = new Date(today)
-  currentPeriodStart.setMonth(today.getMonth() - 12)
+  currentPeriodStart.setDate(today.getDate() - days)
   const previousPeriodStart = new Date(currentPeriodStart)
-  previousPeriodStart.setMonth(currentPeriodStart.getMonth() - 12)
+  previousPeriodStart.setDate(currentPeriodStart.getDate() - days)
+
+  // Build additional WHERE clauses for filters
+  const filterClauses = []
+  if (filters?.minAmount) {
+    filterClauses.push(`o."totalAmount" >= ${filters.minAmount}`)
+  }
+  if (filters?.maxAmount) {
+    filterClauses.push(`o."totalAmount" <= ${filters.maxAmount}`)
+  }
+  if (filters?.filterConsumer) {
+    filterClauses.push(`
+      NOT EXISTS (
+        SELECT 1 FROM "Customer" c
+        JOIN "Company" comp ON c."companyDomain" = comp."domain"
+        WHERE c."id" = o."customerId"
+        AND comp."domain" = ANY(ARRAY[${CONSUMER_DOMAINS.map(d => `'${d}'`).join(',')}])
+      )
+    `)
+  }
+
+  const additionalFilters = filterClauses.length > 0 
+    ? 'AND ' + filterClauses.join(' AND ')
+    : ''
 
   const results = await prisma.$queryRawUnsafe<Array<{
     sales_channel: string
@@ -935,6 +959,7 @@ export async function getSalesChannelMetrics() {
            OR oi."productCode" LIKE '82-6002%'
            OR oi."productCode" LIKE '01-70%')
     AND o."orderDate" >= '${previousPeriodStart.toISOString()}'
+    ${additionalFilters}
     GROUP BY 
       COALESCE(o.class, 'Unclassified'),
       CASE 
