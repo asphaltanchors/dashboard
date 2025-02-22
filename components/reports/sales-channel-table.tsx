@@ -105,9 +105,9 @@ export default function SalesChannelTable({ metrics }: Props) {
     { revenue: 0, units: 0, orders: 0 }
   )
 
-  // Sort by revenue
+  // Sort alphabetically by channel name
   const sortedMetrics = [...filteredMetrics].sort((a, b) => 
-    Number(b.periods[0].total_revenue) - Number(a.periods[0].total_revenue)
+    a.sales_channel.localeCompare(b.sales_channel)
   )
 
   const formatCurrency = (value: number) => {
@@ -141,6 +141,7 @@ export default function SalesChannelTable({ metrics }: Props) {
             <TableHead className="text-right font-bold">Units</TableHead>
             <TableHead className="text-right w-[80px] font-bold">Share</TableHead>
             <TableHead className="text-right font-bold">Orders</TableHead>
+            <TableHead className="text-right w-[80px] font-bold">Share</TableHead>
             <TableHead className="text-right font-bold">Avg Order</TableHead>
           </TableRow>
         </TableHeader>
@@ -195,12 +196,17 @@ export default function SalesChannelTable({ metrics }: Props) {
                   </div>
                 </TableCell>
                 <TableCell className="text-right">
+                  {formatNumber(currentOrders)}
+                </TableCell>
+                <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-2">
                     <span className="text-sm">{(currentOrders / totals.orders * 100).toFixed(1)}%</span>
                     <MiniBarChart percentage={(currentOrders / totals.orders * 100)} />
                   </div>
                 </TableCell>
-                <TableCell className="text-right">{formatCurrency(avgOrderValue)}</TableCell>
+                <TableCell className="text-right">
+                  {formatCurrency(avgOrderValue)}
+                </TableCell>
               </TableRow>
             )
           })}
@@ -212,22 +218,22 @@ export default function SalesChannelTable({ metrics }: Props) {
               {formatCurrency(totals.revenue)}
             </TableCell>
             <TableCell className="text-right">
-              100%
+              {/* Share column - intentionally empty */}
             </TableCell>
             <TableCell className="text-right border-r">
-              {/* Intentionally empty for trend column */}
+              {/* Trend column - intentionally empty */}
             </TableCell>
             <TableCell className="text-right">
               {formatNumber(totals.units)}
             </TableCell>
             <TableCell className="text-right">
-              100%
+              {/* Share column - intentionally empty */}
             </TableCell>
             <TableCell className="text-right">
-              <div className="flex items-center justify-end gap-2">
-                <span>100%</span>
-                <MiniBarChart percentage={100} />
-              </div>
+              {formatNumber(totals.orders)}
+            </TableCell>
+            <TableCell className="text-right">
+              {/* Share column - intentionally empty */}
             </TableCell>
             <TableCell className="text-right">
               {formatCurrency(totals.revenue / totals.orders)}
