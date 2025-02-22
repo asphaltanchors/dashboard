@@ -14,7 +14,7 @@ export default async function CompaniesPage(
   const search = (searchParams.search as string) || ""
   const sort = (searchParams.sort as string) || "domain"
   const dir = (searchParams.dir as "asc" | "desc") || "asc"
-  const filterConsumer = searchParams.filterConsumer !== undefined
+  const filterConsumer = searchParams.filterConsumer === "true"
 
   const data = await getCompanies({
     page,
@@ -27,11 +27,13 @@ export default async function CompaniesPage(
 
   return (
     <div className="p-8">
-      <ReportHeader
-        title="Companies"
-        resetPath="/companies"
-        filterConsumer={filterConsumer}
-      />
+      <div className="mb-8">
+        <ReportHeader
+          title="Companies"
+          resetPath="/companies"
+          filterConsumer={filterConsumer}
+        />
+      </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <MetricCard
               title="Total Companies"

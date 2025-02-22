@@ -30,7 +30,7 @@ export function CompaniesTable({ initialCompanies }: CompaniesTableProps) {
   const [data, setData] = useState<TableData>(initialCompanies)
   const [isPending, startTransition] = useTransition()
   const [searchValue, setSearchValue] = useState(searchParams.get("search") || "")
-  const [filterConsumer, setFilterConsumer] = useState(searchParams.get("filterConsumer") !== "false")
+  const filterConsumer = searchParams.get("filterConsumer") === "true"
   
   const page = Number(searchParams.get("page")) || 1
   const pageSize = 10
@@ -74,7 +74,7 @@ export function CompaniesTable({ initialCompanies }: CompaniesTableProps) {
 
   React.useEffect(() => {
     refreshData()
-  }, [refreshData])
+  }, [refreshData, searchParams])
 
   const requestSort = (column: string) => {
     const newDirection = sortColumn === column && sortDirection === "asc" ? "desc" : "asc"
@@ -118,24 +118,6 @@ export function CompaniesTable({ initialCompanies }: CompaniesTableProps) {
               }}
               className="flex-1"
             />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const newValue = !filterConsumer
-                setFilterConsumer(newValue)
-                router.replace(
-                  `${pathname}?${createQueryString({
-                    filterConsumer: newValue ? null : "false",
-                    page: 1,
-                  })}`,
-                  { scroll: false }
-                )
-              }}
-              className={filterConsumer ? "bg-blue-50" : ""}
-            >
-              {filterConsumer ? "Hiding" : "Show"} Consumer Domains
-            </Button>
           </div>
         </div>
         <div className="relative">
