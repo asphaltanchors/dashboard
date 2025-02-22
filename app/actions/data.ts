@@ -38,8 +38,8 @@ export async function fetchCustomers(params: Parameters<typeof getCustomers>[0])
   return getCustomers(params)
 }
 
-export async function fetchOrders(params: Parameters<typeof getOrders>[0]) {
-  const { filter, ...otherParams } = params as any
+export async function fetchOrders(params: Parameters<typeof getOrders>[0] & { filter?: string }) {
+  const { filter, ...otherParams } = params
   return getOrders({
     ...otherParams,
     paymentStatusFilter: filter === 'unpaid-only' ? 'unpaid-only' : null

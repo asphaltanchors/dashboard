@@ -2,28 +2,34 @@
 
 ## Report Filter Pattern
 1. Component Architecture
-   - ReportHeader: Container component for all filters
-   - DateRangeFilter: Preset-based date selection
-   - AmountFilter: Range-based amount filtering
-   - All filters maintain URL state
+   - ReportHeader: Container component with consistent styling
+     * Configurable title and reset path
+     * Filter components composition
+     * Consumer domain toggle
+     * Reset functionality
+   - DateRangeFilter: Preset-based selection (7-365 days)
+     * Dropdown UI with selected state
+     * Default to 365 days
+   - TransactionAmountFilter: Range-based filtering
+     * Min/max amount inputs
+     * Currency formatting
+     * Input sanitization
+     * Debounced updates
 
 2. State Management
    - URL Parameters
-     * date_range: Preset identifier
-     * amount_min: Lower bound
-     * amount_max: Upper bound
+     * date_range: Preset identifier (e.g., "30d")
+     * min_amount: Lower bound
+     * max_amount: Upper bound
+     * filterConsumer: Domain filter state
      * Shareable and bookmarkable state
    
 3. Data Flow
    - URL parameters drive initial state
-   - Filter changes update URL
+   - Filter changes update URL with debouncing
    - Server components read URL state
    - Data fetching respects filter state
-
-4. Filter Persistence
-   - Phase 1: URL-based only
-   - Phase 2: Cross-page state management
-   - Phase 3: Saved preferences (future)
+   - Independent state per report page
 
 ## Server-Side Rendering Pattern
 1. Data Fetching
