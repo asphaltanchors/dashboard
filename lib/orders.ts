@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
+import { Prisma } from "@prisma/client"
 
 interface GetOrdersParams {
   page?: number
@@ -8,6 +9,10 @@ interface GetOrdersParams {
   sortColumn?: string
   sortDirection?: 'asc' | 'desc'
   paymentStatusFilter?: 'unpaid-only' | null
+  dateRange?: string
+  minAmount?: number
+  maxAmount?: number
+  filterConsumer?: boolean
 }
 
 export async function getOrders({
@@ -16,54 +21,67 @@ export async function getOrders({
   searchTerm = '',
   sortColumn = 'orderDate',
   sortDirection = 'desc',
-  paymentStatusFilter = null
+  paymentStatusFilter = null,
+  dateRange = '365d',
+  minAmount,
+  maxAmount,
+  filterConsumer = false
 }: GetOrdersParams = {}) {
   // Calculate pagination
   const skip = (page - 1) * pageSize
 
   // Build where clause for search and filters
-  const where: {
-    OR?: {
-      orderNumber?: { contains: string; mode: 'insensitive' };
-      customer?: {
-        is: {
-          customerName: { contains: string; mode: 'insensitive' };
-        };
-      };
-    }[];
-    paymentStatus?: { in: ('UNPAID' | 'PARTIAL')[] };
-  } = {}
+  const where: Prisma.OrderWhereInput = {}
   
+  // Search filter
   if (searchTerm) {
     where.OR = [
       { orderNumber: { contains: searchTerm, mode: 'insensitive' as const } },
       { 
         customer: {
-          is: {
-            customerName: { contains: searchTerm, mode: 'insensitive' as const }
-          }
-        } 
+          customerName: { contains: searchTerm, mode: 'insensitive' as const }
+        }
       }
     ]
   }
 
+  // Payment status filter
   if (paymentStatusFilter === 'unpaid-only') {
     where.paymentStatus = { in: ['UNPAID', 'PARTIAL'] }
   }
 
-  // Build order by object dynamically
-  let orderBy: {
-    customer?: {
-      customerName: 'asc' | 'desc'
+  // Date range filter
+  if (dateRange) {
+    const days = parseInt(dateRange.replace('d', ''))
+    where.orderDate = {
+      gte: new Date(Date.now() - days * 24 * 60 * 60 * 1000),
+      lte: new Date()
     }
-    orderDate?: 'asc' | 'desc'
-    orderNumber?: 'asc' | 'desc'
-    status?: 'asc' | 'desc'
-    paymentStatus?: 'asc' | 'desc'
-    totalAmount?: 'asc' | 'desc'
-    dueDate?: 'asc' | 'desc'
-    paymentMethod?: 'asc' | 'desc'
-  } = {}
+  }
+
+  // Amount filters
+  if (minAmount !== undefined || maxAmount !== undefined) {
+    where.totalAmount = {
+      ...(minAmount !== undefined && { gte: minAmount }),
+      ...(maxAmount !== undefined && { lte: maxAmount })
+    }
+  }
+
+  // Consumer domain filter
+  if (filterConsumer) {
+    where.customer = {
+      company: {
+        NOT: {
+          domain: {
+            endsWith: '.edu'
+          }
+        }
+      }
+    }
+  }
+
+  // Build order by object dynamically
+  let orderBy: Prisma.OrderOrderByWithRelationInput = {}
   if (sortColumn === 'customerName') {
     orderBy = {
       customer: {

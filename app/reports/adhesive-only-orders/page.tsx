@@ -1,5 +1,6 @@
-import { getAdhesiveOnlyCustomers, getAdhesiveMetrics } from "@/lib/reports"
-import { AdhesiveOnlyOrdersTable } from "@/components/reports/adhesive-only-orders-table"
+import { getAdhesiveOnlyOrders, getAdhesiveMetrics } from "@/lib/reports"
+import { fetchAdhesiveOrders } from "@/app/actions/data"
+import { ServerOrdersTable } from "@/components/orders/server-orders-table"
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { DollarSign, ShoppingCart, TrendingUp } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
@@ -12,10 +13,17 @@ export default async function AdhesiveOnlyOrdersPage(
 ) {
   const searchParams = await props.searchParams;
   const filterConsumer = searchParams.filterConsumer !== "false"
-  const [customers, metrics] = await Promise.all([
-    getAdhesiveOnlyCustomers(filterConsumer),
-    getAdhesiveMetrics(filterConsumer)
+  const [initialOrders, metrics] = await Promise.all([
+    getAdhesiveOnlyOrders({ filterConsumer }),
+    getAdhesiveMetrics({ filterConsumer })
   ])
+
+  // Calculate average order value
+  const currentAvgOrder = metrics.currentPeriod.totalRevenue / metrics.currentPeriod.orderCount || 0
+  const previousAvgOrder = metrics.previousPeriod.totalRevenue / metrics.previousPeriod.orderCount || 0
+  const avgOrderChange = previousAvgOrder ? 
+    ((currentAvgOrder - previousAvgOrder) / previousAvgOrder * 100).toFixed(1) :
+    "0.0"
 
   return (
     <div className="p-8">
@@ -25,7 +33,7 @@ export default async function AdhesiveOnlyOrdersPage(
           <div>
             <h1 className="text-2xl font-bold">Adhesive Only Orders</h1>
             <p className="text-muted-foreground">
-              Customers who have only ordered EPX2, EPX3, or EPX5 products
+              Orders containing EPX2, EPX3, or EPX5 products
             </p>
           </div>
           <Button
@@ -44,28 +52,31 @@ export default async function AdhesiveOnlyOrdersPage(
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-8">
         <MetricCard
           title="12mo Adhesive Orders"
-          value={metrics.orderCount.current}
-          change={metrics.orderCount.change}
+          value={metrics.currentPeriod.orderCount}
+          change={metrics.changes.orderCount}
           icon={ShoppingCart}
         />
         <MetricCard
           title="12mo Adhesive Revenue"
-          value={formatCurrency(metrics.totalSpent.current)}
-          change={metrics.totalSpent.change}
+          value={formatCurrency(metrics.currentPeriod.totalRevenue)}
+          change={metrics.changes.totalRevenue}
           icon={DollarSign}
         />
         <MetricCard
           title="Average Order Value"
-          value={formatCurrency(metrics.averageOrder.current)}
-          change={metrics.averageOrder.change}
+          value={formatCurrency(currentAvgOrder)}
+          change={avgOrderChange}
           icon={TrendingUp}
         />
       </div>
 
-      <div className="rounded-md border">
-        <AdhesiveOnlyOrdersTable customers={customers} />
-      </div>
-  </div>
-  </div>
+      <ServerOrdersTable 
+        initialOrders={initialOrders}
+        fetchOrders={fetchAdhesiveOrders}
+        preserveParams={["filterConsumer"]}
+        title="Adhesive Orders"
+      />
+    </div>
+    </div>
   )
 }

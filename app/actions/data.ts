@@ -1,6 +1,6 @@
 'use server'
 
-import { getCanadianOrders } from "@/lib/reports"
+import { getCanadianOrders, getAdhesiveOnlyOrders } from "@/lib/reports"
 import { getCompanies } from "@/lib/companies"
 import { getCustomers } from "@/lib/customers"
 import { getOrders } from "@/lib/orders"
@@ -44,6 +44,29 @@ export async function fetchOrders(params: Parameters<typeof getOrders>[0]) {
 
 export async function enrichCompanyAction(domain: string) {
   return enrichCompany(domain)
+}
+
+export async function fetchAdhesiveOrders(params: {
+  page: number
+  searchTerm: string
+  sortColumn: string
+  sortDirection: 'asc' | 'desc'
+  dateRange?: string
+  minAmount?: number
+  maxAmount?: number
+  filterConsumer?: boolean
+}) {
+  return getAdhesiveOnlyOrders({
+    page: params.page,
+    pageSize: 10,
+    searchTerm: params.searchTerm,
+    sortColumn: params.sortColumn,
+    sortDirection: params.sortDirection,
+    dateRange: params.dateRange,
+    minAmount: params.minAmount,
+    maxAmount: params.maxAmount,
+    filterConsumer: params.filterConsumer
+  })
 }
 
 export async function fetchRecentOrders(params: {
