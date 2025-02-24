@@ -100,7 +100,7 @@ async function getCompanyDetails(domain: string) {
     ...result,
     totalOrders: Number(result.companyStats?.totalOrders || 0),
     customerCount: result.companyStats?.customerCount || 0,
-    enrichmentData: result.enrichmentData as EnrichmentData | null,
+    enrichmentData: result.enriched && result.enrichmentData ? mapEnrichmentData(result.enrichmentData) : (result.enrichmentData as EnrichmentData | null),
     customers: result.customers.map(customer => ({
       ...customer,
       orders: customer.orders.map(order => ({
@@ -112,6 +112,45 @@ async function getCompanyDetails(domain: string) {
 }
 
 // Helper functions
+function mapEnrichmentData(enrichedData: any): EnrichmentData {
+  if (!enrichedData) return {};
+  
+  // Parse the JSON string if it's a string
+  const data = typeof enrichedData === 'string' ? JSON.parse(enrichedData) : enrichedData;
+  
+  return {
+    about: {
+      name: data.company_name || data.company_legal_name,
+      industries: data.categories_and_keywords || [data.industry].filter(Boolean),
+      yearFounded: data.founded_year ? parseInt(data.founded_year) : undefined,
+      totalEmployees: data.size_range,
+      totalEmployeesExact: data.employees_count
+    },
+    socials: {
+      twitter: data.twitter_url?.length ? { url: data.twitter_url[0] } : undefined,
+      facebook: data.facebook_url?.length ? { url: data.facebook_url[0] } : undefined,
+      linkedin: data.linkedin_url ? { url: data.linkedin_url } : undefined
+    },
+    finances: {
+      revenue: data.revenue_annual_range || undefined
+    },
+    analytics: {
+      monthlyVisitors: data.total_website_visits_monthly ? 
+        `${data.total_website_visits_monthly}` : undefined
+    },
+    locations: {
+      headquarters: data.hq_city || data.hq_state || data.hq_country ? {
+        city: { name: data.hq_city || '' },
+        state: { name: data.hq_state || '' },
+        country: { name: data.hq_country || '' }
+      } : undefined
+    },
+    descriptions: {
+      primary: data.description_enriched || data.description
+    }
+  };
+}
+
 function calculateYearlyRevenue(customers: CustomerDetails[]) {
   const yearlyRevenue = customers.reduce((acc: { [key: string]: number }, customer) => {
     customer.orders.forEach((order) => {

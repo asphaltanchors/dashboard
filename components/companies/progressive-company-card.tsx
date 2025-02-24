@@ -125,9 +125,11 @@ export function ProgressiveCompanyCard({
         {/* Industries section - only shown if available */}
         {hasIndustries && (
           <div className="flex flex-wrap gap-2">
-            {industries.map((industry: string, index: number) => (
+            {industries.map((industry, index: number) => (
               <Badge key={index} variant="outline" className="bg-slate-100 text-slate-700">
-                {industry.split("-").map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(" ")}
+                {typeof industry === 'string' 
+                  ? industry.split("-").map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(" ")
+                  : industry}
               </Badge>
             ))}
           </div>
@@ -173,7 +175,7 @@ export function ProgressiveCompanyCard({
             <div className="flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-emerald-600" />
               <span className="text-sm font-medium">
-                Est. Revenue: {finances.revenue.toUpperCase()}
+                Est. Revenue: {typeof finances.revenue === 'string' ? finances.revenue.toUpperCase() : finances.revenue}
               </span>
             </div>
           ) : null}
@@ -182,7 +184,9 @@ export function ProgressiveCompanyCard({
             <div className="flex items-center gap-2">
               <Globe className="w-5 h-5 text-purple-600" />
               <span className="text-sm font-medium">
-                Monthly Visitors: {analytics.monthlyVisitors.split("-").join(" ").toUpperCase()}
+                Monthly Visitors: {typeof analytics.monthlyVisitors === 'string' ? 
+                  analytics.monthlyVisitors.split("-").join(" ").toUpperCase() : 
+                  analytics.monthlyVisitors}
               </span>
             </div>
           ) : null}

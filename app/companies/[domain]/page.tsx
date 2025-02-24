@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { CustomerRevenueCard } from "@/components/companies/customer-revenue-card"
 import { notFound } from "next/navigation"
-import { EnrichedCompanyCard, EnrichmentData } from "@/components/companies/enriched-company-card"
+import { ProgressiveCompanyCard, EnrichmentData } from "@/components/companies/progressive-company-card"
 import { StaticOrdersTable } from "@/components/orders/static-orders-table"
 import { SingleEnrichButton } from "@/components/companies/single-enrich-button"
 import { formatCurrency } from "@/lib/utils"
@@ -96,7 +96,7 @@ async function getCompanyDetails(domain: string): Promise<CompanyDetails | null>
 
   return {
     ...result,
-    enrichmentData: result.enrichmentData as EnrichmentData | null,
+    enrichmentData: result.enriched && result.enrichmentData ? mapEnrichmentData(result.enrichmentData) : (result.enrichmentData as EnrichmentData | null),
     customers: result.customers.map(customer => ({
       ...customer,
       orders: customer.orders.map(order => ({
@@ -107,6 +107,118 @@ async function getCompanyDetails(domain: string): Promise<CompanyDetails | null>
       }))
     }))
   }
+}
+
+// Helper function to map raw enrichment data to the expected format
+function mapEnrichmentData(enrichedData: any): EnrichmentData {
+  if (!enrichedData) return {};
+  
+  // Parse the JSON string if it's a string
+  const data = typeof enrichedData === 'string' ? JSON.parse(enrichedData) : enrichedData;
+  
+  // Log only the revenue data for debugging
+  if (data.revenue_annual_range) {
+    console.log('Revenue Data:', JSON.stringify(data.revenue_annual_range, null, 2));
+  }
+  
+  return {
+    about: {
+      name: data.company_name || data.company_legal_name,
+      industries: data.categories_and_keywords || [data.industry].filter(Boolean),
+      yearFounded: data.founded_year ? parseInt(data.founded_year) : undefined,
+      totalEmployees: data.size_range,
+      totalEmployeesExact: data.employees_count
+    },
+    socials: {
+      twitter: data.twitter_url?.length ? { url: data.twitter_url[0] } : undefined,
+      facebook: data.facebook_url?.length ? { url: data.facebook_url[0] } : undefined,
+      linkedin: data.linkedin_url ? { url: data.linkedin_url } : undefined
+    },
+    finances: {
+      revenue: data.revenue_annual_range ? 
+        (typeof data.revenue_annual_range === 'object' ? 
+          formatRevenueRange(data.revenue_annual_range) : 
+          data.revenue_annual_range) : 
+        undefined
+    },
+    analytics: {
+      monthlyVisitors: data.total_website_visits_monthly ? 
+        `${data.total_website_visits_monthly}` : undefined
+    },
+    locations: {
+      headquarters: data.hq_city || data.hq_state || data.hq_country ? {
+        city: { name: data.hq_city || '' },
+        state: { name: data.hq_state || '' },
+        country: { name: data.hq_country || '' }
+      } : undefined
+    },
+    descriptions: {
+      primary: data.description_enriched || data.description
+    }
+  };
+}
+
+// Helper function to format revenue range from complex object
+function formatRevenueRange(revenueData: any): string {
+  // If it's already a string, return it
+  if (typeof revenueData === 'string') return revenueData;
+  
+  // Handle the exact structure we saw in the console
+  if (revenueData.source_6_annual_revenue_range && 
+      typeof revenueData.source_6_annual_revenue_range === 'object') {
+    const sourceData = revenueData.source_6_annual_revenue_range;
+    const from = sourceData.annual_revenue_range_from;
+    const to = sourceData.annual_revenue_range_to;
+    const currency = sourceData.annual_revenue_range_currency || '$';
+    
+    if (from && to) {
+      return `${formatLargeNumber(from, currency)}-${formatLargeNumber(to, currency)}`;
+    } else if (from) {
+      return `${formatLargeNumber(from, currency)}+`;
+    } else if (to) {
+      return `Up to ${formatLargeNumber(to, currency)}`;
+    }
+  }
+  
+  // Generic approach for any source with valid data
+  for (const sourceKey in revenueData) {
+    const sourceData = revenueData[sourceKey];
+    
+    // Skip null sources
+    if (!sourceData) continue;
+    
+    // If we have range data
+    if (typeof sourceData === 'object') {
+      // Try lowercase property names (as seen in the console output)
+      const from = sourceData.annual_revenue_range_from;
+      const to = sourceData.annual_revenue_range_to;
+      const currency = sourceData.annual_revenue_range_currency || '$';
+      
+      // Format the revenue range
+      if (from && to) {
+        return `${formatLargeNumber(from, currency)}-${formatLargeNumber(to, currency)}`;
+      } else if (from) {
+        return `${formatLargeNumber(from, currency)}+`;
+      } else if (to) {
+        return `Up to ${formatLargeNumber(to, currency)}`;
+      }
+    }
+  }
+  
+  // If no valid data found
+  return "Revenue unknown";
+}
+
+// Helper function to format large numbers in a readable way
+function formatLargeNumber(num: number, currency: string = '$'): string {
+  if (num >= 1000000000) {
+    return `${currency}${(num / 1000000000).toFixed(1)}B`;
+  } else if (num >= 1000000) {
+    return `${currency}${(num / 1000000).toFixed(1)}M`;
+  } else if (num >= 1000) {
+    return `${currency}${(num / 1000).toFixed(1)}K`;
+  }
+  return `${currency}${num}`;
 }
 
 // Helper functions
@@ -157,11 +269,15 @@ export default async function CompanyPage(props: PageProps) {
         <div className="grid gap-6 md:grid-cols-2">
           {company.enriched && company.enrichmentData ? (
             <>
-              <EnrichedCompanyCard 
-                enrichedData={company.enrichmentData}
-                totalOrders={totalOrders}
+              <ProgressiveCompanyCard 
                 domain={company.domain}
+                name={company.name}
+                totalOrders={totalOrders}
+                customerCount={company.customers.length}
+                enrichmentData={company.enrichmentData}
                 isEnriched={company.enriched}
+                enrichedAt={company.enrichedAt}
+                enrichedSource={company.enrichedSource}
               />
               <CustomerRevenueCard data={revenueData} />
             </>
