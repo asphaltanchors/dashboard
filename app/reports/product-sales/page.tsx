@@ -1,4 +1,6 @@
+import { getActualUnitsSold } from "@/lib/reports"
 import { ProductLinePerformance } from "@/components/reports/product-line-performance"
+import { ProductActualUnitsSold } from "@/components/reports/product-actual-units-sold"
 import { MaterialTypeAnalysis } from "@/components/reports/material-type-analysis"
 import { ProductMetricsGrid } from "@/components/reports/product-metrics-grid"
 import { ProductLineReferenceContainer } from "@/components/reports/product-line-reference-container"
@@ -48,13 +50,23 @@ export default async function ProductSalesPage(props: PageProps) {
             maxAmount={max_amount ? parseFloat(max_amount) : undefined}
             filterConsumer={filterConsumer}
           />
-          <MaterialTypeAnalysis 
-            dateRange={date_range}
-            minAmount={min_amount ? parseFloat(min_amount) : undefined}
-            maxAmount={max_amount ? parseFloat(max_amount) : undefined}
-            filterConsumer={filterConsumer}
+          <ProductActualUnitsSold 
+            data={await getActualUnitsSold({
+              dateRange: date_range,
+              minAmount: min_amount ? parseFloat(min_amount) : undefined,
+              maxAmount: max_amount ? parseFloat(max_amount) : undefined,
+              filterConsumer
+            })}
           />
         </div>
+
+        {/* Material Type Analysis */}
+        <MaterialTypeAnalysis 
+          dateRange={date_range}
+          minAmount={min_amount ? parseFloat(min_amount) : undefined}
+          maxAmount={max_amount ? parseFloat(max_amount) : undefined}
+          filterConsumer={filterConsumer}
+        />
 
         {/* Product Line Reference in full width */}
         <ProductLineReferenceContainer />

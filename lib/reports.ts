@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
 import { CONSUMER_DOMAINS } from "@/lib/companies"
-import { SalesChannelMetric } from "@/types/reports"
+import { ProductSalesMetric, SalesChannelMetric } from "@/types/reports"
 
 interface FilterParams {
   dateRange?: string
@@ -33,6 +33,98 @@ const ADHESIVE_PRODUCT_CODES = [
   // EPX3 products
   '82-6002'
 ]
+
+export async function getActualUnitsSold(filters?: FilterParams) {
+  const today = new Date()
+  const days = filters?.dateRange ? parseInt(filters.dateRange.replace("d", "")) : 365
+  const startDate = new Date(today)
+  startDate.setDate(today.getDate() - days)
+
+  // Build additional WHERE clauses for filters
+  const filterClauses = []
+  if (filters?.minAmount) {
+    filterClauses.push(`o."totalAmount" >= ${filters.minAmount}`)
+  }
+  if (filters?.maxAmount) {
+    filterClauses.push(`o."totalAmount" <= ${filters.maxAmount}`)
+  }
+  if (filters?.filterConsumer) {
+    filterClauses.push(`
+      NOT EXISTS (
+        SELECT 1 FROM "Customer" c
+        JOIN "Company" comp ON c."companyDomain" = comp."domain"
+        WHERE c."id" = o."customerId"
+        AND comp."domain" = ANY(ARRAY[${CONSUMER_DOMAINS.map(d => `'${d}'`).join(',')}])
+      )
+    `)
+  }
+
+  const additionalFilters = filterClauses.length > 0 
+    ? 'AND ' + filterClauses.join(' AND ')
+    : ''
+
+  const results = await prisma.$queryRawUnsafe<Array<ProductSalesMetric>>(`
+    WITH product_categories AS (
+      SELECT 
+        oi."productCode",
+        CASE
+          -- SP10
+          WHEN "productCode" LIKE '01-6310%' OR "productCode" IN ('01-7011.PST', '01-7010-FBA', '01-7010', '01-7013') THEN 'SP10'
+          -- SP12
+          WHEN "productCode" LIKE '01-6315%' OR "productCode" IN ('01-6315.3SK', '01-6315.3SK-2') THEN 'SP12'
+          -- SP18
+          WHEN "productCode" LIKE '01-6318%' OR "productCode" = '01-6318.7SK' THEN 'SP18'
+          -- SP58
+          WHEN "productCode" LIKE '01-6358%' OR "productCode" IN ('01-6358.5SK', '01-6358.5SK-2') THEN 'SP58'
+          -- am625
+          WHEN "productCode" IN ('01-7014', '01-7014-FBA') THEN 'am625'
+          ELSE 'Other'
+        END as product_line,
+        CASE 
+          WHEN "productCode" IN ('01-6318.7SK', '01-6315.3SK', '01-6315.3SK-2', '01-6358.5SK', '01-6358.5SK-2') THEN 'Stainless Steel'
+          WHEN "productCode" LIKE '01-63%' AND "productCode" NOT LIKE '%-D' THEN 'Zinc Plated'
+          WHEN "productCode" LIKE '%-D' THEN 'Dacromet'
+          WHEN "productCode" IN ('82-5002.K', '82-5002.010', '82-6002') THEN 'Epoxy'
+          WHEN "productCode" IN ('01-7014', '01-7014-FBA') THEN 'Plastic'
+          WHEN "productCode" IN ('01-7011.PST', '01-7010-FBA', '01-7010', '01-7013') THEN 'Zinc Plated'
+          ELSE 'Other'
+        END as material_type,
+        CASE 
+          WHEN "productCode" = '01-7011.PST' THEN 4
+          WHEN "productCode" = '01-7014' THEN 4
+          WHEN "productCode" = '01-7014-FBA' THEN 4
+          WHEN "productCode" = '01-7010-FBA' THEN 4
+          WHEN "productCode" = '01-7010' THEN 4
+          WHEN "productCode" = '01-7013' THEN 4
+          WHEN "productCode" = '01-6310.72L' THEN 72
+          ELSE 6
+        END as quantity_multiplier,
+        oi.quantity,
+        oi.amount,
+        oi."orderId"
+      FROM "OrderItem" oi
+      JOIN "Order" o ON o."id" = oi."orderId"
+      WHERE (oi."productCode" LIKE '01-63%'
+             OR oi."productCode" LIKE '01-70%')
+      AND o."orderDate" >= '${startDate.toISOString()}'
+      ${additionalFilters}
+    )
+    SELECT 
+      product_line,
+      material_type,
+      COUNT(DISTINCT "orderId") as order_count,
+      CAST(SUM(CAST(quantity AS numeric) * quantity_multiplier) AS text) as total_units
+    FROM product_categories
+    GROUP BY 
+      product_line,
+      material_type
+    ORDER BY 
+      product_line,
+      material_type
+  `)
+
+  return results
+}
 
 export async function getCanadianSalesMetrics(filters?: FilterParams) {
   const today = new Date()

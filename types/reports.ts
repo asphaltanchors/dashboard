@@ -7,6 +7,13 @@ export interface PeriodMetrics {
   period_end: string
 }
 
+export interface ProductSalesMetric {
+  product_line: string
+  material_type: string
+  order_count: string
+  total_units: string
+}
+
 export interface SalesChannelMetric {
   sales_channel: string
   periods: PeriodMetrics[]
