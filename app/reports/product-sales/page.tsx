@@ -57,16 +57,16 @@ export default async function ProductSalesPage(props: PageProps) {
           />
         </div>
 
-        {/* Material Type Analysis */}
-        <MaterialTypeAnalysis 
-          dateRange={date_range}
-          minAmount={min_amount ? parseFloat(min_amount) : undefined}
-          maxAmount={max_amount ? parseFloat(max_amount) : undefined}
-          filterConsumer={filterConsumer}
-        />
-
-        {/* Product Line Reference in full width */}
-        <ProductLineReferenceContainer />
+        {/* Material Type Analysis and Product Line Reference in 2 columns */}
+        <div className="grid gap-6 md:grid-cols-2">
+          <MaterialTypeAnalysis 
+            dateRange={date_range}
+            minAmount={min_amount ? parseFloat(min_amount) : undefined}
+            maxAmount={max_amount ? parseFloat(max_amount) : undefined}
+            filterConsumer={filterConsumer}
+          />
+          <ProductLineReferenceContainer />
+        </div>
       </div>
     </div>
   )
