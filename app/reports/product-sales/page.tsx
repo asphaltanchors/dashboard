@@ -1,4 +1,3 @@
-import { getActualUnitsSold } from "@/lib/reports"
 import { ProductLinePerformance } from "@/components/reports/product-line-performance"
 import { ProductActualUnitsSold } from "@/components/reports/product-actual-units-sold"
 import { MaterialTypeAnalysis } from "@/components/reports/material-type-analysis"
@@ -51,12 +50,10 @@ export default async function ProductSalesPage(props: PageProps) {
             filterConsumer={filterConsumer}
           />
           <ProductActualUnitsSold 
-            data={await getActualUnitsSold({
-              dateRange: date_range,
-              minAmount: min_amount ? parseFloat(min_amount) : undefined,
-              maxAmount: max_amount ? parseFloat(max_amount) : undefined,
-              filterConsumer
-            })}
+            dateRange={date_range}
+            minAmount={min_amount ? parseFloat(min_amount) : undefined}
+            maxAmount={max_amount ? parseFloat(max_amount) : undefined}
+            filterConsumer={filterConsumer}
           />
         </div>
 
