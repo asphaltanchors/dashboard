@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import type { TableOrder } from '@/types/orders'
 
@@ -226,14 +226,28 @@ export function GlobeVisualization({ orders, isVisible = false }: GlobeVisualiza
   
   // Set up globe controls when the component mounts
   useEffect(() => {
-    if (globeEl.current) {
-      // Disable auto-rotation
-      globeEl.current.controls().autoRotate = false
-      
-      // Optional: set rotation speed if auto-rotation is enabled
-      // globeEl.current.controls().autoRotateSpeed = isVisible ? 2 : 0.5
+    // Add a small delay to ensure the Globe component is fully initialized
+    const timer = setTimeout(() => {
+      if (globeEl.current) {
+        // Disable auto-rotation
+        globeEl.current.controls().autoRotate = false;
+        
+        // Set initial point of view
+        globeEl.current.pointOfView({ lat: 39.6, lng: -98.5, altitude: 2 });
+        console.log('Setting initial point of view with delay');
+      }
+    }, 500); // 500ms delay
+    
+    return () => clearTimeout(timer);
+  }, []); // Empty dependency array ensures this runs only once on mount
+  
+  // Also set point of view when visibility changes
+  useEffect(() => {
+    if (globeEl.current && isVisible) {
+      globeEl.current.pointOfView({ lat: 39.6, lng: -98.5, altitude: 2 });
+      console.log('Setting point of view after visibility change');
     }
-  }, [isVisible])
+  }, [isVisible]);
   
   return (
     <div 
@@ -259,9 +273,9 @@ export function GlobeVisualization({ orders, isVisible = false }: GlobeVisualiza
           const point = d as any;
           const val = point.value;
           // Use a logarithmic scale to better show differences
-          return Math.log10(1 + val * 10) * 0.25; // Increased by 5x
+          return Math.log10(1 + val * 10); // Increased by 5x
         }}
-        pointColor={() => '#ff5722'}
+        pointColor={() => 'red'}
         pointRadius={0.5}
         pointsMerge={true}
         atmosphereColor="rgba(65,105,225,0.3)"

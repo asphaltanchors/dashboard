@@ -55,7 +55,7 @@ export default async function OrdersPage(props: PageProps) {
         filterConsumer={filterConsumer}
       />
 
-      <div className="grid gap-12 md:grid-cols-2 lg:grid-cols-3 mt-12">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mt-8">
         <MetricCard
           title="Total Orders"
           value={data.totalCount}
