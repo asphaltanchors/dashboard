@@ -119,7 +119,15 @@ export async function getCompanies({
     query = prisma.$queryRaw`
       SELECT 
         c.id, c.domain, c.name, c.enriched, c."enrichedAt", c."enrichedSource", 
-        c."enrichmentData", cs."customerCount", cs."totalOrders"
+        c."enrichmentData", 
+        json_build_object(
+          'customerCount', cs."customerCount",
+          'totalOrders', cs."totalOrders"
+        ) as "companyStats",
+        GREATEST(
+          COALESCE((c."enrichmentData"->'normalized_revenue'->'exact')::float, 0),
+          COALESCE((c."enrichmentData"->'normalized_revenue'->'min')::float, 0)
+        ) as revenue_value
       FROM "Company" c
       LEFT JOIN "CompanyStats" cs ON c.id = cs.id
       WHERE c.id IN (
@@ -131,10 +139,7 @@ export async function getCompanies({
         c."enrichmentData"->'normalized_revenue'->'exact' IS NOT NULL 
         OR c."enrichmentData"->'normalized_revenue'->'min' IS NOT NULL
       )
-      ORDER BY GREATEST(
-        COALESCE((c."enrichmentData"->'normalized_revenue'->'exact')::float, 0),
-        COALESCE((c."enrichmentData"->'normalized_revenue'->'min')::float, 0)
-      ) ${sortDirection === 'desc' ? Prisma.sql`DESC` : Prisma.sql`ASC`}
+      ORDER BY revenue_value ${sortDirection === 'desc' ? Prisma.sql`DESC` : Prisma.sql`ASC`}
       LIMIT ${pageSize}
       OFFSET ${skip}
     `;
