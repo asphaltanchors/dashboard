@@ -166,33 +166,6 @@ function formatRevenueRange(value: number, currency: string = '$'): string {
 }
 
 /**
- * Format a revenue range from min/max values
- */
-function formatRevenueRangeFromMinMax(min?: number, max?: number, currency: string = '$'): string {
-  if (min && max) {
-    return `${currency}${formatMillions(min)}-${currency}${formatMillions(max)}`;
-  } else if (min) {
-    return `${currency}${formatMillions(min)}+`;
-  } else if (max) {
-    return `Up to ${currency}${formatMillions(max)}`;
-  }
-  return 'Unknown';
-}
-
-/**
- * Format a number in millions or billions
- */
-function formatMillions(value: number): string {
-  if (value >= 1000000000) {
-    return `${(value / 1000000000).toFixed(1)}B`;
-  }
-  if (value >= 1000000) {
-    return `${(value / 1000000).toFixed(0)}M`;
-  }
-  return `${(value / 1000).toFixed(0)}K`;
-}
-
-/**
  * Filter out unwanted fields from the Coresignal API response
  * @param data The original API response data
  * @returns Filtered data with unwanted fields removed
