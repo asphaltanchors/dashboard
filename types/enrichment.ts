@@ -28,6 +28,18 @@ export interface RawEnrichmentData {
 }
 
 /**
+ * Normalized revenue data structure
+ */
+export interface NormalizedRevenue {
+  exact?: number;
+  min?: number;
+  max?: number;
+  currency?: string;
+  range?: string;
+  source?: string;
+}
+
+/**
  * Processed enrichment data used in components
  */
 export interface EnrichmentData {
@@ -61,6 +73,7 @@ export interface EnrichmentData {
   };
   categories_and_keywords?: string[];
   industry?: string;
+  normalized_revenue?: NormalizedRevenue;
 }
 
 /**
@@ -126,7 +139,9 @@ export function mapEnrichmentData(enrichedData: unknown): EnrichmentData {
     },
     // Keep these for backward compatibility
     categories_and_keywords: rawData.categories_and_keywords,
-    industry: rawData.industry
+    industry: rawData.industry,
+    // Preserve normalized revenue data
+    normalized_revenue: (rawData as any).normalized_revenue
   };
 }
 

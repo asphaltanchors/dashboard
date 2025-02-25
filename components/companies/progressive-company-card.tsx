@@ -36,7 +36,8 @@ export function ProgressiveCompanyCard({
     finances = {}, 
     analytics = {}, 
     locations = {}, 
-    descriptions = {} 
+    descriptions = {},
+    normalized_revenue = {}
   } = enrichmentData || {}
   
   const industries = about.industries || []
@@ -112,7 +113,7 @@ export function ProgressiveCompanyCard({
           <div className="flex items-center gap-2">
             <DollarSign className="w-5 h-5 text-green-600" />
             <span className="text-sm font-medium">
-              Revenue: {formatCurrency(totalOrders)}
+              Orders: {formatCurrency(totalOrders)}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -141,7 +142,22 @@ export function ProgressiveCompanyCard({
             </div>
           ) : null}
           
-          {finances.revenue ? (
+          {/* Show exact revenue if available, otherwise show revenue range */}
+          {normalized_revenue.exact ? (
+            <div className="flex items-center gap-2">
+              <DollarSign className="w-5 h-5 text-emerald-600" />
+              <span className="text-sm font-medium">
+                Annual Revenue: ${Math.round(normalized_revenue.exact).toLocaleString()}
+              </span>
+            </div>
+          ) : normalized_revenue.range ? (
+            <div className="flex items-center gap-2">
+              <DollarSign className="w-5 h-5 text-emerald-600" />
+              <span className="text-sm font-medium">
+                Est. Revenue: {normalized_revenue.range}
+              </span>
+            </div>
+          ) : finances.revenue ? (
             <div className="flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-emerald-600" />
               <span className="text-sm font-medium">

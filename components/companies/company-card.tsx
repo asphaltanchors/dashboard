@@ -80,11 +80,20 @@ export function CompanyCard({ company }: CompanyCardProps) {
             </div>
           )}
           
+          {/* Display revenue range if available */}
+          {company.enriched && (company.enrichmentData as EnrichmentData)?.normalized_revenue?.range && (
+            <div className="mt-1">
+              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                {(company.enrichmentData as EnrichmentData).normalized_revenue?.range}
+              </Badge>
+            </div>
+          )}
+          
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
             <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">Revenue</span>
+              <span className="text-sm text-muted-foreground">Orders</span>
               <span className="font-medium">{formatCurrency(company.totalOrders)}</span>
             </div>
             <div className="flex justify-between">
