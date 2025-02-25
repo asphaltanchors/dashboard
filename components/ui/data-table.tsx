@@ -20,13 +20,20 @@ interface DataTableColumn<T> {
 interface DataTableProps<T> {
   data: T[]
   columns: DataTableColumn<T>[]
+  defaultSort?: {
+    key: keyof T
+    direction: 'asc' | 'desc'
+  }
 }
 
-export function DataTable<T>({ data, columns }: DataTableProps<T>): React.ReactElement {
+export function DataTable<T>({ data, columns, defaultSort }: DataTableProps<T>): React.ReactElement {
   const [sortConfig, setSortConfig] = useState<{
     key: keyof T | null
     direction: 'asc' | 'desc' | null
-  }>({ key: null, direction: null })
+  }>({ 
+    key: defaultSort?.key || null, 
+    direction: defaultSort?.direction || null 
+  })
 
   const handleSort = (key: keyof T) => {
     let direction: 'asc' | 'desc' | null = 'asc'

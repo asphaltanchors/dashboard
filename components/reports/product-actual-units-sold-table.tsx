@@ -34,5 +34,14 @@ export function ProductActualUnitsSoldTable({ data }: ProductActualUnitsSoldTabl
     }
   ]
 
-  return <DataTable data={data} columns={columns} />
+  return (
+    <DataTable 
+      data={data} 
+      columns={columns} 
+      defaultSort={{
+        key: "totalUnits",
+        direction: "desc"
+      }}
+    />
+  )
 }
