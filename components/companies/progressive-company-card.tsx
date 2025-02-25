@@ -1,39 +1,9 @@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { MapPin, Users, DollarSign, Globe, Twitter, Facebook, Linkedin, Receipt, Calendar, Building, Info } from "lucide-react"
+import { MapPin, Users, DollarSign, Globe, Twitter, Facebook, Linkedin, Building, Info } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
-
-export interface EnrichmentData {
-  about?: {
-    name?: string
-    industries?: string[]
-    yearFounded?: number
-    totalEmployees?: string
-    totalEmployeesExact?: number
-  }
-  socials?: {
-    twitter?: { url: string }
-    facebook?: { url: string }
-    linkedin?: { url: string }
-  }
-  finances?: {
-    revenue?: string
-  }
-  analytics?: {
-    monthlyVisitors?: string
-  }
-  locations?: {
-    headquarters?: {
-      city?: { name: string }
-      state?: { name: string }
-      country?: { name: string }
-    }
-  }
-  descriptions?: {
-    primary?: string
-  }
-}
+import { EnrichmentData } from "@/types/enrichment"
 
 interface ProgressiveCompanyCardProps {
   domain: string

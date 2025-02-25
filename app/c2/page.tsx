@@ -9,7 +9,7 @@ export default async function CompaniesPage() {
     sortDirection: 'desc',
     filterConsumer: true
   })
-
+  
   return (
     <div className="p-8">
       <div className="mb-8">

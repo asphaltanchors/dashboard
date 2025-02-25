@@ -11,9 +11,9 @@ interface EnrichmentResponse {
  * @param data The original API response data
  * @returns Filtered data with unwanted fields removed
  */
-function filterEnrichmentData(data: Record<string, any>): Record<string, any> {
+function filterEnrichmentData(data: Record<string, unknown>): Record<string, unknown> {
   // Create a new object to hold the filtered data
-  const filteredData: Record<string, any> = {};
+  const filteredData: Record<string, unknown> = {};
   
   // Fields to exclude (exact matches and pattern matches)
   const excludeExact = ['key_employee_change_events', 'active_job_postings_titles', 'top_previous_companies', 'technologies_used', 'key_executives', 'additional_pay', 'base_salary', 'total_salary', 'linkedin_followers_count_by_month', 'active_job_postings_count_by_month'];
@@ -111,7 +111,7 @@ export async function enrichCompany(domain: string): Promise<EnrichmentResponse>
         enriched: true,
         enrichedAt: new Date(),
         enrichedSource: 'coresignal.com',
-        enrichmentData: filteredEnrichmentData,
+        enrichmentData: filteredEnrichmentData as Prisma.InputJsonValue,
         enrichmentError: null,
         // Update company name if available in enrichment data
         // Note: This path may need to be adjusted based on Coresignal's actual response structure

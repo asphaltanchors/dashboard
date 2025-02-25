@@ -94,6 +94,7 @@ export async function getCompanies({
         enriched: true,
         enrichedAt: true,
         enrichedSource: true,
+        enrichmentData: true,
         companyStats: {
           select: {
             customerCount: true,
@@ -127,6 +128,7 @@ export async function getCompanies({
       enriched: company.enriched,
       enrichedAt: company.enrichedAt,
       enrichedSource: company.enrichedSource ?? '',
+      enrichmentData: company.enrichmentData,
       customerCount: company.companyStats?.customerCount ?? 0,
       totalOrders: company.companyStats?.totalOrders ? Number(company.companyStats.totalOrders) : 0
     })),
@@ -135,4 +137,6 @@ export async function getCompanies({
   }
 }
 
+
+// Use a simpler Company type that accepts any JSON value for enrichmentData
 export type Company = Awaited<ReturnType<typeof getCompanies>>['companies'][number]

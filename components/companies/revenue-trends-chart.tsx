@@ -1,11 +1,7 @@
 "use client"
 
 import { 
-  ChartContainer, 
-  ChartTooltip, 
-  ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent
+  ChartContainer
 } from "@/components/ui/chart"
 import { 
   Bar, 
