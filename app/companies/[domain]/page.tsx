@@ -83,6 +83,16 @@ async function getCompanyDetails(domain: string): Promise<CompanyDetails | null>
               dueDate: true,
               paymentMethod: true,
               quickbooksId: true,
+              shippingAddress: {
+                select: {
+                  line1: true,
+                  line2: true,
+                  city: true,
+                  state: true,
+                  postalCode: true,
+                  country: true
+                }
+              },
             },
           },
         },
@@ -104,7 +114,8 @@ async function getCompanyDetails(domain: string): Promise<CompanyDetails | null>
         ...order,
         customerName: customer.customerName,
         totalAmount: Number(order.totalAmount),
-        orderDate: order.orderDate || new Date()
+        orderDate: order.orderDate || new Date(),
+        shippingAddress: order.shippingAddress
       }))
     }))
   }
@@ -362,6 +373,7 @@ export default async function CompanyPage(props: PageProps) {
                 customerName: customer.customerName,
                 totalAmount: Number(order.totalAmount),
                 orderDate: order.orderDate || new Date(),
+                shippingAddress: order.shippingAddress
               }))
             ),
             totalCount: company.customers.reduce((sum, customer) => sum + customer.orders.length, 0),

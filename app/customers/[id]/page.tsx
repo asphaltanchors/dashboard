@@ -73,6 +73,16 @@ export default async function CustomerPage(
           dueDate: true,
           paymentMethod: true,
           quickbooksId: true,
+          shippingAddress: {
+            select: {
+              line1: true,
+              line2: true,
+              city: true,
+              state: true,
+              postalCode: true,
+              country: true
+            }
+          },
         },
         orderBy: {
           orderDate: 'desc'
@@ -237,7 +247,8 @@ export default async function CustomerPage(
               orders: customer.orders.map(order => ({
                 ...order,
                 customerName: customer.customerName,
-                totalAmount: Number(order.totalAmount)
+                totalAmount: Number(order.totalAmount),
+                shippingAddress: order.shippingAddress
               })),
               totalCount: customer.orders.length,
               recentCount: customer.orders.filter(order => {

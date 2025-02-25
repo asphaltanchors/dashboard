@@ -467,7 +467,7 @@ export async function getCanadianOrders(params: GetCanadianOrdersParams = {}) {
     orderBy = { [sortColumn]: sortDirection }
   }
 
-  const [orders, totalCount, recentCount] = await Promise.all([
+  const [orders, totalCount, recentCount, accountsReceivable] = await Promise.all([
     prisma.order.findMany({
       where,
       orderBy,
@@ -477,6 +477,16 @@ export async function getCanadianOrders(params: GetCanadianOrdersParams = {}) {
         customer: {
           select: {
             customerName: true
+          }
+        },
+        shippingAddress: {
+          select: {
+            line1: true,
+            line2: true,
+            city: true,
+            state: true,
+            postalCode: true,
+            country: true
           }
         }
       }
@@ -488,6 +498,21 @@ export async function getCanadianOrders(params: GetCanadianOrdersParams = {}) {
         orderDate: {
           gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // Last 30 days
         }
+      }
+    }),
+    prisma.order.aggregate({
+      _sum: {
+        totalAmount: true
+      },
+      where: {
+        AND: [
+          where,
+          {
+            paymentStatus: {
+              in: ['UNPAID', 'PARTIAL']
+            }
+          }
+        ]
       }
     })
   ])
@@ -503,13 +528,15 @@ export async function getCanadianOrders(params: GetCanadianOrdersParams = {}) {
     totalAmount: Number(order.totalAmount),
     dueDate: order.dueDate,
     paymentMethod: order.paymentMethod,
-    quickbooksId: order.quickbooksId
+    quickbooksId: order.quickbooksId,
+    shippingAddress: order.shippingAddress
   }))
 
   return {
     orders: transformedOrders,
     totalCount,
-    recentCount
+    recentCount,
+    accountsReceivable: Number(accountsReceivable._sum.totalAmount || 0)
   }
 }
 
@@ -691,7 +718,7 @@ export async function getAdhesiveOnlyOrders(params: GetAdhesiveOrdersParams = {}
     orderBy = { [sortColumn]: sortDirection }
   }
 
-  const [orders, totalCount] = await Promise.all([
+  const [orders, totalCount, accountsReceivable] = await Promise.all([
     prisma.order.findMany({
       where,
       orderBy,
@@ -702,10 +729,35 @@ export async function getAdhesiveOnlyOrders(params: GetAdhesiveOrdersParams = {}
           select: {
             customerName: true
           }
+        },
+        shippingAddress: {
+          select: {
+            line1: true,
+            line2: true,
+            city: true,
+            state: true,
+            postalCode: true,
+            country: true
+          }
         }
       }
     }),
-    prisma.order.count({ where })
+    prisma.order.count({ where }),
+    prisma.order.aggregate({
+      _sum: {
+        totalAmount: true
+      },
+      where: {
+        AND: [
+          where,
+          {
+            paymentStatus: {
+              in: ['UNPAID', 'PARTIAL']
+            }
+          }
+        ]
+      }
+    })
   ])
 
   // Transform orders to match the TableData interface
@@ -719,13 +771,15 @@ export async function getAdhesiveOnlyOrders(params: GetAdhesiveOrdersParams = {}
     totalAmount: Number(order.totalAmount),
     dueDate: order.dueDate,
     paymentMethod: order.paymentMethod,
-    quickbooksId: order.quickbooksId
+    quickbooksId: order.quickbooksId,
+    shippingAddress: order.shippingAddress
   }))
 
   return {
     orders: transformedOrders,
     totalCount,
-    recentCount: totalCount // For now, using total count as recent count
+    recentCount: totalCount, // For now, using total count as recent count
+    accountsReceivable: Number(accountsReceivable._sum.totalAmount || 0)
   }
 }
 
