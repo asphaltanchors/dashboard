@@ -121,6 +121,16 @@ export async function getOrders({
         dueDate: true,
         paymentMethod: true,
         quickbooksId: true,
+        shippingAddress: {
+          select: {
+            line1: true,
+            line2: true,
+            city: true,
+            state: true,
+            postalCode: true,
+            country: true
+          }
+        },
       },
       where,
       orderBy,
@@ -174,6 +184,7 @@ export async function getOrders({
     dueDate: order.dueDate,
     paymentMethod: order.paymentMethod,
     quickbooksId: order.quickbooksId,
+    shippingAddress: order.shippingAddress,
   }))
 
   return {

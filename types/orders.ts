@@ -6,6 +6,15 @@ export type OrderWithCustomer = Order & {
   }
 }
 
+export type Address = {
+  line1: string
+  line2: string | null
+  city: string
+  state: string | null
+  postalCode: string | null
+  country: string | null
+}
+
 export type TableOrder = {
   id: string
   orderNumber: string
@@ -17,12 +26,14 @@ export type TableOrder = {
   dueDate: Date | null
   paymentMethod: string | null
   quickbooksId: string | null
+  shippingAddress: Address | null
 }
 
 export interface TableData {
   orders: TableOrder[]
   totalCount: number
   recentCount: number
+  accountsReceivable: number
 }
 
 export interface Column {

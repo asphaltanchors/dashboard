@@ -168,8 +168,8 @@ export function formatRevenueRange(revenueRange: RevenueRange | undefined | null
       if (sources.length > 0) {
         const source = sources[0] as RevenueSource;
         
-        // Check if it has range data
-        if (source.annual_revenue_range_from || source.annual_revenue_range_to) {
+        // Check if source exists and if it has range data
+        if (source && (source.annual_revenue_range_from || source.annual_revenue_range_to)) {
           const currency = source.annual_revenue_range_currency || '$';
           const from = source.annual_revenue_range_from ? 
             `${currency}${(source.annual_revenue_range_from / 1000000).toFixed(0)}M` : '';
