@@ -4,6 +4,8 @@ import { formatCurrency } from "@/lib/utils"
 import { AlertTriangle } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import Link from "next/link"
+import { SingleOrderGlobeProvider } from "@/components/orders/single-order-globe-provider"
+import type { TableOrder } from "@/types/orders"
 
 interface OrderPageProps {
   params: Promise<{ quickbooksId: string }>
@@ -14,6 +16,21 @@ export default async function OrderPage({
 }: OrderPageProps) {
   const resolvedParams = await params
   const order = await getOrderByQuickbooksId(resolvedParams.quickbooksId)
+  
+  // Convert the detailed order to the TableOrder format needed for the globe
+  const tableOrder: TableOrder = {
+    id: order.id,
+    orderNumber: order.orderNumber,
+    orderDate: order.orderDate,
+    customerName: order.customer.customerName,
+    status: order.status,
+    paymentStatus: order.paymentStatus,
+    totalAmount: order.totalAmount,
+    dueDate: order.dueDate,
+    paymentMethod: order.paymentMethod,
+    quickbooksId: resolvedParams.quickbooksId,
+    shippingAddress: order.shippingAddress
+  }
   
   // Calculate total from items
   const calculatedTotal = order.items.reduce((sum, item) => sum + item.amount, 0)
@@ -30,7 +47,9 @@ export default async function OrderPage({
   }
 
   return (
-    <div className="p-8 space-y-6">
+    <>
+      <SingleOrderGlobeProvider order={tableOrder} />
+      <div className="p-8 space-y-6">
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-2xl font-bold mb-1">Order {order.orderNumber}</h1>
@@ -250,5 +269,6 @@ export default async function OrderPage({
         </div>
       </Card>
     </div>
+    </>
   )
 }

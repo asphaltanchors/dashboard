@@ -1,17 +1,24 @@
 "use client"
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { GlobeVisualization } from './globe-visualization'
 import { GlobeController } from './globe-controller'
-import type { TableOrder } from '@/types/orders'
+import { useOrdersGlobe } from './globe-context'
 
 interface GlobeWrapperProps {
-  orders: TableOrder[]
   children: React.ReactNode
 }
 
-export function GlobeWrapper({ orders, children }: GlobeWrapperProps) {
+export function GlobeWrapper({ children }: GlobeWrapperProps) {
+  const { orders, isDetailView } = useOrdersGlobe()
   const [isGlobeVisible, setIsGlobeVisible] = useState(false)
+  const [globeKey, setGlobeKey] = useState(0)
+  
+  // Force re-render of the globe when orders or view type changes
+  useEffect(() => {
+    // Increment the key to force a complete re-render of the globe
+    setGlobeKey(prev => prev + 1)
+  }, [orders.length, isDetailView])
   
   return (
     <div className="relative min-h-screen overflow-hidden">
@@ -31,7 +38,12 @@ export function GlobeWrapper({ orders, children }: GlobeWrapperProps) {
           alignItems: 'center'
         }}
       >
-        <GlobeVisualization orders={orders} isVisible={isGlobeVisible} />
+        <GlobeVisualization 
+          key={globeKey} 
+          orders={orders} 
+          isVisible={isGlobeVisible} 
+          isDetailView={isDetailView}
+        />
       </div>
       
       {/* Content container with keyboard control */}

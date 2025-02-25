@@ -157,6 +157,7 @@ const getCoordinates = async (address: TableOrder["shippingAddress"]) => {
 interface GlobeVisualizationProps {
   orders: TableOrder[];
   isVisible?: boolean;
+  isDetailView?: boolean;
 }
 
 interface GlobePoint {
@@ -170,6 +171,7 @@ interface GlobePoint {
 export function GlobeVisualization({
   orders,
   isVisible = false,
+  isDetailView = false,
 }: GlobeVisualizationProps) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const globeEl = useRef<any>(null);
@@ -245,13 +247,27 @@ export function GlobeVisualization({
     return () => clearTimeout(timer);
   }, []); // Empty dependency array ensures this runs only once on mount
 
-  // Also set point of view when visibility changes
+  // Set point of view when visibility changes or when switching between detail/list view
   useEffect(() => {
     if (globeEl.current && isVisible) {
-      globeEl.current.pointOfView({ lat: 39.6, lng: -98.5, altitude: 2 });
-      console.log("Setting point of view after visibility change");
+      if (isDetailView && points.length === 1) {
+        // For detail view with a single point, zoom in closer to that point
+        const point = points[0];
+        if (point) {
+          globeEl.current.pointOfView({ 
+            lat: point.lat, 
+            lng: point.lng, 
+            altitude: 1.5 // Closer zoom for detail view
+          });
+          console.log("Setting point of view for detail view");
+        }
+      } else {
+        // For list view or when points aren't loaded yet, use default US-centered view
+        globeEl.current.pointOfView({ lat: 39.6, lng: -98.5, altitude: 2 });
+        console.log("Setting point of view for list view");
+      }
     }
-  }, [isVisible]);
+  }, [isVisible, isDetailView, points]);
 
   return (
     <div
@@ -276,11 +292,17 @@ export function GlobeVisualization({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const point = d as any;
           const val = point.value;
+          
+          // Make the point taller in detail view
+          if (isDetailView && points.length === 1) {
+            return Math.log10(1 + val * 20); // Taller for detail view
+          }
+          
           // Use a logarithmic scale to better show differences
-          return Math.log10(1 + val * 10); // Increased by 5x
+          return Math.log10(1 + val * 10);
         }}
-        pointColor={() => "red"}
-        pointRadius={0.5}
+        pointColor={() => isDetailView && points.length === 1 ? "#ff5500" : "red"}
+        pointRadius={isDetailView && points.length === 1 ? 1.0 : 0.5}
         pointsMerge={true}
         atmosphereColor="rgba(65,105,225,0.3)"
         atmosphereAltitude={0.1}

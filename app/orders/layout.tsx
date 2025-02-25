@@ -1,6 +1,6 @@
+import { OrdersGlobeProvider } from "@/components/orders/globe-context"
 import { GlobeWrapper } from "@/components/orders/globe-wrapper"
 import { getOrders } from "@/lib/orders"
-import { Suspense } from "react"
 
 export default async function OrdersLayout({
   children,
@@ -15,10 +15,10 @@ export default async function OrdersLayout({
   })
 
   return (
-    <Suspense fallback={<div className="min-h-screen">Loading...</div>}>
-      <GlobeWrapper orders={ordersData.orders}>
+    <OrdersGlobeProvider initialOrders={ordersData.orders}>
+      <GlobeWrapper>
         {children}
       </GlobeWrapper>
-    </Suspense>
+    </OrdersGlobeProvider>
   )
 }
