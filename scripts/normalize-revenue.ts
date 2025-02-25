@@ -13,6 +13,7 @@ program
   .description('Update existing enriched companies with normalized revenue data')
   .option('-d, --domain <domain>', 'Process a specific domain only')
   .option('-l, --limit <number>', 'Limit the number of companies to process', parseInt)
+  .option('-f, --force', 'Force re-normalization even if already normalized')
   .action(async (options) => {
     try {
       // Build the query
@@ -47,8 +48,8 @@ program
           continue;
         }
         
-        // Skip if already normalized
-        if ((company.enrichmentData as any).normalized_revenue) {
+        // Skip if already normalized and not forcing re-normalization
+        if ((company.enrichmentData as any).normalized_revenue && !options.force) {
           console.log(`[${index + 1}/${companies.length}] Skipping ${company.domain} - already normalized`);
           skipped++;
           continue;
@@ -58,7 +59,12 @@ program
           console.log(`[${index + 1}/${companies.length}] Processing ${company.domain}...`);
           
           // Extract and normalize revenue
-          const normalizedRevenue = extractAndNormalizeRevenue(company.enrichmentData as Record<string, unknown>);
+          // Add domain to the enrichment data for better logging
+          const enrichmentDataWithDomain = {
+            ...(company.enrichmentData as Record<string, unknown>),
+            domain: company.domain
+          };
+          const normalizedRevenue = extractAndNormalizeRevenue(enrichmentDataWithDomain);
           
           if (normalizedRevenue) {
             // Update the company with normalized revenue

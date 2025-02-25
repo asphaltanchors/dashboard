@@ -1,4 +1,5 @@
 import { prisma } from "./prisma"
+import { Prisma } from "@prisma/client"
 
 export const CONSUMER_DOMAINS = [
   'gmail.com',
@@ -79,30 +80,65 @@ export async function getCompanies({
     orderBy = { enrichedAt: sortDirection }
   } else if (sortColumn === 'enriched') {
     orderBy = { enriched: sortDirection }
+  } else if (sortColumn === 'revenue') {
+    // For revenue sorting, we'll use the enrichmentData.normalized_revenue field
+    // Since this is a JSON field, we need to use a raw query to sort by it
+    // We'll handle this in the query below
+    orderBy = {} // Will be handled in the query
+  }
+
+  // Special handling for revenue sorting
+  let query = prisma.company.findMany({
+    skip,
+    take: pageSize,
+    where,
+    orderBy,
+    select: {
+      id: true,
+      domain: true,
+      name: true,
+      enriched: true,
+      enrichedAt: true,
+      enrichedSource: true,
+      enrichmentData: true,
+      companyStats: {
+        select: {
+          customerCount: true,
+          totalOrders: true
+        }
+      }
+    }
+  });
+
+  // If sorting by revenue, we need to handle it differently
+  if (sortColumn === 'revenue') {
+    // Use raw query to sort by JSON field
+    query = prisma.$queryRaw`
+      SELECT 
+        c.id, c.domain, c.name, c.enriched, c."enrichedAt", c."enrichedSource", 
+        c."enrichmentData", cs."customerCount", cs."totalOrders"
+      FROM "Company" c
+      LEFT JOIN "CompanyStats" cs ON c.id = cs.id
+      WHERE c.id IN (
+        SELECT id FROM "Company" 
+        WHERE ${where.AND[0] ? Prisma.sql`(name ILIKE ${`%${searchTerm}%`} OR domain ILIKE ${`%${searchTerm}%`})` : Prisma.sql`TRUE`}
+        ${filterConsumer ? Prisma.sql`AND domain NOT IN (${Prisma.join(CONSUMER_DOMAINS)})` : Prisma.sql``}
+      )
+      AND (
+        c."enrichmentData"->'normalized_revenue'->'exact' IS NOT NULL 
+        OR c."enrichmentData"->'normalized_revenue'->'min' IS NOT NULL
+      )
+      ORDER BY GREATEST(
+        COALESCE((c."enrichmentData"->'normalized_revenue'->'exact')::float, 0),
+        COALESCE((c."enrichmentData"->'normalized_revenue'->'min')::float, 0)
+      ) ${sortDirection === 'desc' ? Prisma.sql`DESC` : Prisma.sql`ASC`}
+      LIMIT ${pageSize}
+      OFFSET ${skip}
+    `;
   }
 
   const [companies, totalCount, recentCount] = await Promise.all([
-    prisma.company.findMany({
-      skip,
-      take: pageSize,
-      where,
-      orderBy,
-      select: {
-        id: true,
-        domain: true,
-        name: true,
-        enriched: true,
-        enrichedAt: true,
-        enrichedSource: true,
-        enrichmentData: true,
-        companyStats: {
-          select: {
-            customerCount: true,
-            totalOrders: true
-          }
-        }
-      }
-    }),
+    query,
     prisma.company.count({
       where
     }),

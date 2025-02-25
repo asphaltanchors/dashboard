@@ -46,7 +46,7 @@ export function CompanyCard({ company }: CompanyCardProps) {
     
     try {
       // Access the company_logo field from the raw enrichment data
-      const logo = (company.enrichmentData as any).company_logo;
+      const logo = (company.enrichmentData as EnrichmentData).company_logo;
       return logo || null;
     } catch (error) {
       console.error("Error getting company logo:", error);
@@ -77,16 +77,18 @@ export function CompanyCard({ company }: CompanyCardProps) {
   const companyLogo = getCompanyLogo();
 
   return (
-    <Link href={`/c2/${company.domain}`}>
+    <Link href={`/companies/${company.domain}`}>
       <Card className="transition-all hover:shadow-lg hover:-translate-y-1">
         <CardHeader>
           <div className="flex items-center gap-4">
             {companyLogo && (
               <div className="flex-shrink-0 w-12 h-12 overflow-hidden rounded-md border border-slate-200">
-                <img 
+                <Image 
                   src={`data:image/jpeg;base64,${companyLogo.replace(/\r\n/g, '')}`} 
                   alt={`${company.name} logo`}
                   className="w-full h-full object-contain"
+                  width={48}
+                  height={48}
                 />
               </div>
             )}
@@ -126,14 +128,6 @@ export function CompanyCard({ company }: CompanyCardProps) {
             <div className="flex justify-between">
               <span className="text-sm text-muted-foreground">Orders</span>
               <span className="font-medium">{formatCurrency(company.totalOrders)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">Customers</span>
-              <span className="font-medium">{company.customerCount}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">Domain</span>
-              <span className="font-medium">{company.domain}</span>
             </div>
           </div>
         </CardContent>

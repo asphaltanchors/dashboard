@@ -9,72 +9,144 @@ interface EnrichmentResponse {
 
 /**
  * Extract and normalize revenue data from various possible sources in the enrichment data
+ * This function dynamically processes all revenue sources and selects the highest value
  * @param data The enrichment data object
  * @returns Normalized revenue data or null if no revenue data is found
  */
 export function extractAndNormalizeRevenue(data: Record<string, unknown>): NormalizedRevenue | null {
   try {
-    // Check all possible revenue sources and consolidate into a single normalized format
-    
-    // 1. Check source_5_annual_revenue (exact revenue)
-    if (data.revenue_annual && 
-        typeof data.revenue_annual === 'object' && 
-        data.revenue_annual !== null &&
-        'source_5_annual_revenue' in data.revenue_annual &&
-        typeof data.revenue_annual.source_5_annual_revenue === 'object' &&
-        data.revenue_annual.source_5_annual_revenue !== null &&
-        'annual_revenue' in data.revenue_annual.source_5_annual_revenue) {
-      
-      const revenueSource = data.revenue_annual.source_5_annual_revenue as Record<string, any>;
-      const revenue = Number(revenueSource.annual_revenue);
-      const currency = revenueSource.annual_revenue_currency || '$';
-      
-      if (!isNaN(revenue)) {
-        return {
-          exact: revenue,
-          currency,
-          range: formatRevenueRange(revenue),
-          source: 'source_5_annual_revenue'
-        };
-      }
-    }
-    
-    // 2. Check revenue_annual_range (could be string or object with from/to)
-    if (data.revenue_annual_range) {
-      // If it's a string (e.g. "$1M-$10M")
-      if (typeof data.revenue_annual_range === 'string') {
-        return {
-          range: data.revenue_annual_range as string,
-          source: 'revenue_annual_range_string'
-        };
-      }
-      
-      // If it's an object with sources
-      if (typeof data.revenue_annual_range === 'object' && data.revenue_annual_range !== null) {
-        // Try each source
-        for (const [source, info] of Object.entries(data.revenue_annual_range as Record<string, any>)) {
-          if (!info) continue;
+    // Find highest exact revenue from any source
+    let highestExactRevenue: number | null = null;
+    let exactRevenueCurrency = '$';
+    let exactRevenueSource = '';
+
+    // Process all sources in revenue_annual dynamically
+    if (data.revenue_annual && typeof data.revenue_annual === 'object' && data.revenue_annual !== null) {
+      // Iterate through all sources (source_1, source_5, or any future sources)
+      for (const [sourceName, sourceData] of Object.entries(data.revenue_annual as Record<string, unknown>)) {
+        if (!sourceData || typeof sourceData !== 'object') continue;
+        
+        const revenueSource = sourceData as Record<string, unknown>;
+        if ('annual_revenue' in revenueSource) {
+          const revenue = Number(revenueSource.annual_revenue);
+          const currency = typeof revenueSource.annual_revenue_currency === 'string' 
+            ? revenueSource.annual_revenue_currency 
+            : '$';
           
-          const from = info.annual_revenue_range_from;
-          const to = info.annual_revenue_range_to;
-          const currency = info.annual_revenue_range_currency || '$';
-          
-          if (from || to) {
-            return {
-              min: from ? Number(from) : undefined,
-              max: to ? Number(to) : undefined,
-              currency,
-              range: formatRevenueRangeFromMinMax(from, to, currency),
-              source
-            };
+          if (!isNaN(revenue)) {
+            // Log significant discrepancies (>25% difference)
+            if (highestExactRevenue !== null && 
+                Math.abs(revenue - highestExactRevenue) / Math.max(revenue, highestExactRevenue) > 0.25) {
+              const domain = typeof data.domain === 'string' ? data.domain : 'unknown domain';
+              console.log(`Revenue discrepancy detected for ${domain}: ${exactRevenueSource}=${highestExactRevenue} vs ${sourceName}=${revenue}`);
+            }
+            
+            // Update if this is higher
+            if (highestExactRevenue === null || revenue > highestExactRevenue) {
+              highestExactRevenue = revenue;
+              exactRevenueCurrency = currency;
+              exactRevenueSource = sourceName;
+            }
           }
         }
       }
     }
+
+    // Find highest revenue from ranges
+    let highestRangeRevenue: number | null = null;
+    let rangeRevenueCurrency = '$';
+    let rangeRevenueSource = '';
+    let rangeMin: number | undefined;
+    let rangeMax: number | undefined;
+
+    // Handle string format
+    if (typeof data.revenue_annual_range === 'string') {
+      // Store the string format directly
+      rangeRevenueSource = 'revenue_annual_range_string';
+    }
+    // Handle object format with multiple sources
+    else if (data.revenue_annual_range && typeof data.revenue_annual_range === 'object' && data.revenue_annual_range !== null) {
+      // Iterate through all sources
+      for (const [sourceName, sourceData] of Object.entries(data.revenue_annual_range as Record<string, unknown>)) {
+        if (!sourceData || typeof sourceData !== 'object') continue;
+        
+        const rangeSource = sourceData as Record<string, unknown>;
+        const from = rangeSource.annual_revenue_range_from ? Number(rangeSource.annual_revenue_range_from) : null;
+        const to = rangeSource.annual_revenue_range_to ? Number(rangeSource.annual_revenue_range_to) : null;
+        const currency = typeof rangeSource.annual_revenue_range_currency === 'string' 
+          ? rangeSource.annual_revenue_range_currency 
+          : '$';
+        
+        // Use the higher value between from/to, or whichever is available
+        const rangeValue = Math.max(from || 0, to || 0);
+        
+        if (rangeValue > 0) {
+          // Log significant discrepancies
+          if (highestRangeRevenue !== null && 
+              Math.abs(rangeValue - highestRangeRevenue) / Math.max(rangeValue, highestRangeRevenue) > 0.25) {
+            const domain = typeof data.domain === 'string' ? data.domain : 'unknown domain';
+            console.log(`Revenue range discrepancy detected for ${domain}: ${rangeRevenueSource}=${highestRangeRevenue} vs ${sourceName}=${rangeValue}`);
+          }
+          
+          // Update if this is higher
+          if (highestRangeRevenue === null || rangeValue > highestRangeRevenue) {
+            highestRangeRevenue = rangeValue;
+            rangeRevenueCurrency = currency;
+            rangeRevenueSource = sourceName;
+            rangeMin = from || undefined;
+            rangeMax = to || undefined;
+          }
+        }
+      }
+    }
+
+    // Compare exact revenue vs range revenue and pick the highest
+    if (highestExactRevenue !== null) {
+      if (highestRangeRevenue !== null) {
+        // If we have both, compare and pick the highest
+        if (highestRangeRevenue > highestExactRevenue) {
+          return {
+            min: rangeMin,
+            max: rangeMax,
+            currency: rangeRevenueCurrency,
+            range: formatRevenueRange(highestRangeRevenue, rangeRevenueCurrency),
+            source: `range_${rangeRevenueSource}`
+          };
+        } else {
+          return {
+            exact: highestExactRevenue,
+            currency: exactRevenueCurrency,
+            range: formatRevenueRange(highestExactRevenue, exactRevenueCurrency),
+            source: exactRevenueSource
+          };
+        }
+      } else {
+        // Only have exact revenue
+        return {
+          exact: highestExactRevenue,
+          currency: exactRevenueCurrency,
+          range: formatRevenueRange(highestExactRevenue, exactRevenueCurrency),
+          source: exactRevenueSource
+        };
+      }
+    } else if (highestRangeRevenue !== null) {
+      // Only have range revenue
+      return {
+        min: rangeMin,
+        max: rangeMax,
+        currency: rangeRevenueCurrency,
+        range: formatRevenueRange(highestRangeRevenue, rangeRevenueCurrency),
+        source: `range_${rangeRevenueSource}`
+      };
+    } else if (typeof data.revenue_annual_range === 'string') {
+      // Handle string format range
+      return {
+        range: data.revenue_annual_range as string,
+        source: 'revenue_annual_range_string'
+      };
+    }
     
-    // 3. Check for any other revenue fields that might exist
-    // Add more checks based on the actual data structure if needed
-    
+    // No revenue data found
     return null;
   } catch (error) {
     console.error("Error normalizing revenue:", error);
@@ -235,7 +307,11 @@ export async function enrichCompany(domain: string): Promise<EnrichmentResponse>
         enrichmentError: null,
         // Update company name if available in enrichment data
         // Note: This path may need to be adjusted based on Coresignal's actual response structure
-        name: filteredEnrichmentData.name || filteredEnrichmentData.company_name || undefined
+        name: typeof (filteredEnrichmentData as Record<string, unknown>).name === 'string' 
+          ? (filteredEnrichmentData as Record<string, unknown>).name as string
+          : typeof (filteredEnrichmentData as Record<string, unknown>).company_name === 'string'
+            ? (filteredEnrichmentData as Record<string, unknown>).company_name as string
+            : undefined
       }
     })
 

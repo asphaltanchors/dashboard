@@ -4,6 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { MapPin, Users, DollarSign, Globe, Twitter, Facebook, Linkedin, Building, Info } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 import { EnrichmentData } from "@/types/enrichment"
+import Image from "next/image"
 
 interface ProgressiveCompanyCardProps {
   domain: string
@@ -28,6 +29,23 @@ export function ProgressiveCompanyCard({
 }: ProgressiveCompanyCardProps) {
   const companyName = enrichmentData?.about?.name || name || domain
   const nameInitials = companyName.substring(0, 2).toUpperCase()
+  
+  // Get company logo from enrichment data if available
+  const getCompanyLogo = () => {
+    if (!isEnriched || !enrichmentData) return null;
+    
+    try {
+      // Access the company_logo field directly from the enrichment data
+      // This field is now preserved in the mapEnrichmentData function
+      return enrichmentData.company_logo || null;
+    } catch (error) {
+      console.error("Error getting company logo:", error);
+      return null;
+    }
+  };
+  
+  // Get the company logo
+  const companyLogo = getCompanyLogo();
   
   // Extract enrichment data with fallbacks
   const { 
@@ -57,10 +75,22 @@ export function ProgressiveCompanyCard({
     <Card className="w-full bg-gradient-to-br from-slate-50 to-slate-100 shadow-lg flex flex-col h-full">
       <CardHeader className="flex flex-col gap-4">
         <div className="flex items-center gap-4">
-          <Avatar className="w-20 h-20">
-            <AvatarImage src="/placeholder.svg?height=80&width=80" alt={`${companyName} logo`} />
-            <AvatarFallback>{nameInitials}</AvatarFallback>
-          </Avatar>
+          {companyLogo ? (
+            <div className="flex-shrink-0 w-20 h-20 overflow-hidden rounded-full border border-slate-200">
+              <Image 
+                src={`data:image/jpeg;base64,${companyLogo.replace(/\r\n/g, '')}`} 
+                alt={`${companyName} logo`}
+                className="w-full h-full object-contain"
+                width={80}
+                height={80}
+              />
+            </div>
+          ) : (
+            <Avatar className="w-20 h-20">
+              <AvatarImage src="/placeholder.svg?height=80&width=80" alt={`${companyName} logo`} />
+              <AvatarFallback>{nameInitials}</AvatarFallback>
+            </Avatar>
+          )}
           <div className="flex-1">
             <CardTitle className="text-3xl font-bold text-slate-800">{companyName}</CardTitle>
             <CardDescription className="text-lg text-slate-600">

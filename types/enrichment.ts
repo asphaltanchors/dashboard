@@ -74,6 +74,7 @@ export interface EnrichmentData {
   categories_and_keywords?: string[];
   industry?: string;
   normalized_revenue?: NormalizedRevenue;
+  company_logo?: string; // Base64 encoded company logo
 }
 
 /**
@@ -107,7 +108,8 @@ export function mapEnrichmentData(enrichedData: unknown): EnrichmentData {
   // Type assertion since we know the shape matches RawEnrichmentData
   const rawData = data as RawEnrichmentData;
   
-  return {
+  // Create the structured enrichment data
+  const enrichmentData = {
     about: {
       name: rawData.company_name || rawData.company_legal_name,
       industries: rawData.categories_and_keywords || (rawData.industry ? [rawData.industry] : []),
@@ -141,8 +143,12 @@ export function mapEnrichmentData(enrichedData: unknown): EnrichmentData {
     categories_and_keywords: rawData.categories_and_keywords,
     industry: rawData.industry,
     // Preserve normalized revenue data
-    normalized_revenue: (rawData as any).normalized_revenue
+    normalized_revenue: (rawData as any).normalized_revenue,
+    // Preserve the company logo if available
+    company_logo: (rawData as any).company_logo
   };
+  
+  return enrichmentData;
 }
 
 /**
