@@ -34,6 +34,7 @@ env:
   secret:
     - DATABASE_URL
     - COMPANIES_API_TOKEN
+    - CORESIGNAL_KEY
 
 asset_path: /app/.next
 
@@ -51,4 +52,3 @@ accessories:
     env:
       secret:
         - DATABASE_URL
-
