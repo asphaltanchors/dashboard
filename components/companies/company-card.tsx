@@ -4,6 +4,7 @@ import { Company } from "@/lib/companies"
 import { EnrichmentData } from "@/types/enrichment"
 import { formatCurrency } from "@/lib/utils"
 import Link from "next/link"
+import Image from "next/image"
 
 interface CompanyCardProps {
   company: Company
@@ -23,12 +24,13 @@ export function CompanyCard({ company }: CompanyCardProps) {
       const industries = enrichmentData.about?.industries;
       const industry = enrichmentData.industry;
       
-      if (Array.isArray(categoriesAndKeywords) && categoriesAndKeywords.length > 0) {
+      // Prioritize industry first, then fall back to other options
+      if (industry) {
+        return industry;
+      } else if (Array.isArray(categoriesAndKeywords) && categoriesAndKeywords.length > 0) {
         return categoriesAndKeywords[0];
       } else if (Array.isArray(industries) && industries.length > 0) {
         return industries[0];
-      } else if (industry) {
-        return industry;
       }
     } catch (error) {
       console.error("Error getting top category:", error);
@@ -36,6 +38,20 @@ export function CompanyCard({ company }: CompanyCardProps) {
     }
     
     return null;
+  };
+
+  // Get company logo from enrichment data if available
+  const getCompanyLogo = () => {
+    if (!company.enriched || !company.enrichmentData) return null;
+    
+    try {
+      // Access the company_logo field from the raw enrichment data
+      const logo = (company.enrichmentData as any).company_logo;
+      return logo || null;
+    } catch (error) {
+      console.error("Error getting company logo:", error);
+      return null;
+    }
   };
   
   // Safely handle the top category
@@ -56,13 +72,28 @@ export function CompanyCard({ company }: CompanyCardProps) {
       return "";
     }
   };
+
+  // Get the company logo
+  const companyLogo = getCompanyLogo();
+
   return (
     <Link href={`/c2/${company.domain}`}>
       <Card className="transition-all hover:shadow-lg hover:-translate-y-1">
         <CardHeader>
-          <CardTitle className="truncate">
-            {company.name}
-          </CardTitle>
+          <div className="flex items-center gap-4">
+            {companyLogo && (
+              <div className="flex-shrink-0 w-12 h-12 overflow-hidden rounded-md border border-slate-200">
+                <img 
+                  src={`data:image/jpeg;base64,${companyLogo.replace(/\r\n/g, '')}`} 
+                  alt={`${company.name} logo`}
+                  className="w-full h-full object-contain"
+                />
+              </div>
+            )}
+            <CardTitle className="truncate">
+              {company.name}
+            </CardTitle>
+          </div>
           {company.enriched && (company.enrichmentData as EnrichmentData)?.about?.industries && ((company.enrichmentData as EnrichmentData)?.about?.industries?.length ?? 0) > 0 && (
             <div className="mt-1">
               <Badge variant="outline" className="bg-slate-100 text-slate-700">

@@ -1,5 +1,4 @@
 import { CompanyCard } from "@/components/companies/company-card"
-import { ReportHeader } from "@/components/reports/report-header"
 import { getCompanies } from "@/lib/companies"
 
 export default async function CompaniesPage() {
@@ -12,12 +11,7 @@ export default async function CompaniesPage() {
   
   return (
     <div className="p-8">
-      <div className="mb-8">
-        <ReportHeader
-          title="Companies"
-          resetPath="/c2"
-        />
-      </div>
+      <h1 className="text-3xl font-bold mb-8">Companies</h1>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {data.companies.map(company => (
           <CompanyCard key={company.id} company={company} />
