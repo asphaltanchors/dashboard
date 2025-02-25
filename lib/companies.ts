@@ -21,7 +21,10 @@ export const CONSUMER_DOMAINS = [
   'cox.net',
   'bellsouth.net',
   'mac.com',
-  'mail.com'
+  'mail.com',
+  'unknown-domain.com',
+  'amazon-fba.com',
+  'amazon.com'
 ]
 
 interface GetCompaniesParams {

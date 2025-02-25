@@ -2,6 +2,7 @@ import { CompanyCard } from "@/components/companies/company-card"
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { SearchInput } from "@/components/search-input"
 import { SortDropdown } from "@/components/sort-dropdown"
+import { ReportHeader } from "@/components/reports/report-header"
 import { getCompanies } from "@/lib/companies"
 import { Building, Plus } from "lucide-react"
 
@@ -13,7 +14,7 @@ export default async function CompaniesPage(
   const searchParams = await props.searchParams;
   const search = (searchParams.search as string) || ""
   const sort = (searchParams.sort as string) || "totalOrders"
-  const filterConsumer = searchParams.filterConsumer === "true"
+  const filterConsumer = searchParams.filterConsumer !== "false"
 
   const data = await getCompanies({
     pageSize: 20,
@@ -25,9 +26,13 @@ export default async function CompaniesPage(
 
   return (
     <div className="p-8">
-      <h1 className="text-3xl font-bold mb-4">Companies</h1>
+      <ReportHeader 
+        title="Companies"
+        resetPath="/companies"
+        filterConsumer={filterConsumer}
+      />
       
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6 mt-8">
         <MetricCard
           title="Total Companies"
           value={data.totalCount}
