@@ -24,7 +24,7 @@ program
       
       // Get top companies by sales
       const { companies } = await getCompanies({
-        pageSize: 100, // Get a larger set to filter from
+        pageSize: 10000, // Get a larger set to filter from
         sortColumn: 'totalOrders',
         sortDirection: 'desc',
         filterConsumer: true

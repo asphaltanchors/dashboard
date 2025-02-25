@@ -50,8 +50,9 @@ export default async function CompaniesPage(
       <div className="mb-6 flex items-center gap-4">
         <div className="flex-1">
           <SearchInput 
-            placeholder="Search by name or domain..."
+            placeholder="Search by name, domain, or industry..."
             defaultValue={search}
+            minChars={2}
           />
         </div>
         <div className="w-40">
