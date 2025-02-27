@@ -46,45 +46,55 @@ export function ReportHeader({
   }
 
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex flex-col gap-4 sm:gap-6 md:flex-row md:items-center">
       <h1 className="text-3xl font-bold">{title}</h1>
-      <div className="flex items-center gap-4 ml-auto">
-        <div className="w-[200px]">
+      
+      <div className="flex flex-col gap-4 w-full md:flex-row md:items-center md:ml-auto md:gap-4 lg:gap-6">
+        {/* Date Range Filter */}
+        <div className="w-full md:w-[180px] lg:w-[200px]">
           <DateRangeFilter key={`date-${resetKey}`} value={dateRange} />
         </div>
-        <div className="w-[300px]">
+        
+        {/* Transaction Amount Filter */}
+        <div className="w-full md:w-[220px] lg:w-[300px]">
           <TransactionAmountFilter 
             key={`amount-${resetKey}`}
             min={minAmount}
             max={maxAmount}
           />
         </div>
-        <div className="flex items-center gap-4">
-          <div>
-            <div className="mb-2 text-sm font-medium text-gray-500">
+        
+        {/* Consumer Domains and Reset Button */}
+        <div className="flex flex-col gap-4 w-full sm:flex-row sm:justify-between sm:items-end md:flex-col md:w-auto lg:flex-row lg:items-center lg:gap-4">
+          {/* Consumer Domains Toggle */}
+          <div className="flex flex-row justify-between items-center sm:flex-col sm:items-start md:flex-col lg:flex-col">
+            <div className="text-sm font-medium text-gray-500 mb-2">
               Consumer Domains
             </div>
-            <Switch
-              checked={filterConsumer}
-              onCheckedChange={handleConsumerFilterChange}
-            />
-            <span className="ml-2 text-sm">
-              {filterConsumer ? 'Hidden' : 'Shown'}
-            </span>
+            <div className="flex items-center">
+              <Switch
+                checked={filterConsumer}
+                onCheckedChange={handleConsumerFilterChange}
+              />
+              <span className="ml-2 text-sm">
+                {filterConsumer ? 'Hidden' : 'Shown'}
+              </span>
+            </div>
           </div>
+          
+          {/* Reset Button */}
           <div>
-            <div className="mb-2 text-sm font-medium text-gray-500 invisible">
+            <div className="mb-2 text-sm font-medium text-gray-500 invisible hidden md:block lg:block">
               Actions
             </div>
-            <div>
-              <Button 
-                variant="outline" 
-                onClick={handleReset}
-                size="sm"
-              >
-                Reset
-              </Button>
-            </div>
+            <Button 
+              variant="outline" 
+              onClick={handleReset}
+              size="sm"
+              className="w-full sm:w-auto"
+            >
+              Reset
+            </Button>
           </div>
         </div>
       </div>
