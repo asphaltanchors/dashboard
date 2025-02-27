@@ -8,8 +8,7 @@ import {
   XAxis, 
   YAxis,
   CartesianGrid,
-  Tooltip,
-  Legend
+  Tooltip
 } from "recharts"
 import { formatCurrency } from "@/lib/utils"
 
@@ -35,7 +34,7 @@ export function QuarterlyRevenueChart({ data }: QuarterlyRevenueChartProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Quarterly Revenue (All Time, Excluding Current Quarter)</CardTitle>
+        <CardTitle>Quarterly Revenue (All Time)</CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
