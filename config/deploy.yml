@@ -46,7 +46,7 @@ accessories:
     volumes:
       - /mnt/dropbox:/dropbox
   importer:
-    image: ghcr.io/asphaltanchors/py-importer:1.6.0
+    image: ghcr.io/asphaltanchors/py-importer:1.7.0
     host: aac
     volumes:
       - /mnt/dropbox/db/AAC/qb-csv:/data
