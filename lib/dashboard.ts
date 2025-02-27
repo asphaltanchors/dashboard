@@ -200,6 +200,74 @@ export async function getClassMetrics({ dateRange = "365d", minAmount, maxAmount
     .sort((a, b) => b.amount - a.amount)
 }
 
+export async function getMonthlyRevenue(filters: FilterParams = {}) {
+  // Calculate date 18 months ago
+  const end = new Date()
+  const start = new Date()
+  start.setMonth(start.getMonth() - 17) // -17 to include current month (total 18)
+  start.setDate(1) // Start from beginning of month
+  
+  // Build where clause similar to other functions
+  const whereClause: OrderWhereClause = {
+    orderDate: {
+      gte: start,
+      lte: end
+    },
+    customer: filters.filterConsumer ? {
+      company: {
+        domain: {
+          not: {
+            in: CONSUMER_DOMAINS
+          }
+        }
+      }
+    } : {}
+  }
+  
+  // Add amount filters if provided
+  if (filters.minAmount !== undefined || filters.maxAmount !== undefined) {
+    whereClause.totalAmount = {
+      ...(filters.minAmount !== undefined && { gte: filters.minAmount }),
+      ...(filters.maxAmount !== undefined && { lte: filters.maxAmount })
+    }
+  }
+  
+  // Get all orders in the date range
+  const orders = await prisma.order.findMany({
+    where: whereClause,
+    select: {
+      orderDate: true,
+      totalAmount: true
+    }
+  })
+  
+  // Group by month and calculate total revenue
+  const monthlyData = orders.reduce((acc, order) => {
+    const date = order.orderDate
+    const month = date.getMonth()
+    const year = date.getFullYear()
+    const key = `${year}-${month}`
+    
+    if (!acc[key]) {
+      acc[key] = {
+        month,
+        year,
+        revenue: 0
+      }
+    }
+    
+    acc[key].revenue += Number(order.totalAmount.toString())
+    return acc
+  }, {} as Record<string, { month: number; year: number; revenue: number }>)
+  
+  // Convert to array and sort by date
+  return Object.values(monthlyData)
+    .sort((a, b) => {
+      if (a.year !== b.year) return a.year - b.year
+      return a.month - b.month
+    })
+}
+
 export async function getRecentOrders({ 
   minAmount, 
   maxAmount,

@@ -1,10 +1,11 @@
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { PaymentMethodCard } from "@/components/dashboard/payment-method-card"
 import { ClassCard } from "@/components/dashboard/class-card"
+import { MonthlyRevenueChart } from "@/components/dashboard/monthly-revenue-chart"
 import { ReportHeader } from "@/components/reports/report-header"
 import { formatCurrency } from "@/lib/utils"
 import { DollarSign, ShoppingCart } from "lucide-react"
-import { getOrderMetrics, getPaymentMethodMetrics, getClassMetrics } from "@/lib/dashboard"
+import { getOrderMetrics, getPaymentMethodMetrics, getClassMetrics, getMonthlyRevenue } from "@/lib/dashboard"
 
 type PageProps = {
   searchParams: Promise<{
@@ -31,10 +32,11 @@ export default async function Home(props: PageProps) {
     filterConsumer
   }
 
-  const [metrics, paymentMetrics, classMetrics] = await Promise.all([
+  const [metrics, paymentMetrics, classMetrics, monthlyRevenue] = await Promise.all([
     getOrderMetrics(filters),
     getPaymentMethodMetrics(filters),
-    getClassMetrics(filters)
+    getClassMetrics(filters),
+    getMonthlyRevenue(filters)
   ])
 
   const { 
@@ -66,6 +68,10 @@ export default async function Home(props: PageProps) {
           change={salesChange}
           icon={DollarSign}
         />
+      </div>
+
+      <div className="mt-4">
+        <MonthlyRevenueChart data={monthlyRevenue} />
       </div>
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">

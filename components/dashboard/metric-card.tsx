@@ -22,7 +22,7 @@ export function MetricCard({ title, value, change, icon: Icon, action }: MetricC
         <div className="text-2xl font-bold">{value}</div>
         {change && (
           <p className={`text-xs ${changeNum! >= 0 ? "text-green-500" : "text-red-500"}`}>
-            {change}% change vs
+            {change}% change vs previous period
           </p>
         )}
         {action && <div className="mt-4">{action}</div>}
