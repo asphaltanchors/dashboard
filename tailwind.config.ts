@@ -40,6 +40,14 @@ export default {
   				DEFAULT: 'hsl(var(--destructive))',
   				foreground: 'hsl(var(--destructive-foreground))'
   			},
+        success: {
+          DEFAULT: 'hsl(var(--success))',
+          foreground: 'hsl(var(--success-foreground))'
+        },
+        error: {
+          DEFAULT: 'hsl(var(--error))',
+          foreground: 'hsl(var(--error-foreground))'
+        },
   			border: 'hsl(var(--border))',
   			input: 'hsl(var(--input))',
   			ring: 'hsl(var(--ring))',
@@ -50,6 +58,14 @@ export default {
   				'4': 'hsl(var(--chart-4))',
   				'5': 'hsl(var(--chart-5))'
   			},
+        chartClass: {
+          'oem': 'hsl(var(--chart-oem))',
+          'estore': 'hsl(var(--chart-estore))',
+          'distributor': 'hsl(var(--chart-distributor))',
+          'retail': 'hsl(var(--chart-retail))',
+          'wholesale': 'hsl(var(--chart-wholesale))',
+          'unclassified': 'hsl(var(--chart-unclassified))'
+        },
   			sidebar: {
   				DEFAULT: 'hsl(var(--sidebar-background))',
   				foreground: 'hsl(var(--sidebar-foreground))',

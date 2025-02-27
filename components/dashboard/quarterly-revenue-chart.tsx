@@ -93,7 +93,7 @@ export function QuarterlyRevenueChart({ data }: QuarterlyRevenueChartProps) {
             <Line
               type="monotone"
               dataKey="revenue"
-              stroke="#3b82f6"
+              stroke="hsl(var(--chart-oem))"
               strokeWidth={2}
               dot={{ r: 4 }}
               activeDot={{ r: 6 }}

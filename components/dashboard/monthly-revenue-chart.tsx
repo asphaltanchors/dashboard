@@ -23,23 +23,23 @@ interface MonthlyRevenueChartProps {
   }>
 }
 
-// Define a set of colors for the different classes
+// Define a set of colors for the different classes using Tailwind variables
 const CLASS_COLORS: Record<string, string> = {
-  'OEM': '#3b82f6',       // Blue
-  'eStore': '#10b981',    // Green
-  'Distributor': '#f59e0b', // Amber
-  'Retail': '#8b5cf6',    // Purple
-  'Wholesale': '#ec4899', // Pink
-  'Unclassified': '#6b7280' // Gray
+  'OEM': 'hsl(var(--chart-oem))',
+  'eStore': 'hsl(var(--chart-estore))',
+  'Distributor': 'hsl(var(--chart-distributor))',
+  'Retail': 'hsl(var(--chart-retail))',
+  'Wholesale': 'hsl(var(--chart-wholesale))',
+  'Unclassified': 'hsl(var(--chart-unclassified))'
 }
 
 // Fallback colors for any additional classes
 const FALLBACK_COLORS = [
-  '#ef4444', // Red
-  '#14b8a6', // Teal
-  '#f97316', // Orange
-  '#8b5cf6', // Violet
-  '#06b6d4', // Cyan
+  'hsl(var(--chart-1))',
+  'hsl(var(--chart-2))',
+  'hsl(var(--chart-3))',
+  'hsl(var(--chart-4))',
+  'hsl(var(--chart-5))'
 ]
 
 export function MonthlyRevenueChart({ data }: MonthlyRevenueChartProps) {
@@ -230,7 +230,7 @@ export function MonthlyRevenueChart({ data }: MonthlyRevenueChartProps) {
                     const isHidden = hiddenClasses.has(value as string)
                     return (
                       <span style={{ 
-                        color: isHidden ? '#9ca3af' : undefined, 
+                        color: isHidden ? 'hsl(var(--muted-foreground))' : undefined, 
                         textDecoration: isHidden ? 'line-through' : undefined,
                         cursor: 'pointer'
                       }}>

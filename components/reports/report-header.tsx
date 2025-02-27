@@ -68,7 +68,7 @@ export function ReportHeader({
         <div className="flex flex-col gap-4 w-full sm:flex-row sm:justify-between sm:items-end md:flex-col md:w-auto lg:flex-row lg:items-center lg:gap-4">
           {/* Consumer Domains Toggle */}
           <div className="flex flex-row justify-between items-center sm:flex-col sm:items-start md:flex-col lg:flex-col">
-            <div className="text-sm font-medium text-gray-500 mb-2">
+            <div className="text-sm font-medium text-muted-foreground mb-2">
               Consumer Domains
             </div>
             <div className="flex items-center">
@@ -84,7 +84,7 @@ export function ReportHeader({
           
           {/* Reset Button */}
           <div>
-            <div className="mb-2 text-sm font-medium text-gray-500 invisible hidden md:block lg:block">
+            <div className="mb-2 text-sm font-medium text-muted-foreground invisible hidden md:block lg:block">
               Actions
             </div>
             <Button 
