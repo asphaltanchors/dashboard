@@ -548,7 +548,29 @@ export async function getAdhesiveMetrics(filters?: FilterParams) {
   const previousPeriodStart = new Date(currentPeriodStart)
   previousPeriodStart.setDate(currentPeriodStart.getDate() - days)
 
-  // Get all orders with adhesive products
+  // First, get customers who have never ordered SP products
+  const customersWithSPOrders = await prisma.customer.findMany({
+    where: {
+      orders: {
+        some: {
+          items: {
+            some: {
+              productCode: {
+                startsWith: '01-'
+              }
+            }
+          }
+        }
+      }
+    },
+    select: {
+      id: true
+    }
+  })
+
+  const customersWithSPOrderIds = customersWithSPOrders.map(c => c.id)
+
+  // Get all orders with adhesive products from customers who have never ordered SP products
   const orders = await prisma.order.findMany({
     where: {
       orderDate: {
@@ -561,21 +583,28 @@ export async function getAdhesiveMetrics(filters?: FilterParams) {
           }
         }
       },
+      customer: {
+        AND: [
+          {
+            id: {
+              notIn: customersWithSPOrderIds
+            }
+          },
+          ...(filters?.filterConsumer ? [{
+            company: {
+              domain: {
+                not: {
+                  in: CONSUMER_DOMAINS
+                }
+              }
+            }
+          }] : [])
+        ]
+      },
       ...(filters?.minAmount || filters?.maxAmount ? {
         totalAmount: {
           ...(filters.minAmount ? { gte: filters.minAmount } : {}),
           ...(filters.maxAmount ? { lte: filters.maxAmount } : {})
-        }
-      } : {}),
-      ...(filters?.filterConsumer ? {
-        customer: {
-          company: {
-            domain: {
-              not: {
-                in: CONSUMER_DOMAINS
-              }
-            }
-          }
         }
       } : {})
     },
@@ -662,6 +691,28 @@ export async function getAdhesiveOnlyOrders(params: GetAdhesiveOrdersParams = {}
   // Calculate pagination
   const skip = (page - 1) * pageSize
 
+  // First, get customers who have never ordered SP products
+  const customersWithSPOrders = await prisma.customer.findMany({
+    where: {
+      orders: {
+        some: {
+          items: {
+            some: {
+              productCode: {
+                startsWith: '01-'
+              }
+            }
+          }
+        }
+      }
+    },
+    select: {
+      id: true
+    }
+  })
+
+  const customersWithSPOrderIds = customersWithSPOrders.map(c => c.id)
+
   // Build where clause for search and filters
   const where: Prisma.OrderWhereInput = {
     orderDate: {
@@ -674,21 +725,28 @@ export async function getAdhesiveOnlyOrders(params: GetAdhesiveOrdersParams = {}
         }
       }
     },
+    customer: {
+      AND: [
+        {
+          id: {
+            notIn: customersWithSPOrderIds
+          }
+        },
+        ...(filterConsumer ? [{
+          company: {
+            domain: {
+              not: {
+                in: CONSUMER_DOMAINS
+              }
+            }
+          }
+        }] : [])
+      ]
+    },
     ...(minAmount || maxAmount ? {
       totalAmount: {
         ...(minAmount ? { gte: minAmount } : {}),
         ...(maxAmount ? { lte: maxAmount } : {})
-      }
-    } : {}),
-    ...(filterConsumer ? {
-      customer: {
-        company: {
-          domain: {
-            not: {
-              in: CONSUMER_DOMAINS
-            }
-          }
-        }
       }
     } : {})
   }

@@ -33,7 +33,7 @@ export default async function AdhesiveOnlyOrdersPage(
           <div>
             <h1 className="text-2xl font-bold">Adhesive Only Orders</h1>
             <p className="text-muted-foreground">
-              Orders containing EPX2, EPX3, or EPX5 products
+              Orders from customers who have only purchased EPX2, EPX3, or EPX5 products (never SP products)
             </p>
           </div>
           <Button
