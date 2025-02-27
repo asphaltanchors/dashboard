@@ -232,33 +232,47 @@ export async function getMonthlyRevenue(filters: FilterParams = {}) {
     }
   }
   
-  // Get all orders in the date range
+  // Get all orders in the date range with class information
   const orders = await prisma.order.findMany({
     where: whereClause,
     select: {
       orderDate: true,
-      totalAmount: true
+      totalAmount: true,
+      class: true
     }
   })
   
-  // Group by month and calculate total revenue
+  // Group by month and calculate revenue by class
   const monthlyData = orders.reduce((acc, order) => {
     const date = order.orderDate
     const month = date.getMonth()
     const year = date.getFullYear()
     const key = `${year}-${month}`
+    const className = order.class || 'Unclassified'
+    const amount = Number(order.totalAmount.toString())
     
     if (!acc[key]) {
       acc[key] = {
         month,
         year,
-        revenue: 0
+        classTotals: {},
+        revenue: 0 // Keep total revenue for backward compatibility
       }
     }
     
-    acc[key].revenue += Number(order.totalAmount.toString())
+    // Add to class total
+    acc[key].classTotals[className] = (acc[key].classTotals[className] || 0) + amount
+    
+    // Also update total revenue for backward compatibility
+    acc[key].revenue += amount
+    
     return acc
-  }, {} as Record<string, { month: number; year: number; revenue: number }>)
+  }, {} as Record<string, { 
+    month: number; 
+    year: number; 
+    classTotals: Record<string, number>;
+    revenue: number; 
+  }>)
   
   // Convert to array and sort by date
   return Object.values(monthlyData)
