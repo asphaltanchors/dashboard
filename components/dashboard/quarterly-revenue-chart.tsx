@@ -97,6 +97,7 @@ export function QuarterlyRevenueChart({ data }: QuarterlyRevenueChartProps) {
               strokeWidth={2}
               dot={{ r: 4 }}
               activeDot={{ r: 6 }}
+              isAnimationActive={false}
             />
           </LineChart>
         </ResponsiveContainer>

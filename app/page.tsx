@@ -1,12 +1,10 @@
 import { MetricCard } from "@/components/dashboard/metric-card"
-import { PaymentMethodCard } from "@/components/dashboard/payment-method-card"
-import { ClassCard } from "@/components/dashboard/class-card"
 import { MonthlyRevenueChart } from "@/components/dashboard/monthly-revenue-chart"
 import { QuarterlyRevenueChart } from "@/components/dashboard/quarterly-revenue-chart"
 import { ReportHeader } from "@/components/reports/report-header"
 import { formatCurrency } from "@/lib/utils"
 import { DollarSign, ShoppingCart } from "lucide-react"
-import { getOrderMetrics, getPaymentMethodMetrics, getClassMetrics, getMonthlyRevenue, getQuarterlyRevenue } from "@/lib/dashboard"
+import { getOrderMetrics, getMonthlyRevenue, getQuarterlyRevenue } from "@/lib/dashboard"
 
 type PageProps = {
   searchParams: Promise<{
@@ -33,10 +31,8 @@ export default async function Home(props: PageProps) {
     filterConsumer
   }
 
-  const [metrics, paymentMetrics, classMetrics, monthlyRevenue, quarterlyRevenue] = await Promise.all([
+  const [metrics, monthlyRevenue, quarterlyRevenue] = await Promise.all([
     getOrderMetrics(filters),
-    getPaymentMethodMetrics(filters),
-    getClassMetrics(filters),
     getMonthlyRevenue(filters),
     getQuarterlyRevenue(filters)
   ])
@@ -74,11 +70,6 @@ export default async function Home(props: PageProps) {
 
       <div className="mt-4">
         <MonthlyRevenueChart data={monthlyRevenue} />
-      </div>
-
-      <div className="mt-4 grid gap-4 md:grid-cols-2">
-        <PaymentMethodCard metrics={paymentMetrics} />
-        <ClassCard metrics={classMetrics} />
       </div>
 
       <div className="mt-4">

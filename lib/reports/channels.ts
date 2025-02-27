@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { SalesChannelMetric } from "@/types/reports"
-import { FilterParams, buildFilterClauses, calculateDateRange } from "./common"
+import { FilterParams, buildFilterClauses } from "./common"
 
 // Sales channel insights data
 export async function getSalesChannelMetrics(filters?: FilterParams) {

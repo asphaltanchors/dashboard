@@ -66,7 +66,7 @@ export function MonthlyRevenueChart({ data }: MonthlyRevenueChartProps) {
   // Format data for the chart
   const formattedData = data.map(item => {
     const date = new Date(item.year, item.month)
-    const result: Record<string, any> = {
+    const result: Record<string, string | number> = {
       name: date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
       total: item.revenue // Keep total for reference
     }
@@ -91,8 +91,10 @@ export function MonthlyRevenueChart({ data }: MonthlyRevenueChartProps) {
   }
 
   // Handle legend click to toggle visibility
-  const handleLegendClick = (entry: any) => {
-    const className = entry.dataKey
+  // Using a more generic approach to avoid type issues
+  const handleLegendClick = (data: { dataKey?: unknown }) => {
+    if (!data || !data.dataKey) return;
+    const className = String(data.dataKey)
     const newHiddenClasses = new Set(hiddenClasses)
     
     if (hiddenClasses.has(className)) {
@@ -204,6 +206,7 @@ export function MonthlyRevenueChart({ data }: MonthlyRevenueChartProps) {
                     fill={getClassColor(className, index)}
                     radius={index === significantClasses.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
                     maxBarSize={50}
+                    isAnimationActive={false}
                   />
                 ))}
                 
@@ -219,13 +222,14 @@ export function MonthlyRevenueChart({ data }: MonthlyRevenueChartProps) {
                       fill={getClassColor(className, index)}
                       // Hide the bar but keep it in the legend
                       hide={true}
+                      isAnimationActive={false}
                     />
                   ))}
                 
                 {/* Add the Legend after the bars so it can access all the data series */}
                 <Legend 
                   onClick={handleLegendClick}
-                  formatter={(value, entry, index) => {
+                  formatter={(value) => {
                     // Add visual indication that legend items are clickable
                     const isHidden = hiddenClasses.has(value as string)
                     return (
