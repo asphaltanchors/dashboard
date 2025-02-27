@@ -1,8 +1,5 @@
 "use client"
 
-import { 
-  ChartContainer
-} from "@/components/ui/chart"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { 
   Bar, 
