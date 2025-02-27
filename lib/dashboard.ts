@@ -268,6 +268,76 @@ export async function getMonthlyRevenue(filters: FilterParams = {}) {
     })
 }
 
+export async function getQuarterlyRevenue(filters: FilterParams = {}) {
+  // Get all orders from the beginning of time
+  const whereClause: OrderWhereClause = {
+    customer: filters.filterConsumer ? {
+      company: {
+        domain: {
+          not: {
+            in: CONSUMER_DOMAINS
+          }
+        }
+      }
+    } : {}
+  }
+  
+  // Add amount filters if provided
+  if (filters.minAmount !== undefined || filters.maxAmount !== undefined) {
+    whereClause.totalAmount = {
+      ...(filters.minAmount !== undefined && { gte: filters.minAmount }),
+      ...(filters.maxAmount !== undefined && { lte: filters.maxAmount })
+    }
+  }
+  
+  // Get all orders
+  const orders = await prisma.order.findMany({
+    where: whereClause,
+    select: {
+      orderDate: true,
+      totalAmount: true
+    }
+  })
+  
+  // Get current date to determine current quarter
+  const now = new Date()
+  const currentYear = now.getFullYear()
+  const currentQuarter = Math.floor(now.getMonth() / 3) + 1
+  
+  // Group by quarter and calculate total revenue
+  const quarterlyData = orders.reduce((acc, order) => {
+    const date = order.orderDate
+    const month = date.getMonth()
+    const year = date.getFullYear()
+    const quarter = Math.floor(month / 3) + 1
+    const key = `${year}-Q${quarter}`
+    
+    // Skip current quarter as it's incomplete
+    if (year === currentYear && quarter === currentQuarter) {
+      return acc
+    }
+    
+    if (!acc[key]) {
+      acc[key] = {
+        quarter,
+        year,
+        revenue: 0,
+        label: `Q${quarter} ${year}`
+      }
+    }
+    
+    acc[key].revenue += Number(order.totalAmount.toString())
+    return acc
+  }, {} as Record<string, { quarter: number; year: number; revenue: number; label: string }>)
+  
+  // Convert to array and sort by date
+  return Object.values(quarterlyData)
+    .sort((a, b) => {
+      if (a.year !== b.year) return a.year - b.year
+      return a.quarter - b.quarter
+    })
+}
+
 export async function getRecentOrders({ 
   minAmount, 
   maxAmount,
