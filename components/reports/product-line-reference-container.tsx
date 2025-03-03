@@ -17,10 +17,9 @@ export async function ProductLineReferenceContainer({
     filterConsumer
   })
   
-  // Sort by revenue and take top 5 to match chart
+  // Sort all metrics by revenue
   const sortedMetrics = [...metrics]
-    .sort((a, b) => Number(b.total_revenue) - Number(a.total_revenue))
-    .slice(0, 5)
+    .sort((a, b) => Number(b.total_revenue) - Number(a.total_revenue));
 
   // Get total sales for each product
   const productCodes = sortedMetrics.flatMap(metric => 

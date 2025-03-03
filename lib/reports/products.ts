@@ -21,6 +21,8 @@ export async function getActualUnitsSold(filters?: FilterParams) {
           WHEN "productCode" LIKE '01-6358%' OR "productCode" IN ('01-6358.5SK', '01-6358.5SK-2') THEN 'SP58'
           -- am625
           WHEN "productCode" IN ('01-7014', '01-7014-FBA') THEN 'am625'
+          -- Adhesives
+          WHEN "productCode" LIKE '01-8003%' THEN 'Adhesives'
           ELSE 'Other'
         END as product_line,
         CASE 
@@ -30,6 +32,7 @@ export async function getActualUnitsSold(filters?: FilterParams) {
           WHEN "productCode" IN ('82-5002.K', '82-5002.010', '82-6002') THEN 'Epoxy'
           WHEN "productCode" IN ('01-7014', '01-7014-FBA') THEN 'Plastic'
           WHEN "productCode" IN ('01-7011.PST', '01-7010-FBA', '01-7010', '01-7013') THEN 'Zinc Plated'
+          WHEN "productCode" LIKE '01-8003%' THEN 'Tools'
           ELSE 'Other'
         END as material_type,
         CASE 
@@ -48,7 +51,8 @@ export async function getActualUnitsSold(filters?: FilterParams) {
       FROM "OrderItem" oi
       JOIN "Order" o ON o."id" = oi."orderId"
       WHERE (oi."productCode" LIKE '01-63%'
-             OR oi."productCode" LIKE '01-70%')
+             OR oi."productCode" LIKE '01-70%'
+             OR oi."productCode" LIKE '01-8003%')
       AND o."orderDate" >= '${startDate.toISOString()}'
       ${additionalFilters}
     )
@@ -86,6 +90,7 @@ export async function getMaterialTypeMetrics(filters?: FilterParams) {
         WHEN "productCode" LIKE '%3SK%' THEN 'Stainless Steel'
         WHEN "productCode" LIKE '%-D' THEN 'Dacromet'
         WHEN "productCode" IN ('82-5002.K', '82-5002.010', '82-6002') THEN 'Epoxy'
+        WHEN "productCode" LIKE '01-8003%' THEN 'Tools'
         ELSE 'Other'
       END as material_type,
       COUNT(DISTINCT "orderId") as order_count,
@@ -96,7 +101,8 @@ export async function getMaterialTypeMetrics(filters?: FilterParams) {
     WHERE (oi."productCode" LIKE '01-63%'
            OR oi."productCode" IN ('82-5002.K', '82-5002.010')
            OR oi."productCode" LIKE '82-6002%'
-           OR oi."productCode" LIKE '01-70%')
+           OR oi."productCode" LIKE '01-70%'
+           OR oi."productCode" LIKE '01-8003%')
     AND o."orderDate" >= '${startDate.toISOString()}'
     ${additionalFilters}
     GROUP BY 
@@ -105,6 +111,7 @@ export async function getMaterialTypeMetrics(filters?: FilterParams) {
         WHEN "productCode" LIKE '%3SK%' THEN 'Stainless Steel'
         WHEN "productCode" LIKE '%-D' THEN 'Dacromet'
         WHEN "productCode" IN ('82-5002.K', '82-5002.010', '82-6002') THEN 'Epoxy'
+        WHEN "productCode" LIKE '01-8003%' THEN 'Tools'
         ELSE 'Other'
       END
     ORDER BY total_revenue DESC
@@ -125,7 +132,7 @@ export async function getProductLineMetrics(filters?: FilterParams) {
         WHEN "productCode" LIKE '01-6315%' THEN 'SP12'
         WHEN "productCode" LIKE '01-6318%' THEN 'SP18'
         WHEN "productCode" LIKE '01-6358%' THEN 'SP58'
-        WHEN "productCode" IN ('82-5002.K', '82-5002.010') OR "productCode" LIKE '82-6002%' THEN 'Adhesives'
+        WHEN "productCode" IN ('82-5002.K', '82-5002.010') OR "productCode" LIKE '82-6002%' OR "productCode" LIKE '01-8003%' THEN 'Adhesives'
         WHEN "productCode" LIKE '01-70%' THEN 'Kits'
         ELSE 'Other'
       END as product_line,
@@ -141,7 +148,8 @@ export async function getProductLineMetrics(filters?: FilterParams) {
     WHERE (oi."productCode" LIKE '01-63%' 
            OR oi."productCode" IN ('82-5002.K', '82-5002.010')
            OR oi."productCode" LIKE '82-6002%'
-           OR oi."productCode" LIKE '01-70%')
+           OR oi."productCode" LIKE '01-70%'
+           OR oi."productCode" LIKE '01-8003%')
     AND o."orderDate" >= '${previousPeriodStart.toISOString()}'
     ${additionalFilters}
     GROUP BY 
@@ -150,7 +158,7 @@ export async function getProductLineMetrics(filters?: FilterParams) {
         WHEN "productCode" LIKE '01-6315%' THEN 'SP12'
         WHEN "productCode" LIKE '01-6318%' THEN 'SP18'
         WHEN "productCode" LIKE '01-6358%' THEN 'SP58'
-        WHEN "productCode" IN ('82-5002.K', '82-5002.010') OR "productCode" LIKE '82-6002%' THEN 'Adhesives'
+        WHEN "productCode" IN ('82-5002.K', '82-5002.010') OR "productCode" LIKE '82-6002%' OR "productCode" LIKE '01-8003%' THEN 'Adhesives'
         WHEN "productCode" LIKE '01-70%' THEN 'Kits'
         ELSE 'Other'
       END,
@@ -205,6 +213,7 @@ export async function getProductLineMetrics(filters?: FilterParams) {
         { productCode: { in: ['82-5002.K', '82-5002.010'] } }, // EPX2
         { productCode: { startsWith: '82-6002' } }, // EPX3
         { productCode: { startsWith: '01-70' } }, // Kits
+        { productCode: { startsWith: '01-8003' } }, // Caulk Gun for EPX3
       ]
     },
     select: {
@@ -221,7 +230,7 @@ export async function getProductLineMetrics(filters?: FilterParams) {
     else if (product.productCode.startsWith('01-6315')) line = 'SP12'
     else if (product.productCode.startsWith('01-6318')) line = 'SP18'
     else if (product.productCode.startsWith('01-6358')) line = 'SP58'
-    else if (['82-5002.K', '82-5002.010'].includes(product.productCode) || product.productCode.startsWith('82-6002')) line = 'Adhesives'
+    else if (['82-5002.K', '82-5002.010'].includes(product.productCode) || product.productCode.startsWith('82-6002') || product.productCode.startsWith('01-8003')) line = 'Adhesives'
     else if (product.productCode.startsWith('01-70')) line = 'Kits'
 
     if (!acc[line]) acc[line] = []
