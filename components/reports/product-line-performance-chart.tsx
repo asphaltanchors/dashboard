@@ -34,11 +34,11 @@ export function ProductLinePerformanceChart({
             config={{
               current: {
                 label: `Last ${period}`,
-                color: "hsl(222.2, 47.4%, 11.2%)",
+                color: "hsl(var(--chart-oem))",
               },
               previous: {
                 label: `Previous ${period}`,
-                color: "hsl(15, 100%, 55%)",
+                color: "hsl(var(--chart-distributor))",
               },
             }}
             className="h-full w-full"
@@ -73,17 +73,17 @@ export function ProductLinePerformanceChart({
                         <div className="grid grid-cols-2 gap-2">
                           <div className="flex flex-col">
                             <span className="text-[0.70rem] uppercase text-muted-foreground">Last {period}</span>
-                            <span className="font-bold text-blue-600">{formatCurrency(currentValue)}</span>
+                            <span className="font-bold text-primary">{formatCurrency(currentValue)}</span>
                           </div>
                           <div className="flex flex-col">
                             <span className="text-[0.70rem] uppercase text-muted-foreground">Previous {period}</span>
-                            <span className="font-bold text-orange-500">{formatCurrency(previousValue)}</span>
+                            <span className="font-bold text-accent">{formatCurrency(previousValue)}</span>
                           </div>
                         </div>
                         <div className="border-t pt-2">
                           <div className="flex items-center gap-1">
                             <span className="text-[0.70rem] uppercase text-muted-foreground">Change</span>
-                            <span className={`text-sm font-medium ${Number(percentChange) > 0 ? 'text-green-600' : Number(percentChange) < 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
+                            <span className={`text-sm font-medium ${Number(percentChange) > 0 ? 'text-success' : Number(percentChange) < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
                               {Number(percentChange) > 0 ? '+' : ''}{percentChange}%
                             </span>
                           </div>
@@ -97,13 +97,13 @@ export function ProductLinePerformanceChart({
               <Legend />
               <Bar
                 dataKey="current"
-                fill="#2563EB"
+                fill="hsl(var(--chart-oem))"
                 name={`Last ${period}`}
                 barSize={Math.max(20, Math.min(40, 600 / data.length))}
               />
               <Scatter
                 dataKey="previous"
-                fill="#F97316"
+                fill="hsl(var(--chart-distributor))"
                 name={`Previous ${period}`}
                 r={6}
               />
