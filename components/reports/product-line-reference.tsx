@@ -11,6 +11,7 @@ interface ProductLineReferenceProps {
       productCode: string
       name: string | null
       description: string | null
+      total_sales?: string
     }>
   }>
 }
@@ -58,6 +59,11 @@ export function ProductLineReference({ data }: ProductLineReferenceProps) {
                     <span className="font-medium">{product.productCode}</span>
                     {product.name && (
                       <>: {product.name}</>
+                    )}
+                    {product.total_sales && (
+                      <span className="ml-2 text-muted-foreground">
+                        ${parseFloat(product.total_sales).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
                     )}
                     {product.description && (
                       <div className="text-muted-foreground ml-4 text-xs">

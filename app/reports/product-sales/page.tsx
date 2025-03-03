@@ -65,7 +65,12 @@ export default async function ProductSalesPage(props: PageProps) {
             maxAmount={max_amount ? parseFloat(max_amount) : undefined}
             filterConsumer={filterConsumer}
           />
-          <ProductLineReferenceContainer />
+          <ProductLineReferenceContainer 
+            dateRange={date_range}
+            minAmount={min_amount ? parseFloat(min_amount) : undefined}
+            maxAmount={max_amount ? parseFloat(max_amount) : undefined}
+            filterConsumer={filterConsumer}
+          />
         </div>
       </div>
     </div>
