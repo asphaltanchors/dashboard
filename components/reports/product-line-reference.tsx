@@ -1,8 +1,7 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { useState } from "react"
-import { ChevronDown, ChevronRight } from "lucide-react"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 interface ProductLineReferenceProps {
   data: Array<{
@@ -17,65 +16,57 @@ interface ProductLineReferenceProps {
 }
 
 export function ProductLineReference({ data }: ProductLineReferenceProps) {
-  const [expandedLines, setExpandedLines] = useState<string[]>([])
-
-  const toggleLine = (line: string) => {
-    setExpandedLines(prev => 
-      prev.includes(line) 
-        ? prev.filter(l => l !== line)
-        : [...prev, line]
-    )
-  }
+  // Flatten the data structure to create table rows, filter out products with $0 sales, and sort by product name
+  const tableRows = data.flatMap(line => 
+    line.products
+      .filter(product => product.total_sales && parseFloat(product.total_sales) > 0)
+      .map(product => ({
+        product_line: line.product_line,
+        ...product
+      }))
+  ).sort((a, b) => {
+    // Sort by product name (case-insensitive)
+    const nameA = (a.name || '').toLowerCase();
+    const nameB = (b.name || '').toLowerCase();
+    return nameA.localeCompare(nameB);
+  });
 
   return (
     <Card className="w-full">
       <CardHeader>
         <CardTitle>Product Line Reference</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-2">
-        {data.map(line => (
-          <div key={line.product_line} className="border rounded-lg">
-            <button
-              onClick={() => toggleLine(line.product_line)}
-              className="w-full px-4 py-2 flex items-center justify-between hover:bg-muted/50 rounded-lg"
-            >
-              <div className="flex items-center gap-2">
-                {expandedLines.includes(line.product_line) ? (
-                  <ChevronDown className="h-4 w-4" />
-                ) : (
-                  <ChevronRight className="h-4 w-4" />
-                )}
-                <span className="font-medium">{line.product_line}</span>
-                <span className="text-muted-foreground text-sm">
-                  ({line.products.length} product{line.products.length !== 1 ? 's' : ''})
-                </span>
-              </div>
-            </button>
-            
-            {expandedLines.includes(line.product_line) && (
-              <div className="px-10 pb-3 space-y-2">
-                {line.products.map((product, i) => (
-                  <div key={i} className="text-sm">
-                    <span className="font-medium">{product.productCode}</span>
-                    {product.name && (
-                      <>: {product.name}</>
-                    )}
-                    {product.total_sales && (
-                      <span className="ml-2 text-muted-foreground">
-                        ${parseFloat(product.total_sales).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
-                    )}
-                    {product.description && (
-                      <div className="text-muted-foreground ml-4 text-xs">
-                        {product.description}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Product Line</TableHead>
+              <TableHead>Product Name</TableHead>
+              <TableHead>Description</TableHead>
+              <TableHead className="text-right">Total Sales</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {tableRows.map((row, index) => (
+              <TableRow key={index}>
+                <TableCell className="font-medium">{row.product_line}</TableCell>
+                <TableCell className="whitespace-nowrap overflow-hidden text-ellipsis max-w-xs">{row.name || '-'}</TableCell>
+                <TableCell className="text-sm text-muted-foreground whitespace-nowrap overflow-hidden text-ellipsis max-w-xs">
+                  {row.description || '-'}
+                </TableCell>
+                <TableCell className="text-right">
+                  {row.total_sales ? 
+                    `$${parseFloat(row.total_sales).toLocaleString('en-US', { 
+                      minimumFractionDigits: 2, 
+                      maximumFractionDigits: 2 
+                    })}` : 
+                    '$0.00'
+                  }
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </CardContent>
     </Card>
   )
