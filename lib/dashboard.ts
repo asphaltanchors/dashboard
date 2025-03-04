@@ -352,6 +352,69 @@ export async function getQuarterlyRevenue(filters: FilterParams = {}) {
     })
 }
 
+export async function getAnnualRevenue(filters: FilterParams = {}) {
+  // Get all orders from the beginning of time
+  const whereClause: OrderWhereClause = {
+    customer: filters.filterConsumer ? {
+      company: {
+        domain: {
+          not: {
+            in: CONSUMER_DOMAINS
+          }
+        }
+      }
+    } : {}
+  }
+  
+  // Add amount filters if provided
+  if (filters.minAmount !== undefined || filters.maxAmount !== undefined) {
+    whereClause.totalAmount = {
+      ...(filters.minAmount !== undefined && { gte: filters.minAmount }),
+      ...(filters.maxAmount !== undefined && { lte: filters.maxAmount })
+    }
+  }
+  
+  // Get all orders
+  const orders = await prisma.order.findMany({
+    where: whereClause,
+    select: {
+      orderDate: true,
+      totalAmount: true
+    }
+  })
+  
+  // Get current date to determine current year
+  const now = new Date()
+  const currentYear = now.getFullYear()
+  
+  // Group by year and calculate total revenue
+  const annualData = orders.reduce((acc, order) => {
+    const date = order.orderDate
+    const year = date.getFullYear()
+    const key = `${year}`
+    
+    // Skip current year as it's incomplete
+    if (year === currentYear) {
+      return acc
+    }
+    
+    if (!acc[key]) {
+      acc[key] = {
+        year,
+        revenue: 0,
+        label: `${year}`
+      }
+    }
+    
+    acc[key].revenue += Number(order.totalAmount.toString())
+    return acc
+  }, {} as Record<string, { year: number; revenue: number; label: string }>)
+  
+  // Convert to array and sort by year
+  return Object.values(annualData)
+    .sort((a, b) => a.year - b.year)
+}
+
 export async function getRecentOrders({ 
   minAmount, 
   maxAmount,

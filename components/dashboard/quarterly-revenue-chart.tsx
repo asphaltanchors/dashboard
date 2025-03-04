@@ -12,16 +12,15 @@ import {
 } from "recharts"
 import { formatCurrency } from "@/lib/utils"
 
-interface QuarterlyRevenueChartProps {
+interface AnnualRevenueChartProps {
   data: Array<{
-    quarter: number
     year: number
     revenue: number
     label: string
   }>
 }
 
-export function QuarterlyRevenueChart({ data }: QuarterlyRevenueChartProps) {
+export function AnnualRevenueChart({ data }: AnnualRevenueChartProps) {
   // Format data for the chart
   const formattedData = data.map(item => ({
     name: item.label,
@@ -34,7 +33,7 @@ export function QuarterlyRevenueChart({ data }: QuarterlyRevenueChartProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Quarterly Revenue (All Time)</CardTitle>
+        <CardTitle>Annual Revenue (All Time)</CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
@@ -69,7 +68,7 @@ export function QuarterlyRevenueChart({ data }: QuarterlyRevenueChartProps) {
                       <div className="grid grid-cols-2 gap-2">
                         <div className="flex flex-col">
                           <span className="text-[0.70rem] uppercase text-muted-foreground">
-                            Quarter
+                            Year
                           </span>
                           <span className="font-bold text-muted-foreground">
                             {payload[0].payload.name}

@@ -1,10 +1,10 @@
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { MonthlyRevenueChart } from "@/components/dashboard/monthly-revenue-chart"
-import { QuarterlyRevenueChart } from "@/components/dashboard/quarterly-revenue-chart"
+import { AnnualRevenueChart } from "@/components/dashboard/quarterly-revenue-chart"
 import { ReportHeader } from "@/components/reports/report-header"
 import { formatCurrency } from "@/lib/utils"
 import { DollarSign, ShoppingCart } from "lucide-react"
-import { getOrderMetrics, getMonthlyRevenue, getQuarterlyRevenue } from "@/lib/dashboard"
+import { getOrderMetrics, getMonthlyRevenue, getAnnualRevenue } from "@/lib/dashboard"
 
 type PageProps = {
   searchParams: Promise<{
@@ -31,10 +31,10 @@ export default async function Home(props: PageProps) {
     filterConsumer
   }
 
-  const [metrics, monthlyRevenue, quarterlyRevenue] = await Promise.all([
+  const [metrics, monthlyRevenue, annualRevenue] = await Promise.all([
     getOrderMetrics(filters),
     getMonthlyRevenue(filters),
-    getQuarterlyRevenue(filters)
+    getAnnualRevenue(filters)
   ])
 
   const { 
@@ -73,7 +73,7 @@ export default async function Home(props: PageProps) {
       </div>
 
       <div className="mt-4">
-        <QuarterlyRevenueChart data={quarterlyRevenue} />
+        <AnnualRevenueChart data={annualRevenue} />
       </div>
 
     </div>
