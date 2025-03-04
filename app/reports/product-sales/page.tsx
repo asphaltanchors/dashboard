@@ -1,8 +1,7 @@
 import { ProductLinePerformance } from "@/components/reports/product-line-performance"
-import { ProductActualUnitsSold } from "@/components/reports/product-actual-units-sold"
 import { MaterialTypeAnalysis } from "@/components/reports/material-type-analysis"
 import { ProductMetricsGrid } from "@/components/reports/product-metrics-grid"
-import { ProductLineReferenceContainer } from "@/components/reports/product-line-reference-container"
+import { ProductReferenceAndSales } from "@/components/reports/product-reference-and-sales"
 import { ReportHeader } from "@/components/reports/report-header"
 
 type PageProps = {
@@ -41,7 +40,7 @@ export default async function ProductSalesPage(props: PageProps) {
           filterConsumer={filterConsumer}
         />
         
-        {/* Performance charts in 2 columns */}
+        {/* Performance chart and Material Type Analysis in 2 columns */}
         <div className="grid gap-6 md:grid-cols-2">
           <ProductLinePerformance 
             dateRange={date_range}
@@ -49,7 +48,7 @@ export default async function ProductSalesPage(props: PageProps) {
             maxAmount={max_amount ? parseFloat(max_amount) : undefined}
             filterConsumer={filterConsumer}
           />
-          <ProductActualUnitsSold 
+          <MaterialTypeAnalysis 
             dateRange={date_range}
             minAmount={min_amount ? parseFloat(min_amount) : undefined}
             maxAmount={max_amount ? parseFloat(max_amount) : undefined}
@@ -57,21 +56,13 @@ export default async function ProductSalesPage(props: PageProps) {
           />
         </div>
 
-        {/* Material Type Analysis and Product Line Reference in 2 columns */}
-        <div className="grid gap-6 md:grid-cols-2">
-          <MaterialTypeAnalysis 
-            dateRange={date_range}
-            minAmount={min_amount ? parseFloat(min_amount) : undefined}
-            maxAmount={max_amount ? parseFloat(max_amount) : undefined}
-            filterConsumer={filterConsumer}
-          />
-          <ProductLineReferenceContainer 
-            dateRange={date_range}
-            minAmount={min_amount ? parseFloat(min_amount) : undefined}
-            maxAmount={max_amount ? parseFloat(max_amount) : undefined}
-            filterConsumer={filterConsumer}
-          />
-        </div>
+        {/* Combined Product Reference and Sales (full width) */}
+        <ProductReferenceAndSales 
+          dateRange={date_range}
+          minAmount={min_amount ? parseFloat(min_amount) : undefined}
+          maxAmount={max_amount ? parseFloat(max_amount) : undefined}
+          filterConsumer={filterConsumer}
+        />
       </div>
     </div>
   )

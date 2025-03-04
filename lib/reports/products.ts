@@ -2,6 +2,92 @@ import { prisma } from "@/lib/prisma"
 import { ProductSalesMetric } from "@/types/reports"
 import { FilterParams, ProductDetail, ProductLineMetric, buildFilterClauses, calculateDateRange, calculatePeriods } from "./common"
 
+// Combined product reference and sales data
+export async function getProductReferenceAndSales(filters?: FilterParams) {
+  const { startDate } = calculateDateRange(filters?.dateRange)
+  const { additionalFilters } = buildFilterClauses(filters)
+
+  const results = await prisma.$queryRawUnsafe<Array<{
+    product_line: string
+    material_type: string
+    productCode: string
+    name: string | null
+    description: string | null
+    order_count: string
+    total_units: string
+    total_sales: string
+  }>>(`
+    SELECT 
+      -- Product categorization
+      CASE
+        WHEN oi."productCode" LIKE '01-6310%' OR oi."productCode" IN ('01-7011.PST', '01-7010-FBA', '01-7010', '01-7013') THEN 'SP10'
+        WHEN oi."productCode" LIKE '01-6315%' OR oi."productCode" IN ('01-6315.3SK', '01-6315.3SK-2') THEN 'SP12'
+        WHEN oi."productCode" LIKE '01-6318%' OR oi."productCode" = '01-6318.7SK' THEN 'SP18'
+        WHEN oi."productCode" LIKE '01-6358%' OR oi."productCode" IN ('01-6358.5SK', '01-6358.5SK-2') THEN 'SP58'
+        WHEN oi."productCode" IN ('01-7014', '01-7014-FBA') THEN 'am625'
+        WHEN oi."productCode" LIKE '01-8003%' OR oi."productCode" IN ('82-5002.K', '82-5002.010', '82-6002') THEN 'Adhesives'
+        ELSE 'Other'
+      END as product_line,
+      
+      -- Material type categorization
+      CASE 
+        WHEN oi."productCode" IN ('01-6318.7SK', '01-6315.3SK', '01-6315.3SK-2', '01-6358.5SK', '01-6358.5SK-2') THEN 'Stainless Steel'
+        WHEN oi."productCode" LIKE '01-63%' AND oi."productCode" NOT LIKE '%-D' THEN 'Zinc Plated'
+        WHEN oi."productCode" LIKE '%-D' THEN 'Dacromet'
+        WHEN oi."productCode" IN ('82-5002.K', '82-5002.010', '82-6002') THEN 'Epoxy'
+        WHEN oi."productCode" IN ('01-7014', '01-7014-FBA') THEN 'Plastic'
+        WHEN oi."productCode" IN ('01-7011.PST', '01-7010-FBA', '01-7010', '01-7013') THEN 'Zinc Plated'
+        WHEN oi."productCode" LIKE '01-8003%' THEN 'Tools'
+        ELSE 'Other'
+      END as material_type,
+      
+      -- Product details
+      oi."productCode",
+      p."name",
+      p."description",
+      
+      -- Metrics
+      COUNT(DISTINCT oi."orderId") as order_count,
+      CAST(SUM(CAST(oi.quantity AS numeric) * 
+        CASE 
+          WHEN oi."productCode" = '01-7011.PST' THEN 4
+          WHEN oi."productCode" = '01-7014' THEN 4
+          WHEN oi."productCode" = '01-7014-FBA' THEN 4
+          WHEN oi."productCode" = '01-7010-FBA' THEN 4
+          WHEN oi."productCode" = '01-7010' THEN 4
+          WHEN oi."productCode" = '01-7013' THEN 4
+          WHEN oi."productCode" = '01-6310.72L' THEN 72
+          ELSE 6
+        END) AS text) as total_units,
+      CAST(SUM(oi.amount) AS text) as total_sales
+      
+    FROM "OrderItem" oi
+    JOIN "Order" o ON o."id" = oi."orderId"
+    LEFT JOIN "Product" p ON p."productCode" = oi."productCode"
+    
+    WHERE (oi."productCode" LIKE '01-63%'
+           OR oi."productCode" LIKE '01-70%'
+           OR oi."productCode" LIKE '01-8003%'
+           OR oi."productCode" IN ('82-5002.K', '82-5002.010', '82-6002'))
+    AND o."orderDate" >= '${startDate.toISOString()}'
+    ${additionalFilters}
+    
+    GROUP BY 
+      product_line,
+      material_type,
+      oi."productCode",
+      p."name",
+      p."description"
+    
+    HAVING SUM(oi.amount) > 0
+    
+    ORDER BY 
+      total_sales DESC
+  `)
+
+  return results
+}
+
 export async function getActualUnitsSold(filters?: FilterParams) {
   const { startDate } = calculateDateRange(filters?.dateRange)
   const { additionalFilters } = buildFilterClauses(filters)
