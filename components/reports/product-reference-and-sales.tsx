@@ -3,14 +3,12 @@ import { getProductReferenceAndSales } from "@/lib/reports"
 import { ProductReferenceAndSalesTable } from "./product-reference-and-sales-table"
 import { FilterParams } from "@/lib/reports/common"
 
-interface ProductReferenceAndSalesProps extends FilterParams {}
-
 export async function ProductReferenceAndSales({ 
   dateRange,
   minAmount,
   maxAmount,
   filterConsumer
-}: ProductReferenceAndSalesProps = {}) {
+}: FilterParams = {}) {
   const data = await getProductReferenceAndSales({
     dateRange,
     minAmount,
