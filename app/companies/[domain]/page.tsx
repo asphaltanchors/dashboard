@@ -8,6 +8,8 @@ import { StaticOrdersTable } from "@/components/orders/static-orders-table"
 import { SingleEnrichButton } from "@/components/companies/single-enrich-button"
 import { formatCurrency } from "@/lib/utils"
 import { Order } from "@/lib/orders"
+import { getCompanyProductReferenceAndSales } from "@/lib/reports"
+import { ProductReferenceAndSalesTable } from "@/components/reports/product-reference-and-sales-table"
 
 // Types
 interface CompanyDetails {
@@ -161,6 +163,15 @@ export default async function CompanyPage(props: PageProps) {
 
   const totalOrders = calculateTotalOrders(company.customers)
   const revenueData = calculateYearlyRevenue(company.customers)
+  const productData = await getCompanyProductReferenceAndSales(params.domain)
+
+  // Convert string values to numbers for the table component
+  const tableData = productData.map(item => ({
+    ...item,
+    order_count: Number(item.order_count),
+    total_units: Number(item.total_units),
+    total_sales: Number(item.total_sales)
+  }))
 
   return (
     <div className="p-8">
@@ -245,6 +256,15 @@ export default async function CompanyPage(props: PageProps) {
             </>
           )}
         </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Product History</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ProductReferenceAndSalesTable data={tableData} />
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>
