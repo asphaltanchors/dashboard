@@ -1,8 +1,8 @@
-import { getCanadianSalesMetrics, getCanadianTopCustomers, getCanadianUnitsSold, getCanadianOrders } from "@/lib/reports"
+import { getCanadianSalesMetrics, getCanadianTopCustomers, getCanadianUnitsSold, getCanadianOrders, getUSSalesMetrics } from "@/lib/reports"
 import { CanadianSalesTable } from "@/components/reports/canadian-sales-table"
 import { CanadianUnitsTable } from "@/components/reports/canadian-units-table"
 import { MetricCard } from "@/components/dashboard/metric-card"
-import { DollarSign, ShoppingCart } from "lucide-react"
+import { DollarSign, ShoppingCart, Percent } from "lucide-react"
 import { ServerOrdersTable } from "@/components/orders/server-orders-table"
 import { fetchCanadianOrders } from "@/app/actions/data"
 import { formatCurrency } from "@/lib/utils"
@@ -38,7 +38,7 @@ export default async function CanadianSalesPage(props: PageProps) {
     filterConsumer
   }
 
-  const [metrics, customers, products, orders] = await Promise.all([
+  const [metrics, customers, products, orders, usMetrics] = await Promise.all([
     getCanadianSalesMetrics({
       dateRange: filters.dateRange,
       minAmount: filters.minAmount,
@@ -58,8 +58,27 @@ export default async function CanadianSalesPage(props: PageProps) {
       dateRange: filters.dateRange,
       minAmount: filters.minAmount,
       maxAmount: filters.maxAmount
+    } as FilterParams),
+    getUSSalesMetrics({
+      dateRange: filters.dateRange,
+      minAmount: filters.minAmount,
+      maxAmount: filters.maxAmount
     } as FilterParams)
   ])
+
+  // Calculate Canadian sales as percentage of US sales
+  const canadianPercentage = usMetrics.currentPeriod.totalRevenue > 0 
+    ? ((metrics.currentPeriod.totalRevenue / usMetrics.currentPeriod.totalRevenue) * 100).toFixed(1)
+    : "0.0"
+
+  // Calculate the change in percentage
+  const previousCanadianPercentage = usMetrics.previousPeriod.totalRevenue > 0
+    ? ((metrics.previousPeriod.totalRevenue / usMetrics.previousPeriod.totalRevenue) * 100).toFixed(1)
+    : "0.0"
+  
+  const percentageChange = previousCanadianPercentage !== "0.0"
+    ? ((parseFloat(canadianPercentage) - parseFloat(previousCanadianPercentage)) / parseFloat(previousCanadianPercentage) * 100).toFixed(1)
+    : "0.0"
 
   return (
     <div className="p-8">
@@ -84,6 +103,12 @@ export default async function CanadianSalesPage(props: PageProps) {
           value={formatCurrency(metrics.currentPeriod.totalRevenue)}
           change={metrics.changes.totalRevenue}
           icon={DollarSign}
+        />
+        <MetricCard
+          title="% of US Sales"
+          value={`${canadianPercentage}%`}
+          change={percentageChange}
+          icon={Percent}
         />
       </div>
 

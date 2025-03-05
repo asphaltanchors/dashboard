@@ -493,3 +493,119 @@ export async function getCanadianUnitsSold(filters?: FilterParams) {
   return Array.from(productTotals.values())
     .sort((a, b) => b.totalUnits - a.totalUnits)
 }
+
+export async function getUSSalesMetrics(filters?: FilterParams) {
+  const { currentPeriodStart, previousPeriodStart } = calculatePeriods(filters?.dateRange)
+
+  // First get all non-Canadian customers
+  const usCustomers = await prisma.customer.findMany({
+    where: {
+      AND: [
+        {
+          NOT: {
+            OR: [
+              {
+                billingAddress: {
+                  OR: [
+                    { country: { contains: 'canada', mode: 'insensitive' } },
+                    { state: { in: CANADIAN_PROVINCES } },
+                    { postalCode: { contains: '[A-Z][0-9][A-Z]', mode: 'insensitive' } }
+                  ]
+                }
+              },
+              {
+                shippingAddress: {
+                  OR: [
+                    { country: { contains: 'canada', mode: 'insensitive' } },
+                    { state: { in: CANADIAN_PROVINCES } },
+                    { postalCode: { contains: '[A-Z][0-9][A-Z]', mode: 'insensitive' } }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        ...(filters?.filterConsumer ? [{
+          company: {
+            domain: {
+              not: {
+                in: CONSUMER_DOMAINS
+              }
+            }
+          }
+        }] : [])
+      ]
+    },
+    select: {
+      id: true
+    }
+  })
+
+  // Then get their orders with amount filters
+  const orders = await prisma.order.findMany({
+    where: {
+      customerId: {
+        in: usCustomers.map(c => c.id)
+      },
+      orderDate: {
+        gte: previousPeriodStart
+      },
+      ...(filters?.minAmount || filters?.maxAmount ? {
+        totalAmount: {
+          ...(filters.minAmount ? { gte: filters.minAmount } : {}),
+          ...(filters.maxAmount ? { lte: filters.maxAmount } : {})
+        }
+      } : {})
+    },
+    include: {
+      items: {
+        select: {
+          productCode: true,
+          quantity: true,
+          amount: true
+        }
+      }
+    }
+  })
+
+  // Split orders by period
+  const currentPeriodOrders = orders.filter(o => o.orderDate >= currentPeriodStart)
+  const previousPeriodOrders = orders.filter(o => o.orderDate >= previousPeriodStart && o.orderDate < currentPeriodStart)
+
+  // Calculate metrics
+  const currentMetrics = {
+    orderCount: currentPeriodOrders.length,
+    totalRevenue: currentPeriodOrders.reduce((sum, order) => sum + Number(order.totalAmount), 0),
+    netRevenue: calculateNetRevenue(currentPeriodOrders)
+  }
+
+  const previousMetrics = {
+    orderCount: previousPeriodOrders.length,
+    totalRevenue: previousPeriodOrders.reduce((sum, order) => sum + Number(order.totalAmount), 0),
+    netRevenue: calculateNetRevenue(previousPeriodOrders)
+  }
+
+  const days = filters?.dateRange ? parseInt(filters.dateRange.replace("d", "")) : 365
+
+  return {
+    currentPeriod: {
+      label: `Last ${days} Days`,
+      ...currentMetrics
+    },
+    previousPeriod: {
+      label: `Previous ${days} Days`,
+      ...previousMetrics
+    },
+    changes: {
+      orderCount: previousMetrics.orderCount ? 
+        ((currentMetrics.orderCount - previousMetrics.orderCount) / previousMetrics.orderCount * 100).toFixed(1) : 
+        "0.0",
+      totalRevenue: previousMetrics.totalRevenue ? 
+        ((currentMetrics.totalRevenue - previousMetrics.totalRevenue) / previousMetrics.totalRevenue * 100).toFixed(1) : 
+        "0.0",
+      netRevenue: previousMetrics.netRevenue ? 
+        ((currentMetrics.netRevenue - previousMetrics.netRevenue) / previousMetrics.netRevenue * 100).toFixed(1) : 
+        "0.0"
+    }
+  }
+}
