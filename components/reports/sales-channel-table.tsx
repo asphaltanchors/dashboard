@@ -5,9 +5,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { SalesChannelMetric } from "@/types/reports"
 import { ArrowDown, ArrowUp } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 interface Props {
   metrics: SalesChannelMetric[]
+  onChannelClick?: (channel: string) => void
 }
 
 interface SparklineProps {
@@ -126,7 +128,7 @@ function TrendIndicator({ change }: { change: number }) {
   )
 }
 
-export default function SalesChannelTable({ metrics }: Props) {
+export default function SalesChannelTable({ metrics, onChannelClick }: Props) {
   // Filter out Contractor class and zero revenue channels
   const filteredMetrics = metrics.filter(m => 
     m.sales_channel !== 'Contractor' && 
@@ -170,7 +172,6 @@ export default function SalesChannelTable({ metrics }: Props) {
 
   return (
     <TooltipProvider>
-
       <Card className="overflow-x-auto">
       <Table>
         <TableHeader>
@@ -202,15 +203,23 @@ export default function SalesChannelTable({ metrics }: Props) {
               metric.periods[1].total_revenue
             )
 
+            const channelName = metric.sales_channel.startsWith('Amazon Combined:') 
+              ? metric.sales_channel.split(':')[1].trim()
+              : metric.sales_channel
+
             return (
               <TableRow 
                 key={metric.sales_channel} 
                 className="hover:bg-gray-50 even:bg-gray-50/50"
               >
-                <TableCell className="font-semibold">
-                  {metric.sales_channel.startsWith('Amazon Combined:') 
-                    ? metric.sales_channel.split(':')[1].trim()
-                    : metric.sales_channel}
+                <TableCell 
+                  className={cn(
+                    "font-semibold",
+                    onChannelClick && "cursor-pointer hover:text-primary hover:underline"
+                  )}
+                  onClick={() => onChannelClick?.(channelName)}
+                >
+                  {channelName}
                 </TableCell>
                 <TableCell className="text-right font-semibold">
                   {formatCurrency(currentRevenue)}
@@ -255,7 +264,12 @@ export default function SalesChannelTable({ metrics }: Props) {
           
           {/* Totals row */}
           <TableRow className="border-t-2 bg-gray-50/50 font-bold">
-            <TableCell>Total</TableCell>
+            <TableCell 
+              className={cn(
+                onChannelClick && "cursor-pointer hover:text-primary hover:underline"
+              )}
+              onClick={() => onChannelClick?.("all")}
+            >Total</TableCell>
             <TableCell className="text-right">
               {formatCurrency(totals.revenue)}
             </TableCell>

@@ -1,10 +1,8 @@
 import { ReportHeader } from "@/components/reports/report-header"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ProductSalesTable } from "@/components/reports/product-sales-table"
 import { ProductSalesChart } from "@/components/reports/product-sales-chart"
 import { prisma } from "@/lib/prisma"
-import SalesChannelTable from "@/components/reports/sales-channel-table"
 import { getProductSalesChannelMetrics } from "@/lib/reports/channels"
+import { ProductSalesWrapper } from "@/components/reports/product-sales-wrapper"
 
 type PageProps = {
   params: Promise<{
@@ -147,30 +145,15 @@ export default async function ProductSalesPage({ params, searchParams }: PagePro
           }))}
         />
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Sales Channel Analysis</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <SalesChannelTable metrics={channelMetrics} />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Company Sales Breakdown</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ProductSalesTable 
-              data={salesData.map(item => ({
-                ...item,
-                order_count: Number(item.order_count),
-                total_units: Number(item.total_units),
-                total_sales: Number(item.total_sales)
-              }))}
-            />
-          </CardContent>
-        </Card>
+        <ProductSalesWrapper
+          salesData={salesData.map(item => ({
+            ...item,
+            order_count: Number(item.order_count),
+            total_units: Number(item.total_units),
+            total_sales: Number(item.total_sales)
+          }))}
+          channelMetrics={channelMetrics}
+        />
       </div>
     </div>
   )

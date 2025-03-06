@@ -4,7 +4,7 @@ import { DataTable } from "@/components/ui/data-table"
 import { formatNumber, formatCurrency } from "@/lib/utils"
 import Link from "next/link"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useState, useMemo } from "react"
+import { useMemo } from "react"
 
 interface SalesData {
   company_name: string
@@ -17,11 +17,11 @@ interface SalesData {
 
 interface ProductSalesTableProps {
   data: SalesData[]
+  selectedClass: string
+  onClassChange: (value: string) => void
 }
 
-export function ProductSalesTable({ data }: ProductSalesTableProps) {
-  const [selectedClass, setSelectedClass] = useState<string>("all")
-
+export function ProductSalesTable({ data, selectedClass, onClassChange }: ProductSalesTableProps) {
   // Get unique sales classes
   const salesClasses = useMemo(() => {
     const classes = Array.from(new Set(data.map(item => item.sales_class)))
@@ -81,7 +81,7 @@ export function ProductSalesTable({ data }: ProductSalesTableProps) {
       <div className="flex items-center justify-end">
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Filter by class:</span>
-          <Select value={selectedClass} onValueChange={setSelectedClass}>
+          <Select value={selectedClass} onValueChange={onClassChange}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Select a class" />
             </SelectTrigger>
