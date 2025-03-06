@@ -2,6 +2,7 @@
 
 import { DataTable } from "@/components/ui/data-table"
 import { formatNumber, formatCurrency } from "@/lib/utils"
+import Link from "next/link"
 
 interface TableRow {
   product_line: string
@@ -34,9 +35,12 @@ export function ProductReferenceAndSalesTable({ data }: ProductReferenceAndSales
       header: "Product Name",
       accessorKey: "name" as keyof TableRow,
       cell: (item: TableRow) => (
-        <div className="whitespace-nowrap overflow-hidden text-ellipsis max-w-xs">
-          {item.name || '-'}
-        </div>
+        <Link 
+          href={`/reports/product-sales/${item.productCode}`}
+          className="text-primary hover:underline whitespace-nowrap overflow-hidden text-ellipsis max-w-xs block"
+        >
+          {item.name || item.productCode}
+        </Link>
       ),
       sortable: true
     },

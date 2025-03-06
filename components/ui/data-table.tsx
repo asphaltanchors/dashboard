@@ -1,3 +1,5 @@
+"use client"
+
 import React, { useState } from "react"
 import {
   Table,
@@ -74,6 +76,14 @@ export function DataTable<T>({ data, columns, defaultSort }: DataTableProps<T>):
     return <ChevronsUpDown className="size-4" />
   }
 
+  const renderCell = (item: T, column: DataTableColumn<T>) => {
+    if (column.cell) {
+      return column.cell(item)
+    }
+    const value = item[column.accessorKey]
+    return value != null ? String(value) : '-'
+  }
+
   return (
     <Table>
       <TableHeader>
@@ -116,7 +126,7 @@ export function DataTable<T>({ data, columns, defaultSort }: DataTableProps<T>):
                     typeof item[column.accessorKey] === 'number' && "text-right"
                   )}
                 >
-                  {column.cell ? column.cell(item) : String(item[column.accessorKey])}
+                  {renderCell(item, column)}
                 </TableCell>
               ))}
             </TableRow>
