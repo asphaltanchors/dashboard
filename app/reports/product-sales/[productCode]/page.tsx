@@ -71,7 +71,19 @@ export default async function ProductSalesPage({ params, searchParams }: PagePro
     order_count: string
     total_units: string
     total_sales: string
+    sales_class: string
   }>>(`
+    WITH company_classes AS (
+      SELECT 
+        c."companyDomain",
+        o.class as sales_class,
+        COUNT(*) as class_count,
+        ROW_NUMBER() OVER (PARTITION BY c."companyDomain" ORDER BY COUNT(*) DESC) as rn
+      FROM "Order" o
+      JOIN "Customer" c ON c."id" = o."customerId"
+      WHERE o.class IS NOT NULL
+      GROUP BY c."companyDomain", o.class
+    )
     SELECT 
       comp.name as company_name,
       comp.domain as company_domain,
@@ -87,17 +99,22 @@ export default async function ProductSalesPage({ params, searchParams }: PagePro
           WHEN oi."productCode" = '01-6310.72L' THEN 72
           ELSE 6
         END) AS text) as total_units,
-      CAST(SUM(oi.amount) AS text) as total_sales
+      CAST(SUM(oi.amount) AS text) as total_sales,
+      CASE 
+        WHEN cc.sales_class LIKE 'Amazon Combined:%' THEN TRIM(SPLIT_PART(cc.sales_class, ':', 2))
+        ELSE COALESCE(cc.sales_class, 'Unclassified')
+      END as sales_class
     FROM "OrderItem" oi
     JOIN "Order" o ON o."id" = oi."orderId"
     JOIN "Customer" c ON c."id" = o."customerId"
     JOIN "Company" comp ON comp."domain" = c."companyDomain"
+    LEFT JOIN company_classes cc ON cc."companyDomain" = comp.domain AND cc.rn = 1
     WHERE oi."productCode" = $1
     AND o."orderDate" >= NOW() - INTERVAL '${date_range}'
     ${filterConsumer ? "AND comp.domain NOT IN ('gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'aol.com', 'icloud.com')" : ""}
     ${min_amount ? `AND o.amount >= ${min_amount}` : ""}
     ${max_amount ? `AND o.amount <= ${max_amount}` : ""}
-    GROUP BY comp.name, comp.domain
+    GROUP BY comp.name, comp.domain, cc.sales_class
     HAVING SUM(oi.amount) > 0
     ORDER BY total_sales DESC
   `, productCode)
@@ -107,15 +124,21 @@ export default async function ProductSalesPage({ params, searchParams }: PagePro
 
   return (
     <div className="space-y-6 p-8">
-      <ReportHeader
-        title={`${product?.name || productCode} Sales Analysis`}
-        resetPath={`/reports/product-sales/${productCode}?date_range=365d`}
-        dateRange={date_range}
-        minAmount={min_amount ? parseFloat(min_amount) : undefined}
-        maxAmount={max_amount ? parseFloat(max_amount) : undefined}
-        filterConsumer={filterConsumer}
-      />
-      
+      <div className="space-y-2">
+        <ReportHeader
+          title={`${product?.name || productCode} Sales Analysis`}
+          resetPath={`/reports/product-sales/${productCode}?date_range=365d`}
+          dateRange={date_range}
+          minAmount={min_amount ? parseFloat(min_amount) : undefined}
+          maxAmount={max_amount ? parseFloat(max_amount) : undefined}
+          filterConsumer={filterConsumer}
+        />
+        
+        {product?.description && (
+          <p className="text-sm text-muted-foreground">{product.description}</p>
+        )}
+      </div>
+
       <div className="grid gap-8">
         <ProductSalesChart 
           data={quarterlySalesData.map(item => ({
