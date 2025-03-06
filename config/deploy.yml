@@ -6,7 +6,7 @@ image: asphaltanchors/aacd
 
 # Deploy to these servers.
 servers:
-  - aac
+  - aac.taila87174.ts.net
 
 proxy:
   ssl: false
@@ -27,7 +27,7 @@ builder:
   arch: amd64
   secrets:
     - DATABASE_URL
-  remote: ssh://root@aac
+  remote: ssh://root@aac.taila87174.ts.net
   context: .
 
 env:
@@ -42,12 +42,12 @@ asset_path: /app/.next
 accessories:
   maestral:
     image: maestraldbx/maestral:latest
-    host: aac
+    host: aac.taila87174.ts.net
     volumes:
       - /mnt/dropbox:/dropbox
   importer:
     image: ghcr.io/asphaltanchors/py-importer:1.7.0
-    host: aac
+    host: aac.taila87174.ts.net
     volumes:
       - /mnt/dropbox/db/AAC/qb-csv:/data
     env:
