@@ -34,7 +34,7 @@ export async function getProductReferenceAndSales(filters?: FilterParams) {
         WHEN oi."productCode" IN ('01-6318.7SK', '01-6315.3SK', '01-6315.3SK-2', '01-6358.5SK', '01-6358.5SK-2') THEN 'Stainless Steel'
         WHEN oi."productCode" LIKE '01-63%' AND oi."productCode" NOT LIKE '%-D' THEN 'Zinc Plated'
         WHEN oi."productCode" LIKE '%-D' THEN 'Dacromet'
-        WHEN oi."productCode" IN ('82-5002.K', '82-5002.010', '82-6002') THEN 'Epoxy'
+        WHEN oi."productCode" IN ('82-5002.K', '82-5002.010', '82-6002') THEN 'Adhesives'
         WHEN oi."productCode" IN ('01-7014', '01-7014-FBA') THEN 'Plastic'
         WHEN oi."productCode" IN ('01-7011.PST', '01-7010-FBA', '01-7010', '01-7013') THEN 'Zinc Plated'
         WHEN oi."productCode" LIKE '01-8003%' THEN 'Tools'
@@ -115,7 +115,7 @@ export async function getActualUnitsSold(filters?: FilterParams) {
           WHEN "productCode" IN ('01-6318.7SK', '01-6315.3SK', '01-6315.3SK-2', '01-6358.5SK', '01-6358.5SK-2') THEN 'Stainless Steel'
           WHEN "productCode" LIKE '01-63%' AND "productCode" NOT LIKE '%-D' THEN 'Zinc Plated'
           WHEN "productCode" LIKE '%-D' THEN 'Dacromet'
-          WHEN "productCode" IN ('82-5002.K', '82-5002.010', '82-6002') THEN 'Epoxy'
+          WHEN "productCode" IN ('82-5002.K', '82-5002.010', '82-6002') THEN 'Adhesives'
           WHEN "productCode" IN ('01-7014', '01-7014-FBA') THEN 'Plastic'
           WHEN "productCode" IN ('01-7011.PST', '01-7010-FBA', '01-7010', '01-7013') THEN 'Zinc Plated'
           WHEN "productCode" LIKE '01-8003%' THEN 'Tools'
@@ -172,10 +172,12 @@ export async function getMaterialTypeMetrics(filters?: FilterParams) {
   }>>(`
     SELECT 
       CASE 
-        WHEN "productCode" LIKE '01-63%' AND "productCode" NOT LIKE '%-D' AND "productCode" NOT LIKE '%3SK%' THEN 'Zinc Plated'
-        WHEN "productCode" LIKE '%3SK%' THEN 'Stainless Steel'
+        WHEN "productCode" IN ('01-6318.7SK', '01-6315.3SK', '01-6315.3SK-2', '01-6358.5SK', '01-6358.5SK-2') THEN 'Stainless Steel'
+        WHEN "productCode" LIKE '01-63%' AND "productCode" NOT LIKE '%-D' THEN 'Zinc Plated'
         WHEN "productCode" LIKE '%-D' THEN 'Dacromet'
-        WHEN "productCode" IN ('82-5002.K', '82-5002.010', '82-6002') THEN 'Epoxy'
+        WHEN "productCode" IN ('82-5002.K', '82-5002.010', '82-6002') THEN 'Adhesives'
+        WHEN "productCode" IN ('01-7014', '01-7014-FBA') THEN 'Plastic'
+        WHEN "productCode" IN ('01-7011.PST', '01-7010-FBA', '01-7010', '01-7013') THEN 'Zinc Plated'
         WHEN "productCode" LIKE '01-8003%' THEN 'Tools'
         ELSE 'Other'
       END as material_type,
@@ -185,18 +187,18 @@ export async function getMaterialTypeMetrics(filters?: FilterParams) {
     FROM "OrderItem" oi
     JOIN "Order" o ON o."id" = oi."orderId"
     WHERE (oi."productCode" LIKE '01-63%'
-           OR oi."productCode" IN ('82-5002.K', '82-5002.010')
-           OR oi."productCode" LIKE '82-6002%'
-           OR oi."productCode" LIKE '01-70%'
+           OR oi."productCode" IN ('82-5002.K', '82-5002.010', '82-6002', '01-7014', '01-7014-FBA', '01-7011.PST', '01-7010-FBA', '01-7010', '01-7013')
            OR oi."productCode" LIKE '01-8003%')
     AND o."orderDate" >= '${startDate.toISOString()}'
     ${additionalFilters}
     GROUP BY 
       CASE 
-        WHEN "productCode" LIKE '01-63%' AND "productCode" NOT LIKE '%-D' AND "productCode" NOT LIKE '%3SK%' THEN 'Zinc Plated'
-        WHEN "productCode" LIKE '%3SK%' THEN 'Stainless Steel'
+        WHEN "productCode" IN ('01-6318.7SK', '01-6315.3SK', '01-6315.3SK-2', '01-6358.5SK', '01-6358.5SK-2') THEN 'Stainless Steel'
+        WHEN "productCode" LIKE '01-63%' AND "productCode" NOT LIKE '%-D' THEN 'Zinc Plated'
         WHEN "productCode" LIKE '%-D' THEN 'Dacromet'
-        WHEN "productCode" IN ('82-5002.K', '82-5002.010', '82-6002') THEN 'Epoxy'
+        WHEN "productCode" IN ('82-5002.K', '82-5002.010', '82-6002') THEN 'Adhesives'
+        WHEN "productCode" IN ('01-7014', '01-7014-FBA') THEN 'Plastic'
+        WHEN "productCode" IN ('01-7011.PST', '01-7010-FBA', '01-7010', '01-7013') THEN 'Zinc Plated'
         WHEN "productCode" LIKE '01-8003%' THEN 'Tools'
         ELSE 'Other'
       END
@@ -360,7 +362,7 @@ export async function getCompanyProductReferenceAndSales(domain: string) {
         WHEN oi."productCode" IN ('01-6318.7SK', '01-6315.3SK', '01-6315.3SK-2', '01-6358.5SK', '01-6358.5SK-2') THEN 'Stainless Steel'
         WHEN oi."productCode" LIKE '01-63%' AND oi."productCode" NOT LIKE '%-D' THEN 'Zinc Plated'
         WHEN oi."productCode" LIKE '%-D' THEN 'Dacromet'
-        WHEN oi."productCode" IN ('82-5002.K', '82-5002.010', '82-6002') THEN 'Epoxy'
+        WHEN oi."productCode" IN ('82-5002.K', '82-5002.010', '82-6002') THEN 'Adhesives'
         WHEN oi."productCode" IN ('01-7014', '01-7014-FBA') THEN 'Plastic'
         WHEN oi."productCode" IN ('01-7011.PST', '01-7010-FBA', '01-7010', '01-7013') THEN 'Zinc Plated'
         WHEN oi."productCode" LIKE '01-8003%' THEN 'Tools'
