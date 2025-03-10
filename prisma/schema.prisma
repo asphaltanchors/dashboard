@@ -118,10 +118,38 @@ model Product {
   name          String
   description   String?
   
+  // New fields
+  unitsPerPackage Int      @default(6)  // Default to 6 based on common case
+  cost          Decimal?   @db.Decimal(10, 2)  // Our cost with 2 decimal places
+  listPrice     Decimal?   @db.Decimal(10, 2)  // List price with 2 decimal places
+  
   createdAt     DateTime
   modifiedAt    DateTime
   
+  // Relationships
   orderItems    OrderItem[]
+  priceHistory  ProductPriceHistory[] // New relationship
+}
+
+model ProductPriceHistory {
+  id            String    @id @default(cuid())
+  
+  // Foreign key to Product
+  product       Product   @relation(fields: [productId], references: [id])
+  productId     String
+  
+  // Price information
+  cost          Decimal   @db.Decimal(10, 2)
+  listPrice     Decimal   @db.Decimal(10, 2)
+  
+  // When this price was effective
+  effectiveDate DateTime
+  
+  // Optional notes about the price change
+  notes         String?
+  
+  @@index([productId])
+  @@index([effectiveDate])
 }
 
 model Order {
