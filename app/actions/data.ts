@@ -4,6 +4,7 @@ import { getCanadianOrders, getAdhesiveOnlyOrders } from "@/lib/reports"
 import { getCompanies } from "@/lib/companies"
 import { getCustomers } from "@/lib/customers"
 import { getOrders } from "@/lib/orders"
+import { getProducts } from "@/lib/products"
 import { enrichCompany } from "@/lib/enrichment"
 import { getRecentOrders } from "@/lib/dashboard"
 
@@ -95,4 +96,8 @@ export async function fetchRecentOrders(params: {
     pageSize: params.pageSize || 5,
     filterConsumer: params.filterConsumer
   })
+}
+
+export async function fetchProducts(params: Parameters<typeof getProducts>[0]) {
+  return getProducts(params)
 }

@@ -1,6 +1,6 @@
 import * as React from "react"
 import Link from "next/link"
-import { LayoutDashboard, Users, Building2, FileText, BarChart3 } from "lucide-react"
+import { LayoutDashboard, Users, Building2, FileText, BarChart3, Package } from "lucide-react"
 
 import {
   Sidebar,
@@ -35,6 +35,11 @@ const menuItems = [
     title: "Orders",
     icon: FileText,
     url: "/orders",
+  },
+  {
+    title: "Products",
+    icon: Package,
+    url: "/products",
   },
   {
     title: "Reports",

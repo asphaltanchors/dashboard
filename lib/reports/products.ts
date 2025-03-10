@@ -48,17 +48,7 @@ export async function getProductReferenceAndSales(filters?: FilterParams) {
       
       -- Metrics
       COUNT(DISTINCT oi."orderId") as order_count,
-      CAST(SUM(CAST(oi.quantity AS numeric) * 
-        CASE 
-          WHEN oi."productCode" = '01-7011.PST' THEN 4
-          WHEN oi."productCode" = '01-7014' THEN 4
-          WHEN oi."productCode" = '01-7014-FBA' THEN 4
-          WHEN oi."productCode" = '01-7010-FBA' THEN 4
-          WHEN oi."productCode" = '01-7010' THEN 4
-          WHEN oi."productCode" = '01-7013' THEN 4
-          WHEN oi."productCode" = '01-6310.72L' THEN 72
-          ELSE 6
-        END) AS text) as total_units,
+      CAST(SUM(CAST(oi.quantity AS numeric) * COALESCE(p."unitsPerPackage", 6)) AS text) as total_units,
       CAST(SUM(oi.amount) AS text) as total_sales
       
     FROM "OrderItem" oi
@@ -121,21 +111,13 @@ export async function getActualUnitsSold(filters?: FilterParams) {
           WHEN "productCode" LIKE '01-8003%' THEN 'Tools'
           ELSE 'Other'
         END as material_type,
-        CASE 
-          WHEN "productCode" = '01-7011.PST' THEN 4
-          WHEN "productCode" = '01-7014' THEN 4
-          WHEN "productCode" = '01-7014-FBA' THEN 4
-          WHEN "productCode" = '01-7010-FBA' THEN 4
-          WHEN "productCode" = '01-7010' THEN 4
-          WHEN "productCode" = '01-7013' THEN 4
-          WHEN "productCode" = '01-6310.72L' THEN 72
-          ELSE 6
-        END as quantity_multiplier,
+        COALESCE(p."unitsPerPackage", 6) as quantity_multiplier,
         oi.quantity,
         oi.amount,
         oi."orderId"
       FROM "OrderItem" oi
       JOIN "Order" o ON o."id" = oi."orderId"
+      LEFT JOIN "Product" p ON p."productCode" = oi."productCode"
       WHERE (oi."productCode" LIKE '01-63%'
              OR oi."productCode" LIKE '01-70%'
              OR oi."productCode" LIKE '01-8003%')
@@ -376,17 +358,7 @@ export async function getCompanyProductReferenceAndSales(domain: string) {
       
       -- Metrics
       COUNT(DISTINCT oi."orderId") as order_count,
-      CAST(SUM(CAST(oi.quantity AS numeric) * 
-        CASE 
-          WHEN oi."productCode" = '01-7011.PST' THEN 4
-          WHEN oi."productCode" = '01-7014' THEN 4
-          WHEN oi."productCode" = '01-7014-FBA' THEN 4
-          WHEN oi."productCode" = '01-7010-FBA' THEN 4
-          WHEN oi."productCode" = '01-7010' THEN 4
-          WHEN oi."productCode" = '01-7013' THEN 4
-          WHEN oi."productCode" = '01-6310.72L' THEN 72
-          ELSE 6
-        END) AS text) as total_units,
+      CAST(SUM(CAST(oi.quantity AS numeric) * COALESCE(p."unitsPerPackage", 6)) AS text) as total_units,
       CAST(SUM(oi.amount) AS text) as total_sales
       
     FROM "OrderItem" oi
