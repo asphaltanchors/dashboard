@@ -28,7 +28,7 @@ export async function getProducts({
   } : {}
 
   // Build order by object
-  let orderBy: any = {}
+  let orderBy: Record<string, 'asc' | 'desc'> = {}
   if (sortColumn === 'productCode') {
     orderBy = { productCode: sortDirection }
   } else if (sortColumn === 'name') {
