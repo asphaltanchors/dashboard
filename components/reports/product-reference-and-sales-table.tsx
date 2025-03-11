@@ -13,6 +13,8 @@ interface TableRow {
   order_count: number
   total_units: number
   total_sales: number
+  total_cost: number
+  profit: number
 }
 
 interface ProductReferenceAndSalesTableProps {
@@ -70,6 +72,12 @@ export function ProductReferenceAndSalesTable({ data }: ProductReferenceAndSales
       header: "Total Sales",
       accessorKey: "total_sales" as keyof TableRow,
       cell: (item: TableRow) => formatCurrency(item.total_sales),
+      sortable: true
+    },
+    {
+      header: "Margin %",
+      accessorKey: "profit" as keyof TableRow,
+      cell: (item: TableRow) => `${Number(item.profit).toFixed(1)}%`,
       sortable: true
     }
   ]

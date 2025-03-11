@@ -326,6 +326,8 @@ export async function getCompanyProductReferenceAndSales(domain: string) {
     order_count: string
     total_units: string
     total_sales: string
+    total_cost: string
+    profit: string
   }>>(`
     SELECT 
       -- Product categorization
@@ -359,7 +361,17 @@ export async function getCompanyProductReferenceAndSales(domain: string) {
       -- Metrics
       COUNT(DISTINCT oi."orderId") as order_count,
       CAST(SUM(CAST(oi.quantity AS numeric) * COALESCE(p."unitsPerPackage", 6)) AS text) as total_units,
-      CAST(SUM(oi.amount) AS text) as total_sales
+      CAST(SUM(oi.amount) AS text) as total_sales,
+      
+      -- Cost and profit calculations
+      CAST(SUM(CAST(oi.quantity AS numeric) * COALESCE(p."cost", 0)) AS text) as total_cost,
+      CAST(
+        CASE 
+          WHEN SUM(oi.amount) > 0 THEN 
+            ((SUM(oi.amount) - SUM(CAST(oi.quantity AS numeric) * COALESCE(p."cost", 0))) / SUM(oi.amount) * 100)
+          ELSE 0
+        END
+        AS text) as profit
       
     FROM "OrderItem" oi
     JOIN "Order" o ON o."id" = oi."orderId"

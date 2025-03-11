@@ -170,7 +170,9 @@ export default async function CompanyPage(props: PageProps) {
     ...item,
     order_count: Number(item.order_count),
     total_units: Number(item.total_units),
-    total_sales: Number(item.total_sales)
+    total_sales: Number(item.total_sales),
+    total_cost: Number(item.total_cost),
+    profit: Number(item.profit)
   }))
 
   return (
