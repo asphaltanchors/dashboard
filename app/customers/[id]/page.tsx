@@ -248,7 +248,8 @@ export default async function CustomerPage(
                 ...order,
                 customerName: customer.customerName,
                 totalAmount: Number(order.totalAmount),
-                shippingAddress: order.shippingAddress
+                shippingAddress: order.shippingAddress,
+                margin: 0 // Add default margin value
               })),
               totalCount: customer.orders.length,
               recentCount: customer.orders.filter(order => {

@@ -117,7 +117,8 @@ async function getCompanyDetails(domain: string): Promise<CompanyDetails | null>
         customerName: customer.customerName,
         totalAmount: Number(order.totalAmount),
         orderDate: order.orderDate || new Date(),
-        shippingAddress: order.shippingAddress
+        shippingAddress: order.shippingAddress,
+        margin: 0 // Add default margin value
       }))
     }))
   }
@@ -395,7 +396,8 @@ export default async function CompanyPage(props: PageProps) {
                 customerName: customer.customerName,
                 totalAmount: Number(order.totalAmount),
                 orderDate: order.orderDate || new Date(),
-                shippingAddress: order.shippingAddress
+                shippingAddress: order.shippingAddress,
+                margin: 0 // Add default margin value
               }))
             ),
             totalCount: company.customers.reduce((sum, customer) => sum + customer.orders.length, 0),

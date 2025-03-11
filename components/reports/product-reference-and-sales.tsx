@@ -21,7 +21,9 @@ export async function ProductReferenceAndSales({
     ...item,
     order_count: Number(item.order_count),
     total_units: Number(item.total_units),
-    total_sales: Number(item.total_sales)
+    total_sales: Number(item.total_sales),
+    total_cost: Number(item.total_cost || 0),
+    profit: Number(item.profit || 0)
   }))
 
   return (

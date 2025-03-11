@@ -16,6 +16,8 @@ export async function getProductReferenceAndSales(filters?: FilterParams) {
     order_count: string
     total_units: string
     total_sales: string
+    total_cost: string
+    profit: string
   }>>(`
     SELECT 
       -- Product categorization
@@ -49,7 +51,40 @@ export async function getProductReferenceAndSales(filters?: FilterParams) {
       -- Metrics
       COUNT(DISTINCT oi."orderId") as order_count,
       CAST(SUM(CAST(oi.quantity AS numeric) * COALESCE(p."unitsPerPackage", 6)) AS text) as total_units,
-      CAST(SUM(oi.amount) AS text) as total_sales
+      CAST(SUM(oi.amount) AS text) as total_sales,
+      
+      -- Cost and profit calculations
+      CAST(SUM(CAST(oi.quantity AS numeric) * COALESCE(p."cost", 0)) AS text) as total_cost,
+      CAST(
+        CASE 
+          WHEN SUM(
+            CASE 
+              WHEN LOWER(oi.description) LIKE '%shipping%' OR LOWER(oi.description) LIKE '%freight%' OR 
+                   LOWER(p.name) LIKE '%shipping%' OR LOWER(p.name) LIKE '%freight%' 
+              THEN 0 
+              ELSE oi.amount 
+            END
+          ) > 0 
+          THEN 
+            ((SUM(
+              CASE 
+                WHEN LOWER(oi.description) LIKE '%shipping%' OR LOWER(oi.description) LIKE '%freight%' OR 
+                     LOWER(p.name) LIKE '%shipping%' OR LOWER(p.name) LIKE '%freight%' 
+                THEN 0 
+                ELSE oi.amount 
+              END
+            ) - SUM(CAST(oi.quantity AS numeric) * COALESCE(p."cost", 0))) / 
+            SUM(
+              CASE 
+                WHEN LOWER(oi.description) LIKE '%shipping%' OR LOWER(oi.description) LIKE '%freight%' OR 
+                     LOWER(p.name) LIKE '%shipping%' OR LOWER(p.name) LIKE '%freight%' 
+                THEN 0 
+                ELSE oi.amount 
+              END
+            ) * 100)
+          ELSE 0
+        END
+        AS text) as profit
       
     FROM "OrderItem" oi
     JOIN "Order" o ON o."id" = oi."orderId"
