@@ -73,8 +73,8 @@ export async function getProductPricingAtDate(
 
   if (priceHistory) {
     return {
-      cost: priceHistory.cost,
-      listPrice: priceHistory.listPrice,
+      cost: priceHistory.cost ? Number(priceHistory.cost) : null,
+      listPrice: priceHistory.listPrice ? Number(priceHistory.listPrice) : null,
       effectiveDate: priceHistory.effectiveDate,
     }
   }
@@ -86,8 +86,8 @@ export async function getProductPricingAtDate(
   })
 
   return {
-    cost: product?.cost || null,
-    listPrice: product?.listPrice || null,
+    cost: product?.cost ? Number(product.cost) : null,
+    listPrice: product?.listPrice ? Number(product.listPrice) : null,
     effectiveDate: null, // No historical record found
   }
 }
@@ -99,8 +99,15 @@ export async function getProductPricingAtDate(
  * @returns Array of price history records, sorted by date (newest first)
  */
 export async function getProductPriceHistory(productId: string) {
-  return await prisma.productPriceHistory.findMany({
+  const priceHistory = await prisma.productPriceHistory.findMany({
     where: { productId },
     orderBy: { effectiveDate: 'desc' },
   })
+  
+  // Convert Decimal objects to numbers
+  return priceHistory.map(record => ({
+    ...record,
+    cost: Number(record.cost),
+    listPrice: Number(record.listPrice)
+  }))
 }

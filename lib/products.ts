@@ -19,16 +19,29 @@ export async function getProducts({
   const skip = (page - 1) * pageSize
 
   // Build where clause for search
-  const where = searchTerm ? {
-    OR: [
-      { productCode: { contains: searchTerm, mode: 'insensitive' as const } },
-      { name: { contains: searchTerm, mode: 'insensitive' as const } },
-      { description: { contains: searchTerm, mode: 'insensitive' as const } }
-    ]
-  } : {}
+  const where = {
+    // Only include products with at least one order item
+    orderItems: {
+      some: {}
+    },
+    // Exclude specific product codes
+    NOT: {
+      productCode: {
+        in: ['SUBTOTAL', 'NAN', 'SURCHARGE', 'REFURBISH']
+      }
+    },
+    // Add search conditions if a search term is provided
+    ...(searchTerm ? {
+      OR: [
+        { productCode: { contains: searchTerm, mode: 'insensitive' as const } },
+        { name: { contains: searchTerm, mode: 'insensitive' as const } },
+        { description: { contains: searchTerm, mode: 'insensitive' as const } }
+      ]
+    } : {})
+  }
 
   // Build order by object
-  let orderBy: Record<string, 'asc' | 'desc'> = {}
+  let orderBy: any = {}
   if (sortColumn === 'productCode') {
     orderBy = { productCode: sortDirection }
   } else if (sortColumn === 'name') {
@@ -36,14 +49,20 @@ export async function getProducts({
   } else if (sortColumn === 'unitsPerPackage') {
     orderBy = { unitsPerPackage: sortDirection }
   } else if (sortColumn === 'cost') {
-    orderBy = { cost: sortDirection }
+    // Handle null values for cost - place them at the end
+    orderBy = [
+      { cost: { sort: sortDirection, nulls: 'last' } }
+    ]
   } else if (sortColumn === 'listPrice') {
-    orderBy = { listPrice: sortDirection }
+    // Handle null values for listPrice - place them at the end
+    orderBy = [
+      { listPrice: { sort: sortDirection, nulls: 'last' } }
+    ]
   } else if (sortColumn === 'createdAt') {
     orderBy = { createdAt: sortDirection }
   }
 
-  const [products, totalCount] = await Promise.all([
+  const [productsRaw, totalCount] = await Promise.all([
     prisma.product.findMany({
       skip,
       take: pageSize,
@@ -71,6 +90,14 @@ export async function getProducts({
       where
     })
   ])
+
+  // Convert Decimal objects to numbers to avoid "Decimal objects are not supported" error
+  // when passing from Server Components to Client Components
+  const products = productsRaw.map(product => ({
+    ...product,
+    cost: product.cost ? Number(product.cost) : null,
+    listPrice: product.listPrice ? Number(product.listPrice) : null
+  }))
 
   return {
     products,

@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { Product } from "@/lib/products"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from "lucide-react"
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import debounce from "lodash/debounce"
 import { fetchProducts } from "@/app/actions/data"
@@ -112,14 +112,128 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Product Code</TableHead>
-                <TableHead>Name</TableHead>
+                <TableHead 
+                  className="cursor-pointer hover:bg-gray-50"
+                  onClick={() => {
+                    const newDirection = sortColumn === "productCode" && sortDirection === "asc" ? "desc" : "asc";
+                    router.replace(
+                      `${pathname}?${createQueryString({
+                        sort: "productCode",
+                        dir: newDirection,
+                      })}`,
+                      { scroll: false }
+                    );
+                  }}
+                >
+                  <div className="flex items-center">
+                    Product Code
+                    {sortColumn === "productCode" && (
+                      sortDirection === "asc" ? <ChevronUp className="ml-1 h-4 w-4" /> : <ChevronDown className="ml-1 h-4 w-4" />
+                    )}
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="cursor-pointer hover:bg-gray-50"
+                  onClick={() => {
+                    const newDirection = sortColumn === "name" && sortDirection === "asc" ? "desc" : "asc";
+                    router.replace(
+                      `${pathname}?${createQueryString({
+                        sort: "name",
+                        dir: newDirection,
+                      })}`,
+                      { scroll: false }
+                    );
+                  }}
+                >
+                  <div className="flex items-center">
+                    Name
+                    {sortColumn === "name" && (
+                      sortDirection === "asc" ? <ChevronUp className="ml-1 h-4 w-4" /> : <ChevronDown className="ml-1 h-4 w-4" />
+                    )}
+                  </div>
+                </TableHead>
                 <TableHead>Description</TableHead>
-                <TableHead>Units Per Package</TableHead>
-                <TableHead>Cost</TableHead>
-                <TableHead>List Price</TableHead>
+                <TableHead 
+                  className="cursor-pointer hover:bg-gray-50"
+                  onClick={() => {
+                    const newDirection = sortColumn === "unitsPerPackage" && sortDirection === "asc" ? "desc" : "asc";
+                    router.replace(
+                      `${pathname}?${createQueryString({
+                        sort: "unitsPerPackage",
+                        dir: newDirection,
+                      })}`,
+                      { scroll: false }
+                    );
+                  }}
+                >
+                  <div className="flex items-center">
+                    Units Per Package
+                    {sortColumn === "unitsPerPackage" && (
+                      sortDirection === "asc" ? <ChevronUp className="ml-1 h-4 w-4" /> : <ChevronDown className="ml-1 h-4 w-4" />
+                    )}
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="cursor-pointer hover:bg-gray-50"
+                  onClick={() => {
+                    const newDirection = sortColumn === "cost" && sortDirection === "asc" ? "desc" : "asc";
+                    router.replace(
+                      `${pathname}?${createQueryString({
+                        sort: "cost",
+                        dir: newDirection,
+                      })}`,
+                      { scroll: false }
+                    );
+                  }}
+                >
+                  <div className="flex items-center">
+                    Cost
+                    {sortColumn === "cost" && (
+                      sortDirection === "asc" ? <ChevronUp className="ml-1 h-4 w-4" /> : <ChevronDown className="ml-1 h-4 w-4" />
+                    )}
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="cursor-pointer hover:bg-gray-50"
+                  onClick={() => {
+                    const newDirection = sortColumn === "listPrice" && sortDirection === "asc" ? "desc" : "asc";
+                    router.replace(
+                      `${pathname}?${createQueryString({
+                        sort: "listPrice",
+                        dir: newDirection,
+                      })}`,
+                      { scroll: false }
+                    );
+                  }}
+                >
+                  <div className="flex items-center">
+                    List Price
+                    {sortColumn === "listPrice" && (
+                      sortDirection === "asc" ? <ChevronUp className="ml-1 h-4 w-4" /> : <ChevronDown className="ml-1 h-4 w-4" />
+                    )}
+                  </div>
+                </TableHead>
                 <TableHead>Order Items</TableHead>
-                <TableHead>Created At</TableHead>
+                <TableHead 
+                  className="cursor-pointer hover:bg-gray-50"
+                  onClick={() => {
+                    const newDirection = sortColumn === "createdAt" && sortDirection === "asc" ? "desc" : "asc";
+                    router.replace(
+                      `${pathname}?${createQueryString({
+                        sort: "createdAt",
+                        dir: newDirection,
+                      })}`,
+                      { scroll: false }
+                    );
+                  }}
+                >
+                  <div className="flex items-center">
+                    Created At
+                    {sortColumn === "createdAt" && (
+                      sortDirection === "asc" ? <ChevronUp className="ml-1 h-4 w-4" /> : <ChevronDown className="ml-1 h-4 w-4" />
+                    )}
+                  </div>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
