@@ -166,6 +166,7 @@ export function ServerOrdersTable({
                   { key: "paymentStatus", label: "Payment Status" },
                   { key: "paymentMethod", label: "Payment Method" },
                   { key: "totalAmount", label: "Amount" },
+                  { key: "margin", label: "Margin %" },
                   { key: "dueDate", label: "Due Date" }
                 ]).map(({ key, label }) => (
                   <TableHead key={key}>
@@ -236,9 +237,12 @@ export function ServerOrdersTable({
                     { key: "paymentMethod", label: "Payment Method", render: (value) => 
                       (value as string) || "-"
                     },
-                    { key: "totalAmount", label: "Amount", render: (value) => 
-                      formatCurrency(value as number)
-                    },
+                  { key: "totalAmount", label: "Amount", render: (value) => 
+                    formatCurrency(value as number)
+                  },
+                  { key: "margin", label: "Margin %", render: (value) => 
+                    value ? `${value}%` : "-"
+                  },
                     { key: "dueDate", label: "Due Date", render: (value) => 
                       value ? new Date(value as Date).toLocaleDateString() : "-"
                     }

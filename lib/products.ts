@@ -1,4 +1,5 @@
 import { prisma } from "./prisma"
+import { Prisma } from "@prisma/client"
 
 interface GetProductsParams {
   page?: number
@@ -41,7 +42,7 @@ export async function getProducts({
   }
 
   // Build order by object
-  let orderBy: any = {}
+  let orderBy: Prisma.ProductOrderByWithRelationInput | Prisma.ProductOrderByWithRelationInput[] = {}
   if (sortColumn === 'productCode') {
     orderBy = { productCode: sortDirection }
   } else if (sortColumn === 'name') {

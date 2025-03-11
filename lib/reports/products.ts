@@ -367,8 +367,31 @@ export async function getCompanyProductReferenceAndSales(domain: string) {
       CAST(SUM(CAST(oi.quantity AS numeric) * COALESCE(p."cost", 0)) AS text) as total_cost,
       CAST(
         CASE 
-          WHEN SUM(oi.amount) > 0 THEN 
-            ((SUM(oi.amount) - SUM(CAST(oi.quantity AS numeric) * COALESCE(p."cost", 0))) / SUM(oi.amount) * 100)
+          WHEN SUM(
+            CASE 
+              WHEN LOWER(oi.description) LIKE '%shipping%' OR LOWER(oi.description) LIKE '%freight%' OR 
+                   LOWER(p.name) LIKE '%shipping%' OR LOWER(p.name) LIKE '%freight%' 
+              THEN 0 
+              ELSE oi.amount 
+            END
+          ) > 0 
+          THEN 
+            ((SUM(
+              CASE 
+                WHEN LOWER(oi.description) LIKE '%shipping%' OR LOWER(oi.description) LIKE '%freight%' OR 
+                     LOWER(p.name) LIKE '%shipping%' OR LOWER(p.name) LIKE '%freight%' 
+                THEN 0 
+                ELSE oi.amount 
+              END
+            ) - SUM(CAST(oi.quantity AS numeric) * COALESCE(p."cost", 0))) / 
+            SUM(
+              CASE 
+                WHEN LOWER(oi.description) LIKE '%shipping%' OR LOWER(oi.description) LIKE '%freight%' OR 
+                     LOWER(p.name) LIKE '%shipping%' OR LOWER(p.name) LIKE '%freight%' 
+                THEN 0 
+                ELSE oi.amount 
+              END
+            ) * 100)
           ELSE 0
         END
         AS text) as profit

@@ -26,6 +26,8 @@ export default async function OrderPage({
     status: order.status,
     paymentStatus: order.paymentStatus,
     totalAmount: order.totalAmount,
+    totalCost: order.totalCost,
+    margin: order.margin,
     dueDate: order.dueDate,
     paymentMethod: order.paymentMethod,
     quickbooksId: resolvedParams.quickbooksId,
@@ -157,6 +159,10 @@ export default async function OrderPage({
               </dd>
             </div>
             <div className="flex justify-between">
+              <dt className="text-gray-500">Margin</dt>
+              <dd className="text-green-600">{order.margin}%</dd>
+            </div>
+            <div className="flex justify-between">
               <dt className="text-gray-500">Status</dt>
               <dd>{order.status}</dd>
             </div>
@@ -234,6 +240,7 @@ export default async function OrderPage({
                 <th className="text-right pb-2">Quantity</th>
                 <th className="text-right pb-2">Unit Price</th>
                 <th className="text-right pb-2">Amount</th>
+                <th className="text-right pb-2">Margin %</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -248,6 +255,11 @@ export default async function OrderPage({
                   <td className="text-right py-2">{item.quantity}</td>
                   <td className="text-right py-2">{formatCurrency(item.unitPrice)}</td>
                   <td className="text-right py-2">{formatCurrency(item.amount)}</td>
+                  <td className="text-right py-2 text-green-600">
+                    {item.isShippingItem ? 
+                      <span className="text-gray-500">Shipping</span> : 
+                      `${item.margin}%`}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -255,14 +267,17 @@ export default async function OrderPage({
               <tr className="border-t">
                 <td colSpan={3} className="text-right pt-2">Subtotal</td>
                 <td className="text-right pt-2">{formatCurrency(order.subtotal)}</td>
+                <td></td>
               </tr>
               <tr>
                 <td colSpan={3} className="text-right">Tax</td>
                 <td className="text-right">{formatCurrency(order.taxAmount)}</td>
+                <td></td>
               </tr>
               <tr className="font-semibold">
                 <td colSpan={3} className="text-right">Total</td>
                 <td className="text-right">{formatCurrency(order.totalAmount)}</td>
+                <td className="text-right text-green-600">{order.margin}%</td>
               </tr>
             </tfoot>
           </table>

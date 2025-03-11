@@ -131,6 +131,17 @@ export async function getOrders({
             country: true
           }
         },
+        items: {
+          select: {
+            product: {
+              select: {
+                cost: true
+              }
+            },
+            quantity: true,
+            amount: true
+          }
+        }
       },
       where,
       orderBy,
@@ -173,19 +184,44 @@ export async function getOrders({
     })
   ])
 
-  const mappedOrders = orders.map((order) => ({
-    id: order.id,
-    orderNumber: order.orderNumber,
-    orderDate: order.orderDate,
-    customerName: order.customer.customerName,
-    status: order.status,
-    paymentStatus: order.paymentStatus,
-    totalAmount: Number(order.totalAmount),
-    dueDate: order.dueDate,
-    paymentMethod: order.paymentMethod,
-    quickbooksId: order.quickbooksId,
-    shippingAddress: order.shippingAddress,
-  }))
+  const mappedOrders = orders.map((order) => {
+    // Calculate total cost and margin
+    const totalAmount = Number(order.totalAmount);
+    let totalCost = 0;
+    let totalNonShippingAmount = 0;
+    
+    order.items.forEach(item => {
+      const quantity = Number(item.quantity);
+      const amount = Number(item.amount || 0);
+      
+      // We don't have description or product name in this query, so we'll have to
+      // implement a more complete solution in the detailed order view
+      if (item.product?.cost) {
+        totalCost += quantity * Number(item.product.cost);
+        // Assume all items are non-shipping for this simplified view
+        totalNonShippingAmount += amount;
+      }
+    });
+    
+    // Calculate margin percentage
+    const margin = totalNonShippingAmount > 0 ? 
+      ((totalNonShippingAmount - totalCost) / totalNonShippingAmount * 100) : 0;
+    
+    return {
+      id: order.id,
+      orderNumber: order.orderNumber,
+      orderDate: order.orderDate,
+      customerName: order.customer.customerName,
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+      totalAmount: totalAmount,
+      margin: Number(margin.toFixed(1)),
+      dueDate: order.dueDate,
+      paymentMethod: order.paymentMethod,
+      quickbooksId: order.quickbooksId,
+      shippingAddress: order.shippingAddress,
+    };
+  });
 
   return {
     orders: mappedOrders,
@@ -241,21 +277,22 @@ export async function getOrderByQuickbooksId(quickbooksId: string) {
       paymentMethod: true,
       paymentDate: true,
       poNumber: true,
-      items: {
-        select: {
-          product: {
-            select: {
-              name: true,
-              productCode: true
-            }
-          },
-          quantity: true,
-          unitPrice: true,
-          amount: true,
-          description: true,
-          serviceDate: true
-        }
-      },
+        items: {
+          select: {
+            product: {
+              select: {
+                name: true,
+                productCode: true,
+                cost: true
+              }
+            },
+            quantity: true,
+            unitPrice: true,
+            amount: true,
+            description: true,
+            serviceDate: true
+          }
+        },
       billingAddress: {
         select: {
           line1: true,
@@ -283,16 +320,53 @@ export async function getOrderByQuickbooksId(quickbooksId: string) {
     notFound()
   }
 
+  // Calculate total cost and margin for the whole order
+  let totalCost = 0;
+  let totalNonShippingAmount = 0;
+  const items = order.items.map(item => {
+    const quantity = Number(item.quantity);
+    const unitPrice = Number(item.unitPrice);
+    const amount = Number(item.amount);
+    
+    // Check if this is a shipping item (description contains "shipping" or "freight")
+    const isShippingItem = item.description?.toLowerCase().includes('shipping') || 
+                           item.description?.toLowerCase().includes('freight') ||
+                           item.product.name?.toLowerCase().includes('shipping') ||
+                           item.product.name?.toLowerCase().includes('freight');
+    
+    // Calculate cost and margin
+    const cost = item.product?.cost ? Number(item.product.cost) * quantity : 0;
+    const itemMargin = isShippingItem ? 0 : (amount > 0 ? ((amount - cost) / amount * 100) : 0);
+    
+    // Add to totals (exclude shipping from margin calculation)
+    totalCost += cost;
+    if (!isShippingItem) {
+      totalNonShippingAmount += amount;
+    }
+    
+    return {
+      ...item,
+      quantity,
+      unitPrice,
+      amount,
+      cost,
+      isShippingItem,
+      margin: Number(itemMargin.toFixed(1))
+    };
+  });
+  
+  const totalAmount = Number(order.totalAmount);
+  // Calculate margin based on non-shipping amounts only
+  const margin = totalNonShippingAmount > 0 ? 
+    ((totalNonShippingAmount - totalCost) / totalNonShippingAmount * 100) : 0;
+  
   return {
     ...order,
-    totalAmount: Number(order.totalAmount),
+    totalAmount,
     subtotal: Number(order.subtotal),
     taxAmount: Number(order.taxAmount),
-    items: order.items.map(item => ({
-      ...item,
-      quantity: Number(item.quantity),
-      unitPrice: Number(item.unitPrice),
-      amount: Number(item.amount)
-    }))
+    totalCost,
+    margin: Number(margin.toFixed(1)),
+    items
   }
 }

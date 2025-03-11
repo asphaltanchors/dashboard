@@ -23,6 +23,8 @@ export type TableOrder = {
   status: Order['status']
   paymentStatus: Order['paymentStatus']
   totalAmount: number
+  totalCost?: number
+  margin?: number
   dueDate: Date | null
   paymentMethod: string | null
   quickbooksId: string | null
