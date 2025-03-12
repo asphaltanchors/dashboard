@@ -5,6 +5,8 @@ import { getOrders } from "@/lib/orders"
 import { FileText, Clock } from "lucide-react"
 import { FilterMetricCard } from "@/components/orders/filter-metric-card"
 import { ReportHeader } from "@/components/reports/report-header"
+import { DataStalenessCheck } from "@/components/data-staleness-check"
+import { hasRecentEStoreOrders } from "@/lib/dashboard"
 
 interface PageProps {
   searchParams: Promise<{
@@ -32,20 +34,24 @@ export default async function OrdersPage(props: PageProps) {
   const max_amount = searchParams.max_amount
   const filterConsumer = searchParams.filterConsumer !== undefined
 
-  const data = await getOrders({
-    page,
-    pageSize: 10,
-    searchTerm: search,
-    sortColumn: sort,
-    sortDirection: dir,
-    paymentStatusFilter: filter === 'unpaid-only' ? 'unpaid-only' : null,
-    dateRange: date_range,
-    minAmount: min_amount ? parseFloat(min_amount) : undefined,
-    maxAmount: max_amount ? parseFloat(max_amount) : undefined,
-    filterConsumer
-  })
+  const [data, hasRecentEStore] = await Promise.all([
+    getOrders({
+      page,
+      pageSize: 10,
+      searchTerm: search,
+      sortColumn: sort,
+      sortDirection: dir,
+      paymentStatusFilter: filter === 'unpaid-only' ? 'unpaid-only' : null,
+      dateRange: date_range,
+      minAmount: min_amount ? parseFloat(min_amount) : undefined,
+      maxAmount: max_amount ? parseFloat(max_amount) : undefined,
+      filterConsumer
+    }),
+    hasRecentEStoreOrders()
+  ])
   return (
     <div className="p-8">
+      <DataStalenessCheck isStale={!hasRecentEStore} />
       <ReportHeader
         title="Orders"
         resetPath="/orders?date_range=365d"

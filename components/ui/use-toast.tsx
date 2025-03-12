@@ -27,22 +27,24 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ toast }}>
       {children}
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
-        {toasts.map((toast, i) => (
-          <div
-            key={i}
-            className={`rounded-lg p-4 shadow-lg ${
-              toast.variant === "destructive"
-                ? "bg-red-500 text-white"
-                : "bg-white text-gray-900"
-            }`}
-          >
-            {toast.title && (
-              <div className="font-semibold">{toast.title}</div>
-            )}
-            {toast.description && <div>{toast.description}</div>}
-          </div>
-        ))}
+      <div className="fixed top-4 inset-x-0 z-50 flex justify-center items-center">
+        <div className="flex flex-col gap-2 max-w-md">
+          {toasts.map((toast, i) => (
+            <div
+              key={i}
+              className={`rounded-lg p-4 shadow-lg ${
+                toast.variant === "destructive"
+                  ? "bg-red-500 text-white"
+                  : "bg-white text-gray-900"
+              }`}
+            >
+              {toast.title && (
+                <div className="font-semibold">{toast.title}</div>
+              )}
+              {toast.description && <div>{toast.description}</div>}
+            </div>
+          ))}
+        </div>
       </div>
     </ToastContext.Provider>
   )

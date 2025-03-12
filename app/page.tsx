@@ -2,9 +2,10 @@ import { MetricCard } from "@/components/dashboard/metric-card"
 import { MonthlyRevenueChart } from "@/components/dashboard/monthly-revenue-chart"
 import { AnnualRevenueChart } from "@/components/dashboard/quarterly-revenue-chart"
 import { ReportHeader } from "@/components/reports/report-header"
+import { DataStalenessCheck } from "@/components/data-staleness-check"
 import { formatCurrency } from "@/lib/utils"
 import { DollarSign, ShoppingCart } from "lucide-react"
-import { getOrderMetrics, getMonthlyRevenue, getAnnualRevenue } from "@/lib/dashboard"
+import { getOrderMetrics, getMonthlyRevenue, getAnnualRevenue, hasRecentEStoreOrders } from "@/lib/dashboard"
 
 type PageProps = {
   searchParams: Promise<{
@@ -31,10 +32,11 @@ export default async function Home(props: PageProps) {
     filterConsumer
   }
 
-  const [metrics, monthlyRevenue, annualRevenue] = await Promise.all([
+  const [metrics, monthlyRevenue, annualRevenue, hasRecentEStore] = await Promise.all([
     getOrderMetrics(filters),
     getMonthlyRevenue(filters),
-    getAnnualRevenue(filters)
+    getAnnualRevenue(filters),
+    hasRecentEStoreOrders()
   ])
 
   const { 
@@ -46,6 +48,7 @@ export default async function Home(props: PageProps) {
 
   return (
     <div className="p-8">
+      <DataStalenessCheck isStale={!hasRecentEStore} />
       <ReportHeader
         dateRange={date_range}
         minAmount={min_amount ? parseFloat(min_amount) : undefined}

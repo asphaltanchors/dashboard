@@ -352,6 +352,22 @@ export async function getQuarterlyRevenue(filters: FilterParams = {}) {
     })
 }
 
+export async function hasRecentEStoreOrders(days: number = 7): Promise<boolean> {
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - days);
+  
+  const count = await prisma.order.count({
+    where: {
+      class: 'eStore',
+      orderDate: {
+        gte: cutoffDate
+      }
+    }
+  });
+  
+  return count > 0;
+}
+
 export async function getAnnualRevenue(filters: FilterParams = {}) {
   // Get all orders from the beginning of time
   const whereClause: OrderWhereClause = {
