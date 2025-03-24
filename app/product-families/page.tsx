@@ -2,8 +2,25 @@ import { db } from "../../db";
 import { sql } from "drizzle-orm";
 import { orderItems, orders } from "../../db/schema";
 import Link from "next/link";
-import DashboardLayout from "../components/DashboardLayout";
 import { getDateRangeFromTimeFrame } from "../utils/dates";
+
+import { AppSidebar } from "@/components/app-sidebar";
+import { SiteHeader } from "@/components/site-header";
+import {
+  SidebarInset,
+  SidebarProvider,
+} from "@/components/ui/sidebar";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 
 // Define product family information
 const productFamilies = [
@@ -56,37 +73,18 @@ export default async function ProductFamilies({
 }: {
   searchParams?: { [key: string]: string | string[] | undefined };
 }) {
-  // Wait for searchParams to be available
+  // Get the selected range from URL params or default to last-12-months
   const params = await searchParams || {};
+  const range = (params.range as string) || 'last-12-months';
   
-  // Get timeframe from URL params or default to 30d
-  const timeFrame = (params.timeframe as string) || '30d';
-  const startDateParam = params.start as string | undefined;
-  const endDateParam = params.end as string | undefined;
-  
-  // Calculate date range based on the selected time frame
+  // Calculate date range based on the selected range
   const {
     startDate,
     endDate,
     formattedStartDate,
-    formattedEndDate
-  } = getDateRangeFromTimeFrame(timeFrame, startDateParam, endDateParam);
-  
-  // Format date range for display
-  const formattedStartDisplay = startDate.toLocaleDateString('en-US', { 
-    year: 'numeric', 
-    month: 'short', 
-    day: 'numeric' 
-  });
-  
-  const formattedEndDisplay = endDate.toLocaleDateString('en-US', { 
-    year: 'numeric', 
-    month: 'short', 
-    day: 'numeric' 
-  });
-  
-  // Create date range text for display
-  const dateRangeText = `Showing data from ${formattedStartDisplay} to ${formattedEndDisplay}`;
+    formattedEndDate,
+    displayText
+  } = getDateRangeFromTimeFrame(range);
 
   // For each family, get the count of products and total sales
   const familyStats = await Promise.all(
@@ -157,41 +155,145 @@ export default async function ProductFamilies({
     })
   );
 
+  // Calculate total revenue across all families
+  const totalRevenue = familyStats.reduce((sum, family) => sum + family.stats.totalSales, 0);
+  
+  // Sort families by revenue for the selected period
+  const sortedFamilies = [...familyStats].sort((a, b) => b.stats.totalSales - a.stats.totalSales);
+
   return (
-    <DashboardLayout
-      title="Product Families"
-      dateRangeText={dateRangeText}
+    <SidebarProvider
+      style={
+        {
+          "--sidebar-width": "calc(var(--spacing) * 72)",
+          "--header-height": "calc(var(--spacing) * 12)",
+        } as React.CSSProperties
+      }
     >
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        {familyStats.map((family) => (
-          <div key={family.id} className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-            <h2 className="text-xl font-semibold mb-2">{family.name}</h2>
-            <p className="text-gray-600 dark:text-gray-300 mb-4">{family.description}</p>
-            <div className="flex justify-between mb-4">
-              <div>
-                <p className="text-sm text-gray-500">Products</p>
-                <p className="text-lg font-semibold">{family.stats.productCount}</p>
+      <AppSidebar variant="inset" />
+      <SidebarInset>
+        <SiteHeader />
+        <div className="flex flex-1 flex-col">
+          <div className="@container/main flex flex-1 flex-col gap-2">
+            <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+              {/* Summary Cards */}
+              <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-3 @5xl/main:grid-cols-3">
+                <Card className="@container/card">
+                  <CardHeader>
+                    <CardDescription>Total Product Families</CardDescription>
+                    <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+                      {productFamilies.length}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardFooter className="flex-col items-start gap-1.5 text-sm">
+                    <div className="line-clamp-1 flex gap-2 font-medium">
+                      Active product families
+                    </div>
+                    <div className="text-muted-foreground">
+                      {displayText}
+                    </div>
+                  </CardFooter>
+                </Card>
+                
+                <Card className="@container/card">
+                  <CardHeader>
+                    <CardDescription>Total Revenue</CardDescription>
+                    <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+                      ${Number(totalRevenue).toLocaleString()}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardFooter className="flex-col items-start gap-1.5 text-sm">
+                    <div className="line-clamp-1 flex gap-2 font-medium">
+                      Across all product families
+                    </div>
+                    <div className="text-muted-foreground">
+                      {displayText}
+                    </div>
+                  </CardFooter>
+                </Card>
+                
+                <Card className="@container/card">
+                  <CardHeader>
+                    <CardDescription>Top Performing Family</CardDescription>
+                    <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+                      {sortedFamilies[0]?.name.split(' ')[0] || 'N/A'}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardFooter className="flex-col items-start gap-1.5 text-sm">
+                    <div className="line-clamp-1 flex gap-2 font-medium">
+                      ${Number(sortedFamilies[0]?.stats.totalSales || 0).toLocaleString()} in revenue
+                    </div>
+                    <div className="text-muted-foreground">
+                      {displayText}
+                    </div>
+                  </CardFooter>
+                </Card>
               </div>
-              <div>
-                <p className="text-sm text-gray-500">Total Sales</p>
-                <p className="text-lg font-semibold">${Number(family.stats.totalSales).toLocaleString()}</p>
+              
+              {/* Product Family Cards */}
+              <div className="px-4 lg:px-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                  {familyStats.map((family) => (
+                    <Card key={family.id} className="overflow-hidden">
+                      <CardHeader>
+                        <CardTitle className="text-xl">{family.name}</CardTitle>
+                        <CardDescription className="line-clamp-2">{family.description}</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-3 gap-4 text-center">
+                          <div>
+                            <p className="text-sm text-muted-foreground">Products</p>
+                            <p className="text-lg font-medium mt-1">{family.stats.productCount}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">Revenue</p>
+                            <p className="text-lg font-medium mt-1">${Number(family.stats.totalSales).toLocaleString()}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">Units</p>
+                            <p className="text-lg font-medium mt-1">{Number(family.stats.totalQuantity).toLocaleString()}</p>
+                          </div>
+                        </div>
+                        
+                        {family.topProduct && (
+                          <div className="mt-4 pt-4 border-t">
+                            <h4 className="text-sm font-medium mb-2">Top Product</h4>
+                            <div className="text-sm">
+                              <p className="font-medium">{family.topProduct.product_code}</p>
+                              <p className="text-muted-foreground truncate">{family.topProduct.product_description}</p>
+                              <Badge className="mt-1" variant="outline">
+                                ${Number(family.topProduct.total_sales).toLocaleString()}
+                              </Badge>
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                      <CardFooter className="bg-muted/50 flex justify-between">
+                        <Link 
+                          href={`/product-families/${family.id}?range=${range}`} 
+                          passHref
+                        >
+                          <Button variant="secondary" size="sm">
+                            View Details
+                          </Button>
+                        </Link>
+                        <Link 
+                          href={`/products?range=${range}&family=${family.id}`} 
+                          passHref
+                        >
+                          <Button variant="outline" size="sm">
+                            View Products
+                          </Button>
+                        </Link>
+                      </CardFooter>
+                    </Card>
+                  ))}
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-gray-500">Units Sold</p>
-                <p className="text-lg font-semibold">{Number(family.stats.totalQuantity).toLocaleString()}</p>
-              </div>
-            </div>
-            <div className="mt-4">
-              <Link 
-                href={`/product-families/${family.id}?timeframe=${timeFrame}${startDateParam ? `&start=${startDateParam}` : ''}${endDateParam ? `&end=${endDateParam}` : ''}`} 
-                className="text-blue-500 hover:text-blue-700 hover:underline"
-              >
-                View Details →
-              </Link>
             </div>
           </div>
-        ))}
-      </div>
-    </DashboardLayout>
+        </div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }

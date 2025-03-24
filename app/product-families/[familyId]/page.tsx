@@ -2,8 +2,33 @@ import { db } from "../../../db";
 import { sql } from "drizzle-orm";
 import { orderItems, orders } from "../../../db/schema";
 import Link from "next/link";
-import DashboardLayout from "../../components/DashboardLayout";
 import { getDateRangeFromTimeFrame } from "../../utils/dates";
+
+import { AppSidebar } from "@/components/app-sidebar";
+import { SiteHeader } from "@/components/site-header";
+import {
+  SidebarInset,
+  SidebarProvider,
+} from "@/components/ui/sidebar";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 
 // Define product family information
 const productFamilies = [
@@ -100,55 +125,61 @@ export default async function ProductFamilyDetail({
   params: { familyId: string };
   searchParams?: { [key: string]: string | string[] | undefined };
 }) {
-  // Wait for params and searchParams to be available
+  // Get the familyId from params
   const familyParams = await params;
   const familyId = familyParams.familyId;
   
-  // Get searchParams
+  // Get the selected range from URL params or default to last-12-months
   const queryParams = await searchParams || {};
+  const range = (queryParams.range as string) || 'last-12-months';
   
-  // Get timeframe from URL params or default to 30d
-  const timeFrame = (queryParams.timeframe as string) || '30d';
-  const startDateParam = queryParams.start as string | undefined;
-  const endDateParam = queryParams.end as string | undefined;
-  
-  // Calculate date range based on the selected time frame
+  // Calculate date range based on the selected range
   const {
     startDate,
     endDate,
     formattedStartDate,
-    formattedEndDate
-  } = getDateRangeFromTimeFrame(timeFrame, startDateParam, endDateParam);
-  
-  // Format date range for display
-  const formattedStartDisplay = startDate.toLocaleDateString('en-US', { 
-    year: 'numeric', 
-    month: 'short', 
-    day: 'numeric' 
-  });
-  
-  const formattedEndDisplay = endDate.toLocaleDateString('en-US', { 
-    year: 'numeric', 
-    month: 'short', 
-    day: 'numeric' 
-  });
-  
-  // Create date range text for display
-  const dateRangeText = `Showing data from ${formattedStartDisplay} to ${formattedEndDisplay}`;
+    formattedEndDate,
+    displayText
+  } = getDateRangeFromTimeFrame(range);
   
   // Find the family information
   const family = productFamilies.find(f => f.id === familyId);
   
   if (!family) {
     return (
-      <DashboardLayout 
-        title="Product Family Not Found"
-        showTimeFramePicker={false}
+      <SidebarProvider
+        style={
+          {
+            "--sidebar-width": "calc(var(--spacing) * 72)",
+            "--header-height": "calc(var(--spacing) * 12)",
+          } as React.CSSProperties
+        }
       >
-        <Link href="/product-families" className="text-blue-500 hover:text-blue-700">
-          ← Back to Product Families
-        </Link>
-      </DashboardLayout>
+        <AppSidebar variant="inset" />
+        <SidebarInset>
+          <SiteHeader />
+          <div className="flex flex-1 flex-col">
+            <div className="@container/main flex flex-1 flex-col gap-2">
+              <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+                <div className="px-4 lg:px-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Product Family Not Found</CardTitle>
+                      <CardDescription>The requested product family could not be found</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <p>We couldn't find a product family with the ID: {familyId}</p>
+                      <Button className="mt-4" asChild>
+                        <Link href="/product-families">Back to Product Families</Link>
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            </div>
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
     );
   }
   
@@ -216,7 +247,6 @@ export default async function ProductFamilyDetail({
         customerCount: 0 
       };
   
-
   // Get monthly sales trend for this family
   const monthlySalesResult = await db.execute(sql`
     SELECT 
@@ -256,157 +286,211 @@ export default async function ProductFamilyDetail({
   .limit(10);
 
   // Create URL back to product families with the same time frame
-  const backToFamiliesUrl = `/product-families?timeframe=${timeFrame}${startDateParam ? `&start=${startDateParam}` : ''}${endDateParam ? `&end=${endDateParam}` : ''}`;
+  const backToFamiliesUrl = `/product-families?range=${range}`;
 
   return (
-    <DashboardLayout
-      title={family.name}
-      dateRangeText={dateRangeText}
+    <SidebarProvider
+      style={
+        {
+          "--sidebar-width": "calc(var(--spacing) * 72)",
+          "--header-height": "calc(var(--spacing) * 12)",
+        } as React.CSSProperties
+      }
     >
-      <div className="flex items-center gap-4 mb-8">
-        <Link href={backToFamiliesUrl} className="text-blue-500 hover:text-blue-700">
-          ← Back to Product Families
-        </Link>
-      </div>
-      
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md mb-8">
-        <h2 className="text-xl font-semibold mb-4">Family Overview</h2>
-        <p className="text-gray-700 dark:text-gray-300 mb-6">{family.description}</p>
-        
-        <h3 className="text-lg font-medium mb-2">Key Features</h3>
-        <ul className="list-disc pl-5 mb-6 text-gray-700 dark:text-gray-300">
-          {family.features.map((feature, index) => (
-            <li key={index} className="mb-1">{feature}</li>
-          ))}
-        </ul>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="border dark:border-gray-700 rounded-lg p-4">
-            <p className="text-sm text-gray-500">Total Sales</p>
-            <p className="text-2xl font-bold text-blue-600">${Number(stats.totalSales).toLocaleString()}</p>
-          </div>
-          <div className="border dark:border-gray-700 rounded-lg p-4">
-            <p className="text-sm text-gray-500">Units Sold</p>
-            <p className="text-2xl font-bold text-green-600">{Number(stats.totalQuantity).toLocaleString()}</p>
-          </div>
-          <div className="border dark:border-gray-700 rounded-lg p-4">
-            <p className="text-sm text-gray-500">Total Orders</p>
-            <p className="text-2xl font-bold text-purple-600">{Number(stats.orderCount).toLocaleString()}</p>
-          </div>
-          <div className="border dark:border-gray-700 rounded-lg p-4">
-            <p className="text-sm text-gray-500">Unique Customers</p>
-            <p className="text-2xl font-bold text-amber-600">{Number(stats.customerCount).toLocaleString()}</p>
+      <AppSidebar variant="inset" />
+      <SidebarInset>
+        <SiteHeader />
+        <div className="flex flex-1 flex-col">
+          <div className="@container/main flex flex-1 flex-col gap-2">
+            <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+              {/* Back Button */}
+              <div className="px-4 lg:px-6">
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={backToFamiliesUrl}>
+                    ← Back to Product Families
+                  </Link>
+                </Button>
+              </div>
+              
+              {/* Family Overview Card */}
+              <div className="px-4 lg:px-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>{family.name}</CardTitle>
+                    <CardDescription>{displayText}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <p className="text-muted-foreground">{family.description}</p>
+                    
+                    <div>
+                      <h3 className="text-lg font-medium mb-2">Key Features</h3>
+                      <ul className="ml-5 space-y-1 list-disc text-muted-foreground">
+                        {family.features.map((feature, index) => (
+                          <li key={index}>{feature}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    
+                    <Separator className="my-4" />
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <Card>
+                        <CardHeader className="py-2">
+                          <CardDescription>Total Sales</CardDescription>
+                          <CardTitle>${Number(stats.totalSales).toLocaleString()}</CardTitle>
+                        </CardHeader>
+                      </Card>
+                      <Card>
+                        <CardHeader className="py-2">
+                          <CardDescription>Units Sold</CardDescription>
+                          <CardTitle>{Number(stats.totalQuantity).toLocaleString()}</CardTitle>
+                        </CardHeader>
+                      </Card>
+                      <Card>
+                        <CardHeader className="py-2">
+                          <CardDescription>Orders</CardDescription>
+                          <CardTitle>{Number(stats.orderCount).toLocaleString()}</CardTitle>
+                        </CardHeader>
+                      </Card>
+                      <Card>
+                        <CardHeader className="py-2">
+                          <CardDescription>Customers</CardDescription>
+                          <CardTitle>{Number(stats.customerCount).toLocaleString()}</CardTitle>
+                        </CardHeader>
+                      </Card>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+              
+              {/* Products and Monthly Sales */}
+              <div className="grid grid-cols-1 gap-4 px-4 lg:grid-cols-2 lg:px-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Products in this Family</CardTitle>
+                    <CardDescription>{products.length} products with sales</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Product</TableHead>
+                          <TableHead className="text-right">Avg. Price</TableHead>
+                          <TableHead className="text-right">Quantity</TableHead>
+                          <TableHead className="text-right">Sales</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {Array.isArray(products) && products.map((product, index) => (
+                          <TableRow key={index}>
+                            <TableCell>
+                              <Link 
+                                href={`/products/${encodeURIComponent(product.product_code || '')}?range=${range}`} 
+                                className="font-medium hover:underline"
+                              >
+                                {product.product_code}
+                              </Link>
+                              <div className="text-sm text-muted-foreground truncate max-w-72">{product.product_description}</div>
+                            </TableCell>
+                            <TableCell className="text-right">${Number(product.avg_unit_price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                            <TableCell className="text-right">{Number(product.total_quantity).toLocaleString()}</TableCell>
+                            <TableCell className="text-right">${Number(product.total_sales).toLocaleString()}</TableCell>
+                          </TableRow>
+                        ))}
+                        {(!Array.isArray(products) || products.length === 0) && (
+                          <TableRow>
+                            <TableCell colSpan={4} className="py-4 text-center text-muted-foreground">No products found in this family</TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Monthly Sales Trend</CardTitle>
+                    <CardDescription>{displayText}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Month</TableHead>
+                          <TableHead className="text-right">Quantity</TableHead>
+                          <TableHead className="text-right">Sales</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {Array.isArray(monthlySales) && monthlySales.map((month: any, index) => (
+                          <TableRow key={index}>
+                            <TableCell className="font-medium">{month.month}</TableCell>
+                            <TableCell className="text-right">{Number(month.total_quantity || 0).toLocaleString()}</TableCell>
+                            <TableCell className="text-right">${Number(month.total_sales || 0).toLocaleString()}</TableCell>
+                          </TableRow>
+                        ))}
+                        {monthlySales.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={3} className="py-4 text-center text-muted-foreground">No monthly sales data available</TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </div>
+              
+              {/* Recent Orders */}
+              <div className="px-4 lg:px-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Recent Orders</CardTitle>
+                    <CardDescription>Last {recentOrders.length} orders for this product family</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Order #</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Customer</TableHead>
+                          <TableHead>Product</TableHead>
+                          <TableHead className="text-right">Qty</TableHead>
+                          <TableHead className="text-right">Amount</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {recentOrders.map((order, index) => (
+                          <TableRow key={index}>
+                            <TableCell className="font-medium">
+                              <Link href={`/orders/${order.orderNumber}?range=${range}`} className="hover:underline">
+                                {order.orderNumber}
+                              </Link>
+                            </TableCell>
+                            <TableCell>{order.orderDate ? new Date(order.orderDate).toLocaleDateString() : 'N/A'}</TableCell>
+                            <TableCell>{order.customerName}</TableCell>
+                            <TableCell>
+                              <div className="font-medium">{order.productCode}</div>
+                              <div className="text-sm text-muted-foreground truncate max-w-56">{order.productDescription}</div>
+                            </TableCell>
+                            <TableCell className="text-right">{Number(order.quantity).toLocaleString()}</TableCell>
+                            <TableCell className="text-right">${Number(order.lineAmount).toLocaleString()}</TableCell>
+                          </TableRow>
+                        ))}
+                        {recentOrders.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={6} className="py-4 text-center text-muted-foreground">No recent orders</TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-4">Products in this Family</h2>
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead>
-                <tr className="border-b dark:border-gray-700">
-                  <th className="py-2 text-left">Product</th>
-                  <th className="py-2 text-right">Avg. Price</th>
-                  <th className="py-2 text-right">Quantity</th>
-                  <th className="py-2 text-right">Sales</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Array.isArray(products) && products.map((product, index) => (
-                  <tr key={index} className="border-b dark:border-gray-700">
-                    <td className="py-2 text-left">
-                      <Link 
-                        href={`/products/${encodeURIComponent(product.product_code || '')}?timeframe=${timeFrame}${startDateParam ? `&start=${startDateParam}` : ''}${endDateParam ? `&end=${endDateParam}` : ''}`} 
-                        className="font-medium text-blue-500 hover:text-blue-700 hover:underline"
-                      >
-                        {product.product_code}
-                      </Link>
-                      <div className="text-sm text-gray-500">{product.product_description}</div>
-                    </td>
-                    <td className="py-2 text-right">${Number(product.avg_unit_price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                    <td className="py-2 text-right">{Number(product.total_quantity).toLocaleString()}</td>
-                    <td className="py-2 text-right">${Number(product.total_sales).toLocaleString()}</td>
-                  </tr>
-                ))}
-                {(!Array.isArray(products) || products.length === 0) && (
-                  <tr>
-                    <td colSpan={4} className="py-4 text-center text-gray-500">No products found in this family</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-4">Monthly Sales Trend</h2>
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead>
-                <tr className="border-b dark:border-gray-700">
-                  <th className="py-2 text-left">Month</th>
-                  <th className="py-2 text-right">Quantity</th>
-                  <th className="py-2 text-right">Sales</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Array.isArray(monthlySales) && monthlySales.map((month: any, index) => (
-                  <tr key={index} className="border-b dark:border-gray-700">
-                    <td className="py-2 text-left font-medium">{month.month}</td>
-                    <td className="py-2 text-right">{Number(month.total_quantity || 0).toLocaleString()}</td>
-                    <td className="py-2 text-right">${Number(month.total_sales || 0).toLocaleString()}</td>
-                  </tr>
-                ))}
-                {monthlySales.length === 0 && (
-                  <tr>
-                    <td colSpan={3} className="py-4 text-center text-gray-500">No monthly sales data available</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-      
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md mb-8">
-        <h2 className="text-xl font-semibold mb-4">Recent Orders</h2>
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead>
-              <tr className="border-b dark:border-gray-700">
-                <th className="py-2 text-left">Order #</th>
-                <th className="py-2 text-left">Date</th>
-                <th className="py-2 text-left">Customer</th>
-                <th className="py-2 text-left">Product</th>
-                <th className="py-2 text-right">Qty</th>
-                <th className="py-2 text-right">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentOrders.map((order, index) => (
-                <tr key={index} className="border-b dark:border-gray-700">
-                  <td className="py-2 text-left font-medium">{order.orderNumber}</td>
-                  <td className="py-2 text-left">{order.orderDate ? new Date(order.orderDate).toLocaleDateString() : 'N/A'}</td>
-                  <td className="py-2 text-left">{order.customerName}</td>
-                  <td className="py-2 text-left">
-                    <div>{order.productCode}</div>
-                    <div className="text-sm text-gray-500">{order.productDescription}</div>
-                  </td>
-                  <td className="py-2 text-right">{Number(order.quantity).toLocaleString()}</td>
-                  <td className="py-2 text-right">${Number(order.lineAmount).toLocaleString()}</td>
-                </tr>
-              ))}
-              {recentOrders.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="py-4 text-center text-gray-500">No recent orders</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </DashboardLayout>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }

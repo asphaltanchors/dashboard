@@ -1,266 +1,412 @@
-import { db } from "../../../db";
-import { sql } from "drizzle-orm";
-import { orders, orderItems, orderCompanyView } from "../../../db/schema";
-import { notFound } from "next/navigation";
-import DashboardLayout from "../../components/DashboardLayout";
-import Link from "next/link";
+import { db } from "@/db"
+import { sql } from "drizzle-orm"
+import { orders, orderItems, orderCompanyView } from "@/db/schema"
+import { notFound } from "next/navigation"
+import Link from "next/link"
+import { AppSidebar } from "@/components/app-sidebar"
+import { SiteHeader } from "@/components/site-header"
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { Separator } from "@/components/ui/separator"
 
 export default async function OrderDetailPage({
   params,
+  searchParams,
 }: {
-  params: { orderNumber: string };
+  params: { orderNumber: string }
+  searchParams: { range?: string }
 }) {
-  // Wait for params to be available
-  const orderParams = await params;
-  const { orderNumber } = orderParams;
+  const { orderNumber } = params
+  const range = searchParams.range || "last-12-months"
 
   // Fetch the order details
-  const orderDetails = await db.select()
+  const orderDetails = await db
+    .select()
     .from(orders)
     .where(sql`${orders.orderNumber} = ${orderNumber}`)
-    .limit(1);
+    .limit(1)
 
   // If order not found, return 404
   if (orderDetails.length === 0) {
-    notFound();
+    notFound()
   }
 
-  const order = orderDetails[0];
+  const order = orderDetails[0]
 
   // Fetch the order items
-  const items = await db.select()
+  const items = await db
+    .select()
     .from(orderItems)
-    .where(sql`${orderItems.orderNumber} = ${orderNumber}`);
+    .where(sql`${orderItems.orderNumber} = ${orderNumber}`)
 
   // Fetch company information if available
-  const companyInfo = await db.select()
+  const companyInfo = await db
+    .select()
     .from(orderCompanyView)
     .where(sql`${orderCompanyView.orderNumber} = ${orderNumber}`)
-    .limit(1);
+    .limit(1)
 
   // Calculate order summary
-  const subtotal = items.reduce((sum, item) => sum + Number(item.lineAmount || 0), 0);
-  
+  const subtotal = items.reduce(
+    (sum, item) => sum + Number(item.lineAmount || 0),
+    0
+  )
+
   // Shipping items
-  const shippingItems = items.filter(item => item.productCode === 'Shipping');
-  const shippingTotal = shippingItems.reduce((sum, item) => sum + Number(item.lineAmount || 0), 0);
-  
+  const shippingItems = items.filter((item) => item.productCode === "Shipping")
+  const shippingTotal = shippingItems.reduce(
+    (sum, item) => sum + Number(item.lineAmount || 0),
+    0
+  )
+
   // Tax calculation (assuming tax is the difference between total and subtotal+shipping)
-  const taxAmount = Number(order.totalAmount) - subtotal - shippingTotal;
+  const taxAmount = Number(order.totalAmount) - subtotal - shippingTotal
 
   // Format the order date
-  const orderDate = order.orderDate ? new Date(order.orderDate).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  }) : 'Unknown';
+  const orderDate = order.orderDate
+    ? new Date(order.orderDate).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : "Unknown"
 
   // Check if there's company information
-  const hasCompanyInfo = companyInfo.length > 0;
-  const company = hasCompanyInfo ? companyInfo[0] : null;
+  const hasCompanyInfo = companyInfo.length > 0
+  const company = hasCompanyInfo ? companyInfo[0] : null
+
+  // Status badge variant mapping
+  const getStatusVariant = (status: string | null) => {
+    switch (status) {
+      case "Paid":
+        return "success"
+      case "Pending":
+        return "warning"
+      default:
+        return "secondary"
+    }
+  }
+
+  // Match type badge variant mapping
+  const getMatchTypeVariant = (matchType: string) => {
+    switch (matchType) {
+      case "exact":
+        return "success"
+      case "fuzzy":
+        return "warning"
+      case "manual":
+        return "info"
+      default:
+        return "secondary"
+    }
+  }
 
   return (
-    <DashboardLayout 
-      title={`Order #${orderNumber}`}
-      showTimeFramePicker={false}
+    <SidebarProvider
+      style={
+        {
+          "--sidebar-width": "calc(var(--spacing) * 72)",
+          "--header-height": "calc(var(--spacing) * 12)",
+        } as React.CSSProperties
+      }
     >
-      <div className="mb-8 flex justify-between items-center">
-        <Link 
-          href="/orders" 
-          className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-          Back to Orders
-        </Link>
-        <div className={`px-3 py-1 rounded-full text-sm ${
-          order.status === 'Paid' ? 'bg-green-100 text-green-800' :
-          order.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
-          'bg-gray-100 text-gray-800'
-        }`}>
-          {order.status || 'Unknown'}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md col-span-2">
-          <h2 className="text-xl font-semibold mb-4">Order Information</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-gray-500 dark:text-gray-400 text-sm">Order Number</p>
-              <p className="font-medium">{orderNumber}</p>
-            </div>
-            <div>
-              <p className="text-gray-500 dark:text-gray-400 text-sm">Order Date</p>
-              <p className="font-medium">{orderDate}</p>
-            </div>
-            <div>
-              <p className="text-gray-500 dark:text-gray-400 text-sm">Order Type</p>
-              <p className="font-medium">{order.orderType || 'N/A'}</p>
-            </div>
-            <div>
-              <p className="text-gray-500 dark:text-gray-400 text-sm">Payment Method</p>
-              <p className="font-medium">{order.paymentMethod || 'N/A'}</p>
-            </div>
-            <div>
-              <p className="text-gray-500 dark:text-gray-400 text-sm">PO Number</p>
-              <p className="font-medium">{order.poNumber || 'N/A'}</p>
-            </div>
-            <div>
-              <p className="text-gray-500 dark:text-gray-400 text-sm">Terms</p>
-              <p className="font-medium">{order.terms || 'N/A'}</p>
-            </div>
-            <div>
-              <p className="text-gray-500 dark:text-gray-400 text-sm">Class</p>
-              <p className="font-medium">{order.class || 'N/A'}</p>
-            </div>
-            <div>
-              <p className="text-gray-500 dark:text-gray-400 text-sm">Status</p>
-              <p className="font-medium">{order.status || 'N/A'}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-4">Order Summary</h2>
-          <div className="space-y-2 mb-6">
-            <div className="flex justify-between">
-              <span className="text-gray-600 dark:text-gray-400">Subtotal</span>
-              <span className="font-medium">${subtotal.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600 dark:text-gray-400">Shipping</span>
-              <span className="font-medium">${shippingTotal.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600 dark:text-gray-400">Tax</span>
-              <span className="font-medium">${taxAmount.toLocaleString()}</span>
-            </div>
-            <div className="pt-2 border-t border-gray-200 dark:border-gray-700 flex justify-between">
-              <span className="font-bold">Total</span>
-              <span className="font-bold text-xl">${Number(order.totalAmount).toLocaleString()}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-4">Customer Information</h2>
-          <p><span className="text-gray-500 dark:text-gray-400">Customer Name:</span> {order.customerName}</p>
-          
-          {hasCompanyInfo && (
-            <>
-              <div className="mt-4">
-                <p className="text-gray-500 dark:text-gray-400 text-sm">Company</p>
-                <p className="font-medium">{company?.companyName}</p>
-                {company?.companyDomain && (
-                  <p className="text-sm text-gray-500 dark:text-gray-400">{company.companyDomain}</p>
-                )}
-              </div>
-              
-              {company?.matchType && (
-                <div className="mt-4">
-                  <p className="text-gray-500 dark:text-gray-400 text-sm">Match Details</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      company.matchType === 'exact' ? 'bg-green-100 text-green-800' :
-                      company.matchType === 'fuzzy' ? 'bg-yellow-100 text-yellow-800' :
-                      company.matchType === 'manual' ? 'bg-blue-100 text-blue-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {company.matchType}
-                    </span>
-                    {company.confidence && (
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        {(company.confidence * 100).toFixed(1)}% confidence
-                      </span>
-                    )}
-                  </div>
+      <AppSidebar variant="inset" />
+      <SidebarInset>
+        <SiteHeader />
+        <div className="flex flex-1 flex-col">
+          <div className="@container/main flex flex-1 flex-col gap-2">
+            <div className="flex flex-col gap-6 py-6">
+              <div className="flex items-center justify-between px-6">
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link
+                      href={`/orders?range=${range}`}
+                      className="flex items-center gap-1"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                        />
+                      </svg>
+                      Back to Orders
+                    </Link>
+                  </Button>
                 </div>
-              )}
-            </>
-          )}
-        </div>
+                <Badge variant={getStatusVariant(order.status)}>
+                  {order.status || "Unknown"}
+                </Badge>
+              </div>
 
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-4">Address Information</h2>
-          
-          <div className="grid grid-cols-2 gap-6">
-            <div>
-              <h3 className="font-medium mb-2">Billing Address</h3>
-              <p>{order.billingAddressLine1 || 'N/A'}</p>
-              {order.billingAddressLine2 && <p>{order.billingAddressLine2}</p>}
-            </div>
-            
-            <div>
-              <h3 className="font-medium mb-2">Shipping Address</h3>
-              <p>{order.shippingAddressLine1 || 'N/A'}</p>
-              {order.shippingAddressLine2 && <p>{order.shippingAddressLine2}</p>}
+              <div className="grid grid-cols-1 gap-6 px-6 md:grid-cols-3">
+                <Card className="col-span-2">
+                  <CardHeader>
+                    <CardTitle>Order Information</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-muted-foreground">
+                          Order Number
+                        </p>
+                        <p className="font-medium">{orderNumber}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">
+                          Order Date
+                        </p>
+                        <p className="font-medium">{orderDate}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">
+                          Order Type
+                        </p>
+                        <p className="font-medium">{order.orderType || "N/A"}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">
+                          Payment Method
+                        </p>
+                        <p className="font-medium">
+                          {order.paymentMethod || "N/A"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">
+                          PO Number
+                        </p>
+                        <p className="font-medium">{order.poNumber || "N/A"}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Terms</p>
+                        <p className="font-medium">{order.terms || "N/A"}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Class</p>
+                        <p className="font-medium">{order.class || "N/A"}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Status</p>
+                        <p className="font-medium">{order.status || "N/A"}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Order Summary</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Subtotal</span>
+                        <span className="font-medium">
+                          ${subtotal.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Shipping</span>
+                        <span className="font-medium">
+                          ${shippingTotal.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Tax</span>
+                        <span className="font-medium">
+                          ${taxAmount.toLocaleString()}
+                        </span>
+                      </div>
+                      <Separator className="my-2" />
+                      <div className="flex justify-between">
+                        <span className="font-bold">Total</span>
+                        <span className="font-bold text-xl">
+                          ${Number(order.totalAmount).toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="grid grid-cols-1 gap-6 px-6 md:grid-cols-2">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Customer Information</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="mb-4">
+                      <span className="text-muted-foreground">
+                        Customer Name:
+                      </span>{" "}
+                      {order.customerName}
+                    </p>
+
+                    {hasCompanyInfo && (
+                      <>
+                        <div className="mt-4">
+                          <p className="text-sm text-muted-foreground">
+                            Company
+                          </p>
+                          <p className="font-medium">{company?.companyName}</p>
+                          {company?.companyDomain && (
+                            <p className="text-sm text-muted-foreground">
+                              {company.companyDomain}
+                            </p>
+                          )}
+                        </div>
+
+                        {company?.matchType && (
+                          <div className="mt-4">
+                            <p className="text-sm text-muted-foreground">
+                              Match Details
+                            </p>
+                            <div className="mt-1 flex items-center gap-2">
+                              <Badge
+                                variant={getMatchTypeVariant(company.matchType)}
+                              >
+                                {company.matchType}
+                              </Badge>
+                              {company.confidence && (
+                                <span className="text-xs text-muted-foreground">
+                                  {(company.confidence * 100).toFixed(1)}%
+                                  confidence
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Address Information</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 gap-6">
+                      <div>
+                        <h3 className="mb-2 font-medium">Billing Address</h3>
+                        <p>{order.billingAddressLine1 || "N/A"}</p>
+                        {order.billingAddressLine2 && (
+                          <p>{order.billingAddressLine2}</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <h3 className="mb-2 font-medium">Shipping Address</h3>
+                        <p>{order.shippingAddressLine1 || "N/A"}</p>
+                        {order.shippingAddressLine2 && (
+                          <p>{order.shippingAddressLine2}</p>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <Card className="mx-6">
+                <CardHeader>
+                  <CardTitle>Order Items</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Product</TableHead>
+                          <TableHead className="text-right">Quantity</TableHead>
+                          <TableHead className="text-right">
+                            Unit Price
+                          </TableHead>
+                          <TableHead className="text-right">
+                            Line Total
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {items.map((item, index) => (
+                          <TableRow key={index}>
+                            <TableCell>
+                              <div className="font-medium">
+                                {item.productCode === "Shipping" ? (
+                                  "Shipping"
+                                ) : (
+                                  <Link
+                                    href={`/products/${encodeURIComponent(
+                                      item.productCode
+                                    )}?range=${range}`}
+                                    className="text-primary hover:underline"
+                                  >
+                                    {item.productCode}
+                                  </Link>
+                                )}
+                              </div>
+                              {item.productDescription && (
+                                <div className="text-sm text-muted-foreground">
+                                  {item.productDescription}
+                                </div>
+                              )}
+                              {item.productClass && (
+                                <div className="text-xs text-muted-foreground">
+                                  Class: {item.productClass}
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {item.quantity
+                                ? Number(item.quantity).toLocaleString()
+                                : "-"}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              $
+                              {Number(item.unitPrice || 0).toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              $
+                              {Number(item.lineAmount || 0).toLocaleString()}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        {items.length === 0 && (
+                          <TableRow>
+                            <TableCell
+                              colSpan={4}
+                              className="text-center text-muted-foreground"
+                            >
+                              No items found for this order
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           </div>
         </div>
-      </div>
-
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md mb-8">
-        <h2 className="text-xl font-semibold mb-4">Order Items</h2>
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead>
-              <tr className="border-b dark:border-gray-700">
-                <th className="py-2 text-left">Product</th>
-                <th className="py-2 text-right">Quantity</th>
-                <th className="py-2 text-right">Unit Price</th>
-                <th className="py-2 text-right">Line Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item, index) => (
-                <tr key={index} className="border-b dark:border-gray-700">
-                  <td className="py-2 text-left">
-                    <div className="font-medium">
-                      {item.productCode === 'Shipping' 
-                        ? 'Shipping' 
-                        : (
-                          <Link 
-                            href={`/products/${encodeURIComponent(item.productCode)}`}
-                            className="text-blue-600 hover:underline"
-                          >
-                            {item.productCode}
-                          </Link>
-                        )
-                      }
-                    </div>
-                    {item.productDescription && (
-                      <div className="text-sm text-gray-500 dark:text-gray-400">
-                        {item.productDescription}
-                      </div>
-                    )}
-                    {item.productClass && (
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
-                        Class: {item.productClass}
-                      </div>
-                    )}
-                  </td>
-                  <td className="py-2 text-right">
-                    {item.quantity 
-                      ? Number(item.quantity).toLocaleString() 
-                      : '-'
-                    }
-                  </td>
-                  <td className="py-2 text-right">
-                    ${Number(item.unitPrice || 0).toLocaleString()}
-                  </td>
-                  <td className="py-2 text-right">
-                    ${Number(item.lineAmount || 0).toLocaleString()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </DashboardLayout>
-  );
+      </SidebarInset>
+    </SidebarProvider>
+  )
 }

@@ -1,622 +1,424 @@
-import { db } from "../../db";
-import { sql } from "drizzle-orm";
-import { orders, orderItems, customers, orderCompanyView } from "../../db/schema";
-import { desc } from "drizzle-orm";
-import { getDateRangeFromTimeFrame } from "../utils/dates";
-import DashboardLayout from "../components/DashboardLayout";
-import Link from "next/link";
+import { db } from "@/db"
+import { sql } from "drizzle-orm"
+import { orders, orderCompanyView } from "@/db/schema"
+import { desc } from "drizzle-orm"
+import { getDateRangeFromTimeFrame } from "@/app/utils/dates"
+import Link from "next/link"
+import { AppSidebar } from "@/components/app-sidebar"
+import { SiteHeader } from "@/components/site-header"
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 
-export default async function OrdersAnalytics({
+export default function OrdersPage({
   searchParams,
 }: {
-  searchParams?: { [key: string]: string | string[] | undefined };
+  searchParams?: { [key: string]: string | string[] | undefined }
 }) {
-  // Wait for searchParams to be available
-  const params = await searchParams || {};
-  
-  // Get timeframe from URL params or default to 30d
-  const timeFrame = (params.timeframe as string) || '30d';
-  const startDateParam = params.start as string | undefined;
-  const endDateParam = params.end as string | undefined;
+  // Handle search params safely
+  const range = searchParams && searchParams.range 
+    ? Array.isArray(searchParams.range) 
+      ? searchParams.range[0] 
+      : searchParams.range
+    : "last-12-months"
   
   // Calculate date range based on the selected time frame
-  const {
-    startDate,
-    endDate,
-    formattedStartDate,
-    formattedEndDate
-  } = getDateRangeFromTimeFrame(timeFrame, startDateParam, endDateParam);
+  const dateRange = getDateRangeFromTimeFrame(range)
+  const { formattedStartDate, formattedEndDate } = dateRange
   
   // Query to get total number of orders and revenue for the selected time frame
-  const orderSummaryResult = await db.select({
-    totalOrders: sql<number>`count(*)`.as('total_orders'),
-    totalRevenue: sql<number>`SUM(total_amount)`.as('total_revenue'),
-    avgOrderValue: sql<number>`AVG(total_amount)`.as('avg_order_value')
-  })
-  .from(orders)
-  .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`);
+  const orderSummaryResultPromise = db
+    .select({
+      totalOrders: sql<number>`count(*)`.as("total_orders"),
+      totalRevenue: sql<number>`SUM(total_amount)`.as("total_revenue"),
+      avgOrderValue: sql<number>`AVG(total_amount)`.as("avg_order_value"),
+    })
+    .from(orders)
+    .where(
+      sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`
+    )
   
-  const totalOrders = orderSummaryResult[0]?.totalOrders || 0;
-  const totalRevenue = orderSummaryResult[0]?.totalRevenue || 0;
-  const avgOrderValue = orderSummaryResult[0]?.avgOrderValue || 0;
-
   // Query to get orders by status
-  const ordersByStatus = await db.select({
-    status: orders.status,
-    count: sql<number>`count(*)`.as('count'),
-    totalAmount: sql<number>`SUM(total_amount)`.as('total_amount')
-  })
-  .from(orders)
-  .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
-  .groupBy(orders.status)
-  .orderBy(sql`count DESC`);
-
-  // Query to get orders by type
-  const ordersByType = await db.select({
-    orderType: orders.orderType,
-    count: sql<number>`count(*)`.as('count'),
-    totalAmount: sql<number>`SUM(total_amount)`.as('total_amount')
-  })
-  .from(orders)
-  .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
-  .groupBy(orders.orderType)
-  .orderBy(sql`count DESC`);
-
-  // Query to get top customers by order count
-  const topCustomersByOrders = await db.select({
-    customerName: orders.customerName,
-    orderCount: sql<number>`count(*)`.as('order_count'),
-    totalSpent: sql<number>`SUM(total_amount)`.as('total_spent'),
-    avgOrderValue: sql<number>`AVG(total_amount)`.as('avg_order_value')
-  })
-  .from(orders)
-  .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
-  .groupBy(orders.customerName)
-  .orderBy(sql`order_count DESC`)
-  .limit(10);
-
-  // Query to get top customers by revenue
-  const topCustomersByRevenue = await db.select({
-    customerName: orders.customerName,
-    orderCount: sql<number>`count(*)`.as('order_count'),
-    totalSpent: sql<number>`SUM(total_amount)`.as('total_spent'),
-    avgOrderValue: sql<number>`AVG(total_amount)`.as('avg_order_value')
-  })
-  .from(orders)
-  .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
-  .groupBy(orders.customerName)
-  .orderBy(sql`total_spent DESC`)
-  .limit(10);
+  const ordersByStatusPromise = db
+    .select({
+      status: orders.status,
+      count: sql<number>`count(*)`.as("count"),
+      totalAmount: sql<number>`SUM(total_amount)`.as("total_amount"),
+    })
+    .from(orders)
+    .where(
+      sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`
+    )
+    .groupBy(orders.status)
+    .orderBy(sql`count DESC`)
 
   // Query to get orders by payment method
-  const ordersByPaymentMethod = await db.select({
-    paymentMethod: orders.paymentMethod,
-    count: sql<number>`count(*)`.as('count'),
-    totalAmount: sql<number>`SUM(total_amount)`.as('total_amount')
-  })
-  .from(orders)
-  .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
-  .groupBy(orders.paymentMethod)
-  .orderBy(sql`count DESC`);
+  const ordersByPaymentMethodPromise = db
+    .select({
+      paymentMethod: orders.paymentMethod,
+      count: sql<number>`count(*)`.as("count"),
+      totalAmount: sql<number>`SUM(total_amount)`.as("total_amount"),
+    })
+    .from(orders)
+    .where(
+      sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`
+    )
+    .groupBy(orders.paymentMethod)
+    .orderBy(sql`count DESC`)
 
-  // Query to get orders by month
-  const ordersByMonth = await db.select({
-    month: sql<string>`TO_CHAR(order_date, 'YYYY-MM')`.as('month'),
-    orderCount: sql<number>`count(*)`.as('order_count'),
-    totalAmount: sql<number>`SUM(total_amount)`.as('total_amount'),
-    avgOrderValue: sql<number>`AVG(total_amount)`.as('avg_order_value')
-  })
-  .from(orders)
-  .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
-  .groupBy(sql`month`)
-  .orderBy(sql`month DESC`)
-  .limit(12);
-
-  // Define types for our custom queries
-  type QuarterlyTrend = {
-    quarter: string;
-    order_count: number;
-    total_amount: number;
-    avg_order_value: number;
-  };
-
-  // Query to get quarterly trends
-  const quarterlyTrendsResult = await db.execute(sql`
-    SELECT 
-      TO_CHAR(order_date, 'YYYY-"Q"Q') as quarter,
-      COUNT(*) as order_count,
-      SUM(total_amount) as total_amount,
-      AVG(total_amount) as avg_order_value
-    FROM orders
-    WHERE order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
-    GROUP BY quarter
-    ORDER BY quarter DESC
-    LIMIT 8
-  `);
-  
-  // Cast the result to our type using double assertion
-  const quarterlyTrends = quarterlyTrendsResult as unknown as QuarterlyTrend[];
-  
-  // Define type for recent orders
-  type RecentOrder = {
-    orderNumber: string;
-    orderType: string;
-    customerName: string;
-    orderDate: Date | null;
-    totalAmount: number;
-    status: string;
-    paymentMethod: string;
-    poNumber: string | null;
-  };
-  
   // Query to get most recent orders list with company information
-  const recentOrdersList = await db.select({
-    orderNumber: orderCompanyView.orderNumber,
-    customerName: orderCompanyView.customerName,
-    orderDate: orderCompanyView.orderDate,
-    totalAmount: orderCompanyView.totalAmount,
-    companyName: orderCompanyView.companyName,
-    companyDomain: orderCompanyView.companyDomain,
-    matchType: orderCompanyView.matchType,
-    confidence: orderCompanyView.confidence
-  })
-  .from(orderCompanyView)
-  .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
-  .orderBy(desc(orderCompanyView.orderDate))
-  .limit(10);
-  
-  // Query to get top companies by order count
-  const topCompaniesByOrders = await db.select({
-    companyId: orderCompanyView.companyId,
-    companyName: orderCompanyView.companyName,
-    companyDomain: orderCompanyView.companyDomain,
-    orderCount: sql<number>`count(*)`.as('order_count'),
-    totalSpent: sql<number>`SUM(total_amount)`.as('total_spent'),
-    avgOrderValue: sql<number>`AVG(total_amount)`.as('avg_order_value')
-  })
-  .from(orderCompanyView)
-  .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
-  .groupBy(orderCompanyView.companyId, orderCompanyView.companyName, orderCompanyView.companyDomain)
-  .orderBy(sql`order_count DESC`)
-  .limit(10);
-  
-  // Query to get top companies by revenue
-  const topCompaniesByRevenue = await db.select({
-    companyId: orderCompanyView.companyId,
-    companyName: orderCompanyView.companyName,
-    companyDomain: orderCompanyView.companyDomain,
-    orderCount: sql<number>`count(*)`.as('order_count'),
-    totalSpent: sql<number>`SUM(total_amount)`.as('total_spent'),
-    avgOrderValue: sql<number>`AVG(total_amount)`.as('avg_order_value')
-  })
-  .from(orderCompanyView)
-  .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
-  .groupBy(orderCompanyView.companyId, orderCompanyView.companyName, orderCompanyView.companyDomain)
-  .orderBy(sql`total_spent DESC`)
-  .limit(10);
-  
-  // Query to get match type distribution
-  const matchTypeDistribution = await db.select({
-    matchType: orderCompanyView.matchType,
-    count: sql<number>`count(*)`.as('count'),
-    avgConfidence: sql<number>`AVG(confidence)`.as('avg_confidence')
-  })
-  .from(orderCompanyView)
-  .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
-  .groupBy(orderCompanyView.matchType)
-  .orderBy(sql`count DESC`);
+  const recentOrdersListPromise = db
+    .select({
+      orderNumber: orderCompanyView.orderNumber,
+      customerName: orderCompanyView.customerName,
+      orderDate: orderCompanyView.orderDate,
+      totalAmount: orderCompanyView.totalAmount,
+      companyName: orderCompanyView.companyName,
+      companyDomain: orderCompanyView.companyDomain,
+      matchType: orderCompanyView.matchType,
+      confidence: orderCompanyView.confidence,
+    })
+    .from(orderCompanyView)
+    .where(
+      sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`
+    )
+    .orderBy(desc(orderCompanyView.orderDate))
+    .limit(25)
 
-  // Format date range for display
-  const formattedStartDisplay = startDate.toLocaleDateString('en-US', { 
-    year: 'numeric', 
-    month: 'short', 
-    day: 'numeric' 
-  });
-  
-  const formattedEndDisplay = endDate.toLocaleDateString('en-US', { 
-    year: 'numeric', 
-    month: 'short', 
-    day: 'numeric' 
-  });
+  // Helper function to join all data fetching promises and render UI
+  async function OrdersPageContent() {
+    // Wait for all data to be fetched in parallel
+    const [orderSummaryResult, ordersByStatus, ordersByPaymentMethod, recentOrdersList] = await Promise.all([
+      orderSummaryResultPromise,
+      ordersByStatusPromise,
+      ordersByPaymentMethodPromise,
+      recentOrdersListPromise
+    ])
 
-  // Create date range text for display
-  const dateRangeText = `Showing data from ${formattedStartDisplay} to ${formattedEndDisplay}`;
+    const totalOrders = orderSummaryResult[0]?.totalOrders || 0
+    const totalRevenue = orderSummaryResult[0]?.totalRevenue || 0
+    const avgOrderValue = orderSummaryResult[0]?.avgOrderValue || 0
+
+    // Match type badge variant mapping
+    const getMatchTypeVariant = (matchType: string | null) => {
+      switch (matchType) {
+        case "exact":
+          return "success"
+        case "fuzzy":
+          return "warning"
+        case "manual":
+          return "info"
+        default:
+          return "secondary"
+      }
+    }
+
+    // Fetch status information directly from orders table for each order
+    const orderStatusPromises = recentOrdersList.map(order => 
+      db.select({ status: orders.status })
+        .from(orders)
+        .where(sql`${orders.orderNumber} = ${order.orderNumber}`)
+        .limit(1)
+    )
+    
+    // Wait for all status queries to complete
+    const orderStatuses = await Promise.all(orderStatusPromises)
+    
+    // Add status information to each order in the list
+    const ordersWithStatus = recentOrdersList.map((order, index) => ({
+      ...order,
+      status: orderStatuses[index][0]?.status || null
+    }))
+
+    // Status badge variant mapping
+    const getStatusVariant = (status: string | null) => {
+      switch (status) {
+        case "Paid":
+          return "success"
+        case "Pending":
+          return "warning"
+        default:
+          return "secondary"
+      }
+    }
+
+    return (
+      <>
+        <div className="flex items-center justify-between px-6">
+          <h1 className="text-2xl font-bold">Orders</h1>
+          <h2 className="text-lg font-medium">
+            {dateRange.displayText}
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 px-6 md:grid-cols-3">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">
+                Total Orders
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-primary">
+                {totalOrders.toLocaleString()}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">
+                Total Revenue
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-primary">
+                ${Number(totalRevenue).toLocaleString()}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">
+                Average Order Value
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-primary">
+                ${Number(avgOrderValue).toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 px-6 lg:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Orders by Status</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Orders</TableHead>
+                      <TableHead className="text-right">Revenue</TableHead>
+                      <TableHead className="text-right">Percentage</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {ordersByStatus.map((status, index) => (
+                      <TableRow key={index}>
+                        <TableCell className="font-medium">
+                          {status.status || "Unknown"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {status.count.toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          ${Number(status.totalAmount).toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {((status.count / totalOrders) * 100).toFixed(1)}%
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {ordersByStatus.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center text-muted-foreground">
+                          No data available
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Orders by Payment Method</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Payment Method</TableHead>
+                      <TableHead className="text-right">Orders</TableHead>
+                      <TableHead className="text-right">Revenue</TableHead>
+                      <TableHead className="text-right">Percentage</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {ordersByPaymentMethod.map((method, index) => (
+                      <TableRow key={index}>
+                        <TableCell className="font-medium">
+                          {method.paymentMethod || "Unknown"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {method.count.toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          ${Number(method.totalAmount).toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {((method.count / totalOrders) * 100).toFixed(1)}%
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {ordersByPaymentMethod.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center text-muted-foreground">
+                          No data available
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card className="mx-6">
+          <CardHeader>
+            <CardTitle>Recent Orders</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Order #</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Company</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Match</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {ordersWithStatus.map((order, index) => {
+                    // Format the date
+                    const orderDate = order.orderDate
+                      ? new Date(order.orderDate)
+                      : null
+                    const formattedDate = orderDate
+                      ? orderDate.toLocaleDateString("en-US", {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        })
+                      : "N/A"
+
+                    return (
+                      <TableRow key={index}>
+                        <TableCell className="font-medium">
+                          <Link
+                            href={`/orders/${encodeURIComponent(
+                              order.orderNumber
+                            )}?range=${range}`}
+                            className="text-primary hover:underline"
+                          >
+                            {order.orderNumber}
+                          </Link>
+                        </TableCell>
+                        <TableCell>{order.customerName}</TableCell>
+                        <TableCell>
+                          <div className="font-medium">
+                            {order.companyName || "—"}
+                          </div>
+                          {order.companyDomain && (
+                            <div className="text-xs text-muted-foreground">
+                              {order.companyDomain}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>{formattedDate}</TableCell>
+                        <TableCell>
+                          <Badge variant={getStatusVariant(order.status)}>
+                            {order.status || "Unknown"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {order.matchType && (
+                            <div className="flex items-center gap-2">
+                              <Badge
+                                variant={getMatchTypeVariant(order.matchType)}
+                                className="text-xs"
+                              >
+                                {order.matchType}
+                              </Badge>
+                              {order.confidence && (
+                                <span className="text-xs text-muted-foreground">
+                                  {(order.confidence * 100).toFixed(1)}%
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          ${Number(order.totalAmount).toLocaleString()}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                  {ordersWithStatus.length === 0 && (
+                    <TableRow>
+                      <TableCell
+                        colSpan={7}
+                        className="py-8 text-center text-muted-foreground"
+                      >
+                        No orders found for the selected date range
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      </>
+    )
+  }
 
   return (
-    <DashboardLayout 
-      title="Orders Analytics Dashboard"
-      dateRangeText={dateRangeText}
+    <SidebarProvider
+      style={
+        {
+          "--sidebar-width": "calc(var(--spacing) * 72)",
+          "--header-height": "calc(var(--spacing) * 12)",
+        } as React.CSSProperties
+      }
     >
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-2">Total Orders</h2>
-          <p className="text-3xl font-bold text-blue-600">{totalOrders.toLocaleString()}</p>
-        </div>
-        
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-2">Total Revenue</h2>
-          <p className="text-3xl font-bold text-green-600">${Number(totalRevenue).toLocaleString()}</p>
-        </div>
-        
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-2">Average Order Value</h2>
-          <p className="text-3xl font-bold text-purple-600">${Number(avgOrderValue).toLocaleString()}</p>
-        </div>
-        
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-2">Orders Per Day</h2>
-          <p className="text-3xl font-bold text-amber-500">
-            {totalOrders > 0 
-              ? Math.round(totalOrders / (Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 3600 * 24))))).toLocaleString()
-              : '0'
-            }
-          </p>
-        </div>
-      </div>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-4">Orders by Status</h2>
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead>
-                <tr className="border-b dark:border-gray-700">
-                  <th className="py-2 text-left">Status</th>
-                  <th className="py-2 text-right">Orders</th>
-                  <th className="py-2 text-right">Revenue</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ordersByStatus.map((status, index) => (
-                  <tr key={index} className="border-b dark:border-gray-700">
-                    <td className="py-2 text-left font-medium">{status.status || 'Unknown'}</td>
-                    <td className="py-2 text-right">{status.count.toLocaleString()}</td>
-                    <td className="py-2 text-right">${Number(status.totalAmount).toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      <AppSidebar variant="inset" />
+      <SidebarInset>
+        <SiteHeader />
+        <div className="flex flex-1 flex-col">
+          <div className="@container/main flex flex-1 flex-col gap-2">
+            <div className="flex flex-col gap-6 py-6">
+              {/* @ts-expect-error - OrdersPageContent is an async component */}
+              <OrdersPageContent />
+            </div>
           </div>
         </div>
-        
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-4">Orders by Type</h2>
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead>
-                <tr className="border-b dark:border-gray-700">
-                  <th className="py-2 text-left">Type</th>
-                  <th className="py-2 text-right">Orders</th>
-                  <th className="py-2 text-right">Revenue</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ordersByType.map((type, index) => (
-                  <tr key={index} className="border-b dark:border-gray-700">
-                    <td className="py-2 text-left font-medium">{type.orderType || 'Unknown'}</td>
-                    <td className="py-2 text-right">{type.count.toLocaleString()}</td>
-                    <td className="py-2 text-right">${Number(type.totalAmount).toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-4">Top Customers by Orders</h2>
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead>
-                <tr className="border-b dark:border-gray-700">
-                  <th className="py-2 text-left">Customer</th>
-                  <th className="py-2 text-right">Orders</th>
-                  <th className="py-2 text-right">Total Spent</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topCustomersByOrders.map((customer, index) => (
-                  <tr key={index} className="border-b dark:border-gray-700">
-                    <td className="py-2 text-left font-medium">{customer.customerName}</td>
-                    <td className="py-2 text-right">{customer.orderCount.toLocaleString()}</td>
-                    <td className="py-2 text-right">${Number(customer.totalSpent).toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-4">Top Customers by Revenue</h2>
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead>
-                <tr className="border-b dark:border-gray-700">
-                  <th className="py-2 text-left">Customer</th>
-                  <th className="py-2 text-right">Total Spent</th>
-                  <th className="py-2 text-right">Avg Order</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topCustomersByRevenue.map((customer, index) => (
-                  <tr key={index} className="border-b dark:border-gray-700">
-                    <td className="py-2 text-left font-medium">{customer.customerName}</td>
-                    <td className="py-2 text-right">${Number(customer.totalSpent).toLocaleString()}</td>
-                    <td className="py-2 text-right">${Number(customer.avgOrderValue).toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-4">Monthly Order Trends</h2>
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead>
-                <tr className="border-b dark:border-gray-700">
-                  <th className="py-2 text-left">Month</th>
-                  <th className="py-2 text-right">Orders</th>
-                  <th className="py-2 text-right">Revenue</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ordersByMonth.map((month, index) => (
-                  <tr key={index} className="border-b dark:border-gray-700">
-                    <td className="py-2 text-left font-medium">{month.month}</td>
-                    <td className="py-2 text-right">{month.orderCount.toLocaleString()}</td>
-                    <td className="py-2 text-right">${Number(month.totalAmount).toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-4">Quarterly Trends</h2>
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead>
-                <tr className="border-b dark:border-gray-700">
-                  <th className="py-2 text-left">Quarter</th>
-                  <th className="py-2 text-right">Orders</th>
-                  <th className="py-2 text-right">Revenue</th>
-                </tr>
-              </thead>
-              <tbody>
-                {quarterlyTrends.map((quarter, index) => (
-                  <tr key={index} className="border-b dark:border-gray-700">
-                    <td className="py-2 text-left font-medium">{quarter.quarter}</td>
-                    <td className="py-2 text-right">{quarter.order_count.toLocaleString()}</td>
-                    <td className="py-2 text-right">${Number(quarter.total_amount).toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-      
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md mb-8">
-        <h2 className="text-xl font-semibold mb-4">Payment Methods</h2>
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead>
-              <tr className="border-b dark:border-gray-700">
-                <th className="py-2 text-left">Payment Method</th>
-                <th className="py-2 text-right">Orders</th>
-                <th className="py-2 text-right">Revenue</th>
-                <th className="py-2 text-right">Percentage</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ordersByPaymentMethod.map((method, index) => (
-                <tr key={index} className="border-b dark:border-gray-700">
-                  <td className="py-2 text-left font-medium">{method.paymentMethod || 'Unknown'}</td>
-                  <td className="py-2 text-right">{method.count.toLocaleString()}</td>
-                  <td className="py-2 text-right">${Number(method.totalAmount).toLocaleString()}</td>
-                  <td className="py-2 text-right">
-                    {((method.count / totalOrders) * 100).toFixed(1)}%
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-4">Top Companies by Orders</h2>
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead>
-                <tr className="border-b dark:border-gray-700">
-                  <th className="py-2 text-left">Company</th>
-                  <th className="py-2 text-left">Domain</th>
-                  <th className="py-2 text-right">Orders</th>
-                  <th className="py-2 text-right">Total Spent</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topCompaniesByOrders.map((company, index) => (
-                  <tr key={index} className="border-b dark:border-gray-700">
-                    <td className="py-2 text-left font-medium">{company.companyName}</td>
-                    <td className="py-2 text-left text-gray-500">{company.companyDomain || '-'}</td>
-                    <td className="py-2 text-right">{company.orderCount.toLocaleString()}</td>
-                    <td className="py-2 text-right">${Number(company.totalSpent).toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-4">Top Companies by Revenue</h2>
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead>
-                <tr className="border-b dark:border-gray-700">
-                  <th className="py-2 text-left">Company</th>
-                  <th className="py-2 text-left">Domain</th>
-                  <th className="py-2 text-right">Total Spent</th>
-                  <th className="py-2 text-right">Avg Order</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topCompaniesByRevenue.map((company, index) => (
-                  <tr key={index} className="border-b dark:border-gray-700">
-                    <td className="py-2 text-left font-medium">{company.companyName}</td>
-                    <td className="py-2 text-left text-gray-500">{company.companyDomain || '-'}</td>
-                    <td className="py-2 text-right">${Number(company.totalSpent).toLocaleString()}</td>
-                    <td className="py-2 text-right">${Number(company.avgOrderValue).toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-      
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md mb-8">
-        <h2 className="text-xl font-semibold mb-4">Company Match Types</h2>
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead>
-              <tr className="border-b dark:border-gray-700">
-                <th className="py-2 text-left">Match Type</th>
-                <th className="py-2 text-right">Count</th>
-                <th className="py-2 text-right">Percentage</th>
-                <th className="py-2 text-right">Avg Confidence</th>
-              </tr>
-            </thead>
-            <tbody>
-              {matchTypeDistribution.map((type, index) => (
-                <tr key={index} className="border-b dark:border-gray-700">
-                  <td className="py-2 text-left font-medium">{type.matchType || 'Unknown'}</td>
-                  <td className="py-2 text-right">{type.count.toLocaleString()}</td>
-                  <td className="py-2 text-right">
-                    {((type.count / totalOrders) * 100).toFixed(1)}%
-                  </td>
-                  <td className="py-2 text-right">
-                    {type.avgConfidence ? (type.avgConfidence * 100).toFixed(1) + '%' : 'N/A'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md mb-8">
-        <h2 className="text-xl font-semibold mb-4">Most Recent Orders with Company Data</h2>
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead>
-              <tr className="border-b dark:border-gray-700">
-                <th className="py-2 text-left">Order #</th>
-                <th className="py-2 text-left">Customer</th>
-                <th className="py-2 text-left">Company</th>
-                <th className="py-2 text-left">Date</th>
-                <th className="py-2 text-left">Match Type</th>
-                <th className="py-2 text-right">Confidence</th>
-                <th className="py-2 text-right">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentOrdersList.map((order, index) => {
-                // Format the date
-                const orderDate = order.orderDate ? new Date(order.orderDate) : null;
-                const formattedDate = orderDate ? 
-                  orderDate.toLocaleDateString('en-US', { 
-                    year: 'numeric', 
-                    month: 'short', 
-                    day: 'numeric' 
-                  }) : 'N/A';
-                
-                // Format confidence as percentage
-                const confidencePercent = order.confidence ? 
-                  (order.confidence * 100).toFixed(1) + '%' : 'N/A';
-                
-                return (
-                  <tr key={index} className="border-b dark:border-gray-700">
-                    <td className="py-2 text-left font-medium">
-                      <Link href={`/orders/${encodeURIComponent(order.orderNumber)}`} className="text-blue-600 hover:underline">
-                        {order.orderNumber}
-                      </Link>
-                    </td>
-                    <td className="py-2 text-left">{order.customerName}</td>
-                    <td className="py-2 text-left">
-                      <div className="font-medium">{order.companyName}</div>
-                      {order.companyDomain && (
-                        <div className="text-xs text-gray-500">{order.companyDomain}</div>
-                      )}
-                    </td>
-                    <td className="py-2 text-left">{formattedDate}</td>
-                    <td className="py-2 text-left">
-                      <span className={`px-2 py-1 rounded-full text-xs ${
-                        order.matchType === 'exact' ? 'bg-green-100 text-green-800' :
-                        order.matchType === 'fuzzy' ? 'bg-yellow-100 text-yellow-800' :
-                        order.matchType === 'manual' ? 'bg-blue-100 text-blue-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {order.matchType || 'Unknown'}
-                      </span>
-                    </td>
-                    <td className="py-2 text-right">{confidencePercent}</td>
-                    <td className="py-2 text-right">${Number(order.totalAmount).toLocaleString()}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md mb-8">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">Key Insights</h2>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="border dark:border-gray-700 rounded-lg p-4">
-            <h3 className="font-medium mb-2">Average Order Value</h3>
-            <p className="text-2xl font-bold text-blue-600">
-              ${Number(avgOrderValue).toLocaleString()}
-            </p>
-          </div>
-          
-          <div className="border dark:border-gray-700 rounded-lg p-4">
-            <h3 className="font-medium mb-2">Most Common Payment</h3>
-            <p className="text-2xl font-bold text-green-600">
-              {ordersByPaymentMethod.length > 0 ? ordersByPaymentMethod[0].paymentMethod : 'N/A'}
-            </p>
-            <p className="text-sm text-gray-500">
-              {ordersByPaymentMethod.length > 0 ? 
-                `${((ordersByPaymentMethod[0].count / totalOrders) * 100).toFixed(1)}% of orders` : ''}
-            </p>
-          </div>
-          
-          <div className="border dark:border-gray-700 rounded-lg p-4">
-            <h3 className="font-medium mb-2">Most Common Order Type</h3>
-            <p className="text-2xl font-bold text-purple-600">
-              {ordersByType.length > 0 ? ordersByType[0].orderType : 'N/A'}
-            </p>
-            <p className="text-sm text-gray-500">
-              {ordersByType.length > 0 ? 
-                `${((ordersByType[0].count / totalOrders) * 100).toFixed(1)}% of orders` : ''}
-            </p>
-          </div>
-        </div>
-      </div>
-    </DashboardLayout>
-  );
+      </SidebarInset>
+    </SidebarProvider>
+  )
 }
