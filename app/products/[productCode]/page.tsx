@@ -16,6 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { getDateRangeFromTimeFrame } from "@/app/utils/dates"
+import { ProductSalesChart } from "@/app/components/ProductSalesChart"
 
 export default async function ProductDashboard({
   params,
@@ -36,10 +37,10 @@ export default async function ProductDashboard({
     .select({
       productCode: orderItems.productCode,
       productDescription: orderItems.productDescription,
-      totalQuantity: sql<number>`SUM(CAST(quantity AS NUMERIC))`.as("total_quantity"),
-      totalRevenue: sql<number>`SUM(line_amount)`.as("total_revenue"),
-      avgUnitPrice: sql<number>`AVG(unit_price)`.as("avg_unit_price"),
-      orderCount: sql<number>`COUNT(DISTINCT order_number)`.as("order_count"),
+      totalQuantity: sql<number>`SUM(CAST(${orderItems.quantity} AS NUMERIC))`.as("total_quantity"),
+      totalRevenue: sql<number>`SUM(${orderItems.lineAmount})`.as("total_revenue"),
+      avgUnitPrice: sql<number>`AVG(${orderItems.unitPrice})`.as("avg_unit_price"),
+      orderCount: sql<number>`COUNT(DISTINCT ${orderItems.orderNumber})`.as("order_count"),
     })
     .from(orderItems)
     .innerJoin(orders, sql`${orders.orderNumber} = ${orderItems.orderNumber}`)
@@ -59,33 +60,27 @@ export default async function ProductDashboard({
     orderCount: 0,
   }
 
-  // Define type for monthly sales data
-  type MonthlySales = {
-    month: string
-    total_quantity: number
-    total_revenue: number
-    order_count: number
-  }
-
-  // Query to get sales by month for this product with date range filter
-  const salesByMonthResult = await db.execute(sql`
+  // Query to get all-time sales by month for this product
+  const allTimeSalesByMonthResult = await db.execute(sql`
     SELECT 
       TO_CHAR(o.order_date, 'YYYY-MM') as month,
-      SUM(CAST(oi.quantity AS NUMERIC)) as total_quantity,
-      SUM(oi.line_amount) as total_revenue,
+      SUM(CAST(oi.quantity AS NUMERIC)) as quantity,
+      SUM(oi.line_amount) as revenue,
       COUNT(DISTINCT o.order_number) as order_count
     FROM order_items oi
     INNER JOIN orders o ON o.order_number = oi.order_number
     WHERE oi.product_code = ${productCode}
-    AND o.order_date >= ${formattedStartDate}
-    AND o.order_date <= ${formattedEndDate}
-    GROUP BY month
-    ORDER BY month DESC
-    LIMIT 12
+    GROUP BY TO_CHAR(o.order_date, 'YYYY-MM')
+    ORDER BY month ASC
   `)
 
-  // Cast the result to our type
-  const salesByMonth = salesByMonthResult as unknown as MonthlySales[]
+  // Process the sales data for the chart with proper number formatting
+  const allTimeSalesData = (allTimeSalesByMonthResult as any[]).map(item => ({
+    month: item.month,
+    quantity: parseFloat(item.quantity || 0),
+    revenue: parseFloat(item.revenue || 0),
+    order_count: parseInt(item.order_count || 0)
+  }))
 
   // Query to get recent orders for this product with date range filter
   const recentOrders = await db
@@ -106,6 +101,23 @@ export default async function ProductDashboard({
     )
     .orderBy(sql`${orders.orderDate} DESC`)
     .limit(10)
+    
+  // Query to get orders by payment method for this product
+  const ordersByPaymentMethod = await db
+    .select({
+      paymentMethod: orders.paymentMethod,
+      count: sql<number>`count(*)`.as("count"),
+      totalAmount: sql<number>`SUM(${orderItems.lineAmount})`.as("total_amount"),
+    })
+    .from(orderItems)
+    .innerJoin(orders, sql`${orders.orderNumber} = ${orderItems.orderNumber}`)
+    .where(
+      sql`${orderItems.productCode} = ${productCode} AND 
+          ${orders.orderDate} >= ${formattedStartDate} AND 
+          ${orders.orderDate} <= ${formattedEndDate}`
+    )
+    .groupBy(orders.paymentMethod)
+    .orderBy(sql`count DESC`)
 
   return (
     <SidebarProvider
@@ -249,46 +261,50 @@ export default async function ProductDashboard({
                 </Card>
               </div>
 
-              <div className="grid grid-cols-1 gap-6 px-6 lg:grid-cols-2">
+              <div className="px-6 mb-6">
+                <ProductSalesChart 
+                  salesData={allTimeSalesData} 
+                  productCode={productCode}
+                />
+              </div>
+
+              <div className="px-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Monthly Sales Trend</CardTitle>
+                    <CardTitle>Orders by Payment Method</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead>Month</TableHead>
-                            <TableHead className="text-right">Quantity</TableHead>
-                            <TableHead className="text-right">Revenue</TableHead>
+                            <TableHead>Payment Method</TableHead>
                             <TableHead className="text-right">Orders</TableHead>
+                            <TableHead className="text-right">Revenue</TableHead>
+                            <TableHead className="text-right">Percentage</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {salesByMonth.map((month, index) => (
+                          {ordersByPaymentMethod.map((method, index) => (
                             <TableRow key={index}>
                               <TableCell className="font-medium">
-                                {month.month}
+                                {method.paymentMethod || "Unknown"}
                               </TableCell>
                               <TableCell className="text-right">
-                                {Number(month.total_quantity).toLocaleString()}
+                                {method.count.toLocaleString()}
                               </TableCell>
                               <TableCell className="text-right">
-                                ${Number(month.total_revenue).toLocaleString()}
+                                ${Number(method.totalAmount).toLocaleString()}
                               </TableCell>
                               <TableCell className="text-right">
-                                {month.order_count}
+                                {((method.count / productDetails.orderCount) * 100).toFixed(1)}%
                               </TableCell>
                             </TableRow>
                           ))}
-                          {salesByMonth.length === 0 && (
+                          {ordersByPaymentMethod.length === 0 && (
                             <TableRow>
-                              <TableCell
-                                colSpan={4}
-                                className="py-4 text-center text-muted-foreground"
-                              >
-                                No monthly sales data available
+                              <TableCell colSpan={4} className="text-center text-muted-foreground">
+                                No data available
                               </TableCell>
                             </TableRow>
                           )}
@@ -297,7 +313,9 @@ export default async function ProductDashboard({
                     </div>
                   </CardContent>
                 </Card>
-
+              </div>
+              
+              <div className="px-6">
                 <Card>
                   <CardHeader>
                     <CardTitle>Recent Orders</CardTitle>

@@ -220,26 +220,26 @@ export default async function OrderDetailPage({
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Subtotal</span>
                         <span className="font-medium">
-                          ${subtotal.toLocaleString()}
+                          ${subtotal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Shipping</span>
                         <span className="font-medium">
-                          ${shippingTotal.toLocaleString()}
+                          ${shippingTotal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Tax</span>
                         <span className="font-medium">
-                          ${taxAmount.toLocaleString()}
+                          ${taxAmount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                         </span>
                       </div>
                       <Separator className="my-2" />
                       <div className="flex justify-between">
                         <span className="font-bold">Total</span>
                         <span className="font-bold text-xl">
-                          ${Number(order.totalAmount).toLocaleString()}
+                          ${Number(order.totalAmount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                         </span>
                       </div>
                     </div>
@@ -367,11 +367,6 @@ export default async function OrderDetailPage({
                                   {item.productDescription}
                                 </div>
                               )}
-                              {item.productClass && (
-                                <div className="text-xs text-muted-foreground">
-                                  Class: {item.productClass}
-                                </div>
-                              )}
                             </TableCell>
                             <TableCell className="text-right">
                               {item.quantity
@@ -380,11 +375,11 @@ export default async function OrderDetailPage({
                             </TableCell>
                             <TableCell className="text-right">
                               $
-                              {Number(item.unitPrice || 0).toLocaleString()}
+                              {Number(item.unitPrice || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                             </TableCell>
                             <TableCell className="text-right">
                               $
-                              {Number(item.lineAmount || 0).toLocaleString()}
+                              {Number(item.lineAmount || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                             </TableCell>
                           </TableRow>
                         ))}
