@@ -2,6 +2,8 @@ import { db } from "../../../db";
 import { sql } from "drizzle-orm";
 import { orderItems, orders } from "../../../db/schema";
 import Link from "next/link";
+import DashboardLayout from "../../components/DashboardLayout";
+import { getDateRangeFromTimeFrame } from "../../utils/dates";
 
 // Define product family information
 const productFamilies = [
@@ -93,34 +95,62 @@ const productFamilies = [
 
 export default async function ProductFamilyDetail({
   params,
+  searchParams,
 }: {
   params: { familyId: string };
+  searchParams?: { [key: string]: string | string[] | undefined };
 }) {
-  const familyId = params.familyId;
+  // Wait for params and searchParams to be available
+  const familyParams = await params;
+  const familyId = familyParams.familyId;
+  
+  // Get searchParams
+  const queryParams = await searchParams || {};
+  
+  // Get timeframe from URL params or default to 30d
+  const timeFrame = (queryParams.timeframe as string) || '30d';
+  const startDateParam = queryParams.start as string | undefined;
+  const endDateParam = queryParams.end as string | undefined;
+  
+  // Calculate date range based on the selected time frame
+  const {
+    startDate,
+    endDate,
+    formattedStartDate,
+    formattedEndDate
+  } = getDateRangeFromTimeFrame(timeFrame, startDateParam, endDateParam);
+  
+  // Format date range for display
+  const formattedStartDisplay = startDate.toLocaleDateString('en-US', { 
+    year: 'numeric', 
+    month: 'short', 
+    day: 'numeric' 
+  });
+  
+  const formattedEndDisplay = endDate.toLocaleDateString('en-US', { 
+    year: 'numeric', 
+    month: 'short', 
+    day: 'numeric' 
+  });
+  
+  // Create date range text for display
+  const dateRangeText = `Showing data from ${formattedStartDisplay} to ${formattedEndDisplay}`;
   
   // Find the family information
   const family = productFamilies.find(f => f.id === familyId);
   
   if (!family) {
     return (
-      <div className="min-h-screen p-8">
-        <h1 className="text-3xl font-bold mb-8">Product Family Not Found</h1>
+      <DashboardLayout 
+        title="Product Family Not Found"
+        showTimeFramePicker={false}
+      >
         <Link href="/product-families" className="text-blue-500 hover:text-blue-700">
           ← Back to Product Families
         </Link>
-      </div>
+      </DashboardLayout>
     );
   }
-  
-  // Get current date and calculate dates for time-based queries
-  const currentDate = new Date();
-  const lastYearDate = new Date(currentDate);
-  lastYearDate.setFullYear(currentDate.getFullYear() - 1);
-  
-  const last90DaysDate = new Date(currentDate);
-  last90DaysDate.setDate(currentDate.getDate() - 90);
-  
-  const formattedLast90Days = last90DaysDate.toISOString().split('T')[0];
   
   // Define types for our data
   type Product = {
@@ -142,15 +172,17 @@ export default async function ProductFamilyDetail({
   // Strip the " IN" suffix from product codes when grouping
   const productsResult = await db.execute(sql`
     SELECT 
-      REGEXP_REPLACE(product_code, ' IN$', '') as product_code,
-      product_description,
-      SUM(line_amount) as total_sales,
-      SUM(CAST(quantity AS NUMERIC)) as total_quantity,
-      COUNT(DISTINCT order_number) as order_count,
-      AVG(unit_price) as avg_unit_price
-    FROM order_items
-    WHERE product_code LIKE ${family.pattern}
-    GROUP BY REGEXP_REPLACE(product_code, ' IN$', ''), product_description
+      REGEXP_REPLACE(oi.product_code, ' IN$', '') as product_code,
+      oi.product_description,
+      SUM(oi.line_amount) as total_sales,
+      SUM(CAST(oi.quantity AS NUMERIC)) as total_quantity,
+      COUNT(DISTINCT oi.order_number) as order_count,
+      AVG(oi.unit_price) as avg_unit_price
+    FROM order_items oi
+    JOIN orders o ON oi.order_number = o.order_number
+    WHERE oi.product_code LIKE ${family.pattern}
+    AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
+    GROUP BY REGEXP_REPLACE(oi.product_code, ' IN$', ''), oi.product_description
     ORDER BY total_sales DESC
   `);
   
@@ -167,6 +199,7 @@ export default async function ProductFamilyDetail({
     FROM order_items oi
     INNER JOIN orders o ON oi.order_number = o.order_number
     WHERE oi.product_code LIKE ${family.pattern}
+    AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
   `);
   
   const stats = Array.isArray(statsResult) && statsResult.length > 0
@@ -193,6 +226,7 @@ export default async function ProductFamilyDetail({
     FROM order_items oi
     INNER JOIN orders o ON oi.order_number = o.order_number
     WHERE oi.product_code LIKE ${family.pattern}
+    AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
     GROUP BY month
     ORDER BY month DESC
     LIMIT 12
@@ -216,17 +250,23 @@ export default async function ProductFamilyDetail({
     orders,
     sql`${orderItems.orderNumber} = ${orders.orderNumber}`
   )
-  .where(sql`product_code LIKE ${family.pattern}`)
+  .where(sql`${orderItems.productCode} LIKE ${family.pattern}`)
+  .where(sql`${orders.orderDate} BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
   .orderBy(sql`${orders.orderDate} DESC`)
   .limit(10);
 
+  // Create URL back to product families with the same time frame
+  const backToFamiliesUrl = `/product-families?timeframe=${timeFrame}${startDateParam ? `&start=${startDateParam}` : ''}${endDateParam ? `&end=${endDateParam}` : ''}`;
+
   return (
-    <div className="min-h-screen p-8 pb-20 gap-8 font-[family-name:var(--font-geist-sans)]">
+    <DashboardLayout
+      title={family.name}
+      dateRangeText={dateRangeText}
+    >
       <div className="flex items-center gap-4 mb-8">
-        <Link href="/product-families" className="text-blue-500 hover:text-blue-700">
+        <Link href={backToFamiliesUrl} className="text-blue-500 hover:text-blue-700">
           ← Back to Product Families
         </Link>
-        <h1 className="text-3xl font-bold">{family.name}</h1>
       </div>
       
       <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md mb-8">
@@ -277,7 +317,10 @@ export default async function ProductFamilyDetail({
                 {Array.isArray(products) && products.map((product, index) => (
                   <tr key={index} className="border-b dark:border-gray-700">
                     <td className="py-2 text-left">
-                      <Link href={`/products/${encodeURIComponent(product.product_code || '')}`} className="font-medium text-blue-500 hover:text-blue-700 hover:underline">
+                      <Link 
+                        href={`/products/${encodeURIComponent(product.product_code || '')}?timeframe=${timeFrame}${startDateParam ? `&start=${startDateParam}` : ''}${endDateParam ? `&end=${endDateParam}` : ''}`} 
+                        className="font-medium text-blue-500 hover:text-blue-700 hover:underline"
+                      >
                         {product.product_code}
                       </Link>
                       <div className="text-sm text-gray-500">{product.product_description}</div>
@@ -364,6 +407,6 @@ export default async function ProductFamilyDetail({
           </table>
         </div>
       </div>
-    </div>
+    </DashboardLayout>
   );
 }

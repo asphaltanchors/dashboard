@@ -2,44 +2,43 @@ import { db } from "../../db";
 import { sql } from "drizzle-orm";
 import { orders, orderItems, customers, orderCompanyView } from "../../db/schema";
 import { desc } from "drizzle-orm";
+import { getDateRangeFromTimeFrame } from "../utils/dates";
+import DashboardLayout from "../components/DashboardLayout";
+import Link from "next/link";
 
-export default async function OrdersAnalytics() {
-  // Get current date and calculate dates for time-based queries
-  const currentDate = new Date();
-  const lastYearDate = new Date(currentDate);
-  lastYearDate.setFullYear(currentDate.getFullYear() - 1);
+export default async function OrdersAnalytics({
+  searchParams,
+}: {
+  searchParams?: { [key: string]: string | string[] | undefined };
+}) {
+  // Wait for searchParams to be available
+  const params = await searchParams || {};
   
-  const last30DaysDate = new Date(currentDate);
-  last30DaysDate.setDate(currentDate.getDate() - 30);
+  // Get timeframe from URL params or default to 30d
+  const timeFrame = (params.timeframe as string) || '30d';
+  const startDateParam = params.start as string | undefined;
+  const endDateParam = params.end as string | undefined;
   
-  const last90DaysDate = new Date(currentDate);
-  last90DaysDate.setDate(currentDate.getDate() - 90);
+  // Calculate date range based on the selected time frame
+  const {
+    startDate,
+    endDate,
+    formattedStartDate,
+    formattedEndDate
+  } = getDateRangeFromTimeFrame(timeFrame, startDateParam, endDateParam);
   
-  const formattedLast30Days = last30DaysDate.toISOString().split('T')[0];
-  const formattedLast90Days = last90DaysDate.toISOString().split('T')[0];
-  const formattedLastYear = lastYearDate.toISOString().split('T')[0];
-
-  // Query to get total number of orders and revenue
+  // Query to get total number of orders and revenue for the selected time frame
   const orderSummaryResult = await db.select({
     totalOrders: sql<number>`count(*)`.as('total_orders'),
     totalRevenue: sql<number>`SUM(total_amount)`.as('total_revenue'),
     avgOrderValue: sql<number>`AVG(total_amount)`.as('avg_order_value')
-  }).from(orders);
+  })
+  .from(orders)
+  .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`);
   
   const totalOrders = orderSummaryResult[0]?.totalOrders || 0;
   const totalRevenue = orderSummaryResult[0]?.totalRevenue || 0;
   const avgOrderValue = orderSummaryResult[0]?.avgOrderValue || 0;
-
-  // Query to get recent orders count (last 30 days)
-  const recentOrdersResult = await db.select({
-    totalOrders: sql<number>`count(*)`.as('total_orders'),
-    totalRevenue: sql<number>`SUM(total_amount)`.as('total_revenue')
-  })
-  .from(orders)
-  .where(sql`order_date >= ${formattedLast30Days}`);
-  
-  const recentOrdersCount = recentOrdersResult[0]?.totalOrders || 0;
-  const recentRevenue = recentOrdersResult[0]?.totalRevenue || 0;
 
   // Query to get orders by status
   const ordersByStatus = await db.select({
@@ -48,6 +47,7 @@ export default async function OrdersAnalytics() {
     totalAmount: sql<number>`SUM(total_amount)`.as('total_amount')
   })
   .from(orders)
+  .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
   .groupBy(orders.status)
   .orderBy(sql`count DESC`);
 
@@ -58,6 +58,7 @@ export default async function OrdersAnalytics() {
     totalAmount: sql<number>`SUM(total_amount)`.as('total_amount')
   })
   .from(orders)
+  .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
   .groupBy(orders.orderType)
   .orderBy(sql`count DESC`);
 
@@ -69,6 +70,7 @@ export default async function OrdersAnalytics() {
     avgOrderValue: sql<number>`AVG(total_amount)`.as('avg_order_value')
   })
   .from(orders)
+  .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
   .groupBy(orders.customerName)
   .orderBy(sql`order_count DESC`)
   .limit(10);
@@ -81,6 +83,7 @@ export default async function OrdersAnalytics() {
     avgOrderValue: sql<number>`AVG(total_amount)`.as('avg_order_value')
   })
   .from(orders)
+  .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
   .groupBy(orders.customerName)
   .orderBy(sql`total_spent DESC`)
   .limit(10);
@@ -92,10 +95,11 @@ export default async function OrdersAnalytics() {
     totalAmount: sql<number>`SUM(total_amount)`.as('total_amount')
   })
   .from(orders)
+  .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
   .groupBy(orders.paymentMethod)
   .orderBy(sql`count DESC`);
 
-  // Query to get orders by month (last 12 months)
+  // Query to get orders by month
   const ordersByMonth = await db.select({
     month: sql<string>`TO_CHAR(order_date, 'YYYY-MM')`.as('month'),
     orderCount: sql<number>`count(*)`.as('order_count'),
@@ -103,6 +107,7 @@ export default async function OrdersAnalytics() {
     avgOrderValue: sql<number>`AVG(total_amount)`.as('avg_order_value')
   })
   .from(orders)
+  .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
   .groupBy(sql`month`)
   .orderBy(sql`month DESC`)
   .limit(12);
@@ -123,6 +128,7 @@ export default async function OrdersAnalytics() {
       SUM(total_amount) as total_amount,
       AVG(total_amount) as avg_order_value
     FROM orders
+    WHERE order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
     GROUP BY quarter
     ORDER BY quarter DESC
     LIMIT 8
@@ -155,6 +161,7 @@ export default async function OrdersAnalytics() {
     confidence: orderCompanyView.confidence
   })
   .from(orderCompanyView)
+  .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
   .orderBy(desc(orderCompanyView.orderDate))
   .limit(10);
   
@@ -168,6 +175,7 @@ export default async function OrdersAnalytics() {
     avgOrderValue: sql<number>`AVG(total_amount)`.as('avg_order_value')
   })
   .from(orderCompanyView)
+  .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
   .groupBy(orderCompanyView.companyId, orderCompanyView.companyName, orderCompanyView.companyDomain)
   .orderBy(sql`order_count DESC`)
   .limit(10);
@@ -182,6 +190,7 @@ export default async function OrdersAnalytics() {
     avgOrderValue: sql<number>`AVG(total_amount)`.as('avg_order_value')
   })
   .from(orderCompanyView)
+  .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
   .groupBy(orderCompanyView.companyId, orderCompanyView.companyName, orderCompanyView.companyDomain)
   .orderBy(sql`total_spent DESC`)
   .limit(10);
@@ -193,12 +202,31 @@ export default async function OrdersAnalytics() {
     avgConfidence: sql<number>`AVG(confidence)`.as('avg_confidence')
   })
   .from(orderCompanyView)
+  .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
   .groupBy(orderCompanyView.matchType)
   .orderBy(sql`count DESC`);
 
+  // Format date range for display
+  const formattedStartDisplay = startDate.toLocaleDateString('en-US', { 
+    year: 'numeric', 
+    month: 'short', 
+    day: 'numeric' 
+  });
+  
+  const formattedEndDisplay = endDate.toLocaleDateString('en-US', { 
+    year: 'numeric', 
+    month: 'short', 
+    day: 'numeric' 
+  });
+
+  // Create date range text for display
+  const dateRangeText = `Showing data from ${formattedStartDisplay} to ${formattedEndDisplay}`;
+
   return (
-    <div className="min-h-screen p-8 pb-20 gap-8 font-[family-name:var(--font-geist-sans)]">
-      <h1 className="text-3xl font-bold mb-8">Orders Analytics Dashboard</h1>
+    <DashboardLayout 
+      title="Orders Analytics Dashboard"
+      dateRangeText={dateRangeText}
+    >
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
@@ -217,10 +245,12 @@ export default async function OrdersAnalytics() {
         </div>
         
         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-2">Last 30 Days</h2>
-          <p className="text-3xl font-bold text-amber-500">{recentOrdersCount.toLocaleString()}</p>
-          <p className="text-sm text-gray-500 mt-1">
-            ${Number(recentRevenue).toLocaleString()} in revenue
+          <h2 className="text-xl font-semibold mb-2">Orders Per Day</h2>
+          <p className="text-3xl font-bold text-amber-500">
+            {totalOrders > 0 
+              ? Math.round(totalOrders / (Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 3600 * 24))))).toLocaleString()
+              : '0'
+            }
           </p>
         </div>
       </div>
@@ -519,7 +549,11 @@ export default async function OrdersAnalytics() {
                 
                 return (
                   <tr key={index} className="border-b dark:border-gray-700">
-                    <td className="py-2 text-left font-medium">{order.orderNumber}</td>
+                    <td className="py-2 text-left font-medium">
+                      <Link href={`/orders/${encodeURIComponent(order.orderNumber)}`} className="text-blue-600 hover:underline">
+                        {order.orderNumber}
+                      </Link>
+                    </td>
                     <td className="py-2 text-left">{order.customerName}</td>
                     <td className="py-2 text-left">
                       <div className="font-medium">{order.companyName}</div>
@@ -583,6 +617,6 @@ export default async function OrdersAnalytics() {
           </div>
         </div>
       </div>
-    </div>
+    </DashboardLayout>
   );
 }

@@ -3,37 +3,72 @@ import { db } from "../db";
 import { sql } from "drizzle-orm";
 import { orders, products, orderItems, companies, customers, itemHistoryView, orderCompanyView } from "../db/schema";
 import RevenueChart from "./components/RevenueChart";
+import DashboardLayout from "./components/DashboardLayout";
+import { getDateRangeFromTimeFrame } from "./utils/dates";
 
-export default async function Dashboard() {
-  // Get current date and calculate dates for time-based queries
-  const currentDate = new Date();
-  const last30DaysDate = new Date(currentDate);
-  last30DaysDate.setDate(currentDate.getDate() - 30);
+export default async function Dashboard({
+  searchParams,
+}: {
+  searchParams?: { [key: string]: string | string[] | undefined };
+}) {
+  // Wait for searchParams to be available
+  const params = await searchParams || {};
   
-  const last90DaysDate = new Date(currentDate);
-  last90DaysDate.setDate(currentDate.getDate() - 90);
+  // Get timeframe from URL params or default to 30d
+  const timeFrame = (params.timeframe as string) || '30d';
+  const startDateParam = params.start as string | undefined;
+  const endDateParam = params.end as string | undefined;
   
-  const formattedLast30Days = last30DaysDate.toISOString().split('T')[0];
-  const formattedLast90Days = last90DaysDate.toISOString().split('T')[0];
+  // Calculate date range based on the selected time frame
+  const {
+    startDate,
+    endDate,
+    formattedStartDate,
+    formattedEndDate
+  } = getDateRangeFromTimeFrame(timeFrame, startDateParam, endDateParam);
+  
+  // Format date range for display
+  const formattedStartDisplay = startDate.toLocaleDateString('en-US', { 
+    year: 'numeric', 
+    month: 'short', 
+    day: 'numeric' 
+  });
+  
+  const formattedEndDisplay = endDate.toLocaleDateString('en-US', { 
+    year: 'numeric', 
+    month: 'short', 
+    day: 'numeric' 
+  });
+  
+  // For backward compatibility with existing queries
+  const formattedLast30Days = new Date(endDate);
+  formattedLast30Days.setDate(endDate.getDate() - 30);
+  const formattedLast30DaysStr = formattedLast30Days.toISOString().split('T')[0];
+  
+  const formattedLast90Days = new Date(endDate);
+  formattedLast90Days.setDate(endDate.getDate() - 90);
+  const formattedLast90DaysStr = formattedLast90Days.toISOString().split('T')[0];
 
-  // Query to get total orders and revenue
+  // Query to get total orders and revenue within selected time frame
   const orderSummaryResult = await db.select({
     totalOrders: sql<number>`count(*)`.as('total_orders'),
     totalRevenue: sql<number>`SUM(total_amount)`.as('total_revenue'),
     avgOrderValue: sql<number>`AVG(total_amount)`.as('avg_order_value')
-  }).from(orders);
+  })
+  .from(orders)
+  .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`);
   
   const totalOrders = orderSummaryResult[0]?.totalOrders || 0;
   const totalRevenue = orderSummaryResult[0]?.totalRevenue || 0;
   const avgOrderValue = orderSummaryResult[0]?.avgOrderValue || 0;
 
-  // Query to get recent orders (last 30 days)
+  // Query to get recent orders (last 30 days from the end date of selected range)
   const recentOrdersResult = await db.select({
     totalOrders: sql<number>`count(*)`.as('total_orders'),
     totalRevenue: sql<number>`SUM(total_amount)`.as('total_revenue')
   })
   .from(orders)
-  .where(sql`order_date >= ${formattedLast30Days}`);
+  .where(sql`order_date >= ${formattedLast30DaysStr}`);
   
   const recentOrdersCount = recentOrdersResult[0]?.totalOrders || 0;
   const recentRevenue = recentOrdersResult[0]?.totalRevenue || 0;
@@ -53,7 +88,7 @@ export default async function Dashboard() {
   
   const missingDescriptions = missingDescriptionsResult[0]?.count || 0;
 
-  // Query to get top selling products (last 90 days)
+  // Query to get top selling products within selected time frame
   const topSellingProducts = await db.select({
     productCode: orderItems.productCode,
     productDescription: orderItems.productDescription,
@@ -65,12 +100,12 @@ export default async function Dashboard() {
     sql`orders`,
     sql`orders.order_number = ${orderItems.orderNumber}`
   )
-  .where(sql`quantity IS NOT NULL AND CAST(quantity AS NUMERIC) > 0 AND orders.order_date >= ${formattedLast90Days}`)
+  .where(sql`quantity IS NOT NULL AND CAST(quantity AS NUMERIC) > 0 AND orders.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
   .groupBy(orderItems.productCode, orderItems.productDescription)
   .orderBy(sql`total_quantity DESC`)
   .limit(5);
 
-  // Query to get recent orders list
+  // Query to get recent orders list within selected time frame
   const recentOrders = await db.select({
     orderNumber: orders.orderNumber,
     customerName: orders.customerName,
@@ -79,19 +114,21 @@ export default async function Dashboard() {
     status: orders.status
   })
   .from(orders)
+  .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
   .orderBy(sql`order_date DESC`)
   .limit(5);
 
-  // Query to get orders by status
+  // Query to get orders by status within selected time frame
   const ordersByStatus = await db.select({
     status: orders.status,
     count: sql<number>`count(*)`.as('count')
   })
   .from(orders)
+  .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
   .groupBy(orders.status)
   .orderBy(sql`count DESC`);
   
-  // Query to get orders by month (all time)
+  // Query to get orders by month within selected time frame
   const ordersByMonth = await db.select({
     month: sql<string>`TO_CHAR(order_date, 'YYYY-MM')`.as('month'),
     orderCount: sql<number>`count(*)`.as('order_count'),
@@ -99,10 +136,11 @@ export default async function Dashboard() {
     avgOrderValue: sql<number>`AVG(total_amount)`.as('avg_order_value')
   })
   .from(orders)
+  .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
   .groupBy(sql`month`)
   .orderBy(sql`month ASC`);
   
-  // Query to get top companies by order count
+  // Query to get top companies by order count within selected time frame
   const topCompaniesByOrders = await db.select({
     companyId: orderCompanyView.companyId,
     companyName: orderCompanyView.companyName,
@@ -111,6 +149,7 @@ export default async function Dashboard() {
     totalSpent: sql<number>`SUM(total_amount)`.as('total_spent')
   })
   .from(orderCompanyView)
+  .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
   .groupBy(orderCompanyView.companyId, orderCompanyView.companyName, orderCompanyView.companyDomain)
   .orderBy(sql`order_count DESC`)
   .limit(5);
@@ -138,24 +177,25 @@ export default async function Dashboard() {
   .groupBy(customers.customerType)
   .orderBy(sql`count DESC`);
   
-  // Query to get company match type distribution
+  // Query to get company match type distribution within selected time frame
   const companyMatchDistribution = await db.select({
     matchType: orderCompanyView.matchType,
     count: sql<number>`count(*)`.as('count'),
     avgConfidence: sql<number>`AVG(confidence)`.as('avg_confidence')
   })
   .from(orderCompanyView)
+  .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
   .groupBy(orderCompanyView.matchType)
   .orderBy(sql`count DESC`);
 
+  // Create date range text for display
+  const dateRangeText = `Showing data from ${formattedStartDisplay} to ${formattedEndDisplay}`;
+
   return (
-    <div className="min-h-screen p-8 pb-20 gap-8 font-[family-name:var(--font-geist-sans)]">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Dashboard</h1>
-        <div className="text-sm text-gray-500">
-          Last updated: {new Date().toLocaleString()}
-        </div>
-      </div>
+    <DashboardLayout 
+      title="Dashboard"
+      dateRangeText={dateRangeText}
+    >
       
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -461,6 +501,6 @@ export default async function Dashboard() {
           </div>
         </div>
       </div>
-    </div>
+    </DashboardLayout>
   );
 }

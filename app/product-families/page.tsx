@@ -1,7 +1,9 @@
 import { db } from "../../db";
 import { sql } from "drizzle-orm";
-import { orderItems } from "../../db/schema";
+import { orderItems, orders } from "../../db/schema";
 import Link from "next/link";
+import DashboardLayout from "../components/DashboardLayout";
+import { getDateRangeFromTimeFrame } from "../utils/dates";
 
 // Define product family information
 const productFamilies = [
@@ -49,7 +51,43 @@ const productFamilies = [
   },
 ];
 
-export default async function ProductFamilies() {
+export default async function ProductFamilies({
+  searchParams,
+}: {
+  searchParams?: { [key: string]: string | string[] | undefined };
+}) {
+  // Wait for searchParams to be available
+  const params = await searchParams || {};
+  
+  // Get timeframe from URL params or default to 30d
+  const timeFrame = (params.timeframe as string) || '30d';
+  const startDateParam = params.start as string | undefined;
+  const endDateParam = params.end as string | undefined;
+  
+  // Calculate date range based on the selected time frame
+  const {
+    startDate,
+    endDate,
+    formattedStartDate,
+    formattedEndDate
+  } = getDateRangeFromTimeFrame(timeFrame, startDateParam, endDateParam);
+  
+  // Format date range for display
+  const formattedStartDisplay = startDate.toLocaleDateString('en-US', { 
+    year: 'numeric', 
+    month: 'short', 
+    day: 'numeric' 
+  });
+  
+  const formattedEndDisplay = endDate.toLocaleDateString('en-US', { 
+    year: 'numeric', 
+    month: 'short', 
+    day: 'numeric' 
+  });
+  
+  // Create date range text for display
+  const dateRangeText = `Showing data from ${formattedStartDisplay} to ${formattedEndDisplay}`;
+
   // For each family, get the count of products and total sales
   const familyStats = await Promise.all(
     productFamilies.map(async (family) => {
@@ -57,11 +95,13 @@ export default async function ProductFamilies() {
       // Strip the " IN" suffix from product codes when counting distinct products
       const statsResult = await db.execute(sql`
         SELECT 
-          COUNT(DISTINCT REGEXP_REPLACE(product_code, ' IN$', '')) as product_count,
-          SUM(line_amount) as total_sales,
-          SUM(CAST(quantity AS NUMERIC)) as total_quantity
-        FROM order_items
-        WHERE product_code LIKE ${family.pattern}
+          COUNT(DISTINCT REGEXP_REPLACE(oi.product_code, ' IN$', '')) as product_count,
+          SUM(oi.line_amount) as total_sales,
+          SUM(CAST(oi.quantity AS NUMERIC)) as total_quantity
+        FROM order_items oi
+        JOIN orders o ON oi.order_number = o.order_number
+        WHERE oi.product_code LIKE ${family.pattern}
+        AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
       `);
       
       const stats = Array.isArray(statsResult) && statsResult.length > 0
@@ -76,12 +116,14 @@ export default async function ProductFamilies() {
       // Strip the " IN" suffix from product codes when grouping
       const topProductResult = await db.execute(sql`
         SELECT 
-          REGEXP_REPLACE(product_code, ' IN$', '') as product_code,
-          product_description,
-          SUM(line_amount) as total_sales
-        FROM order_items
-        WHERE product_code LIKE ${family.pattern}
-        GROUP BY REGEXP_REPLACE(product_code, ' IN$', ''), product_description
+          REGEXP_REPLACE(oi.product_code, ' IN$', '') as product_code,
+          oi.product_description,
+          SUM(oi.line_amount) as total_sales
+        FROM order_items oi
+        JOIN orders o ON oi.order_number = o.order_number
+        WHERE oi.product_code LIKE ${family.pattern}
+        AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
+        GROUP BY REGEXP_REPLACE(oi.product_code, ' IN$', ''), oi.product_description
         ORDER BY total_sales DESC
         LIMIT 1
       `);
@@ -94,13 +136,15 @@ export default async function ProductFamilies() {
       // Strip the " IN" suffix from product codes when grouping
       const products = await db.execute(sql`
         SELECT
-          REGEXP_REPLACE(product_code, ' IN$', '') as product_code,
-          product_description,
-          SUM(line_amount) as total_sales,
-          SUM(CAST(quantity AS NUMERIC)) as total_quantity
-        FROM order_items
-        WHERE product_code LIKE ${family.pattern}
-        GROUP BY REGEXP_REPLACE(product_code, ' IN$', ''), product_description
+          REGEXP_REPLACE(oi.product_code, ' IN$', '') as product_code,
+          oi.product_description,
+          SUM(oi.line_amount) as total_sales,
+          SUM(CAST(oi.quantity AS NUMERIC)) as total_quantity
+        FROM order_items oi
+        JOIN orders o ON oi.order_number = o.order_number
+        WHERE oi.product_code LIKE ${family.pattern}
+        AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
+        GROUP BY REGEXP_REPLACE(oi.product_code, ' IN$', ''), oi.product_description
         ORDER BY total_sales DESC
       `);
       
@@ -114,9 +158,10 @@ export default async function ProductFamilies() {
   );
 
   return (
-    <div className="min-h-screen p-8 pb-20 gap-8 font-[family-name:var(--font-geist-sans)]">
-      <h1 className="text-3xl font-bold mb-8">Product Families</h1>
-      
+    <DashboardLayout
+      title="Product Families"
+      dateRangeText={dateRangeText}
+    >
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         {familyStats.map((family) => (
           <div key={family.id} className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
@@ -138,7 +183,7 @@ export default async function ProductFamilies() {
             </div>
             <div className="mt-4">
               <Link 
-                href={`/product-families/${family.id}`} 
+                href={`/product-families/${family.id}?timeframe=${timeFrame}${startDateParam ? `&start=${startDateParam}` : ''}${endDateParam ? `&end=${endDateParam}` : ''}`} 
                 className="text-blue-500 hover:text-blue-700 hover:underline"
               >
                 View Details →
@@ -147,6 +192,6 @@ export default async function ProductFamilies() {
           </div>
         ))}
       </div>
-    </div>
+    </DashboardLayout>
   );
 }
