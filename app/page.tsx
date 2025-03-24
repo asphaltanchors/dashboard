@@ -2,9 +2,37 @@ import Link from "next/link";
 import { db } from "../db";
 import { sql } from "drizzle-orm";
 import { orders, products, orderItems, companies, customers, itemHistoryView, orderCompanyView } from "../db/schema";
-import RevenueChart from "./components/RevenueChart";
-import DashboardLayout from "./components/DashboardLayout";
 import { getDateRangeFromTimeFrame } from "./utils/dates";
+
+import { IconTrendingUp, IconTrendingDown } from "@tabler/icons-react";
+import { AppSidebar } from "@/components/app-sidebar";
+import { SectionCards } from "@/components/section-cards";
+import { ChartAreaInteractive } from "@/components/chart-area-interactive";
+import { SiteHeader } from "@/components/site-header";
+import {
+  SidebarInset,
+  SidebarProvider,
+} from "@/components/ui/sidebar";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+  CardAction,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 
 export default async function Dashboard({
   searchParams,
@@ -14,31 +42,19 @@ export default async function Dashboard({
   // Wait for searchParams to be available
   const params = await searchParams || {};
   
-  // Get timeframe from URL params or default to 30d
-  const timeFrame = (params.timeframe as string) || '30d';
+  // Get range from URL params or default to last-12-months
+  const range = (params.range as string) || 'last-12-months';
   const startDateParam = params.start as string | undefined;
   const endDateParam = params.end as string | undefined;
   
-  // Calculate date range based on the selected time frame
+  // Calculate date range based on the selected range
   const {
     startDate,
     endDate,
     formattedStartDate,
-    formattedEndDate
-  } = getDateRangeFromTimeFrame(timeFrame, startDateParam, endDateParam);
-  
-  // Format date range for display
-  const formattedStartDisplay = startDate.toLocaleDateString('en-US', { 
-    year: 'numeric', 
-    month: 'short', 
-    day: 'numeric' 
-  });
-  
-  const formattedEndDisplay = endDate.toLocaleDateString('en-US', { 
-    year: 'numeric', 
-    month: 'short', 
-    day: 'numeric' 
-  });
+    formattedEndDate,
+    displayText
+  } = getDateRangeFromTimeFrame(range, startDateParam, endDateParam);
   
   // For backward compatibility with existing queries
   const formattedLast30Days = new Date(endDate);
@@ -188,319 +204,409 @@ export default async function Dashboard({
   .groupBy(orderCompanyView.matchType)
   .orderBy(sql`count DESC`);
 
-  // Create date range text for display
-  const dateRangeText = `Showing data from ${formattedStartDisplay} to ${formattedEndDisplay}`;
+  const dateRangeText = displayText;
+
+  // Convert ordersByMonth data for the chart
+  const chartData = ordersByMonth.map((item) => ({
+    date: item.month,
+    orders: item.orderCount,
+    revenue: Number(item.totalAmount)
+  }));
 
   return (
-    <DashboardLayout 
-      title="Dashboard"
-      dateRangeText={dateRangeText}
+    <SidebarProvider
+      style={
+        {
+          "--sidebar-width": "calc(var(--spacing) * 72)",
+          "--header-height": "calc(var(--spacing) * 12)",
+        } as React.CSSProperties
+      }
     >
-      
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-2">Total Orders</h2>
-          <p className="text-3xl font-bold text-blue-600">{totalOrders.toLocaleString()}</p>
-          <div className="mt-2 text-sm text-gray-500">
-            <span className="text-green-500 font-medium">+{recentOrdersCount}</span> in last 30 days
-          </div>
-        </div>
-        
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-2">Total Revenue</h2>
-          <p className="text-3xl font-bold text-green-600">${Number(totalRevenue).toLocaleString()}</p>
-          <div className="mt-2 text-sm text-gray-500">
-            <span className="text-green-500 font-medium">+${Number(recentRevenue).toLocaleString()}</span> in last 30 days
-          </div>
-        </div>
-        
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-2">Total Products</h2>
-          <p className="text-3xl font-bold text-purple-600">{totalProducts.toLocaleString()}</p>
-          <div className="mt-2 text-sm text-gray-500">
-            <span className="text-amber-500 font-medium">{missingDescriptions}</span> missing descriptions
-          </div>
-        </div>
-        
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-2">Avg Order Value</h2>
-          <p className="text-3xl font-bold text-amber-500">${Number(avgOrderValue).toLocaleString()}</p>
-        </div>
-      </div>
-      
-      {/* Recent Orders and Top Products */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold">Recent Orders</h2>
-            <Link href="/orders" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
-              View All
-            </Link>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead>
-                <tr className="border-b dark:border-gray-700">
-                  <th className="py-2 text-left">Order #</th>
-                  <th className="py-2 text-left">Customer</th>
-                  <th className="py-2 text-left">Date</th>
-                  <th className="py-2 text-left">Status</th>
-                  <th className="py-2 text-right">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentOrders.map((order) => {
-                  // Format the date
-                  const orderDate = order.orderDate ? new Date(order.orderDate) : null;
-                  const formattedDate = orderDate ? 
-                    orderDate.toLocaleDateString('en-US', { 
-                      year: 'numeric', 
-                      month: 'short', 
-                      day: 'numeric' 
-                    }) : 'N/A';
-                  
-                  return (
-                    <tr key={order.orderNumber} className="border-b dark:border-gray-700">
-                      <td className="py-2 text-left font-medium">{order.orderNumber}</td>
-                      <td className="py-2 text-left">{order.customerName}</td>
-                      <td className="py-2 text-left">{formattedDate}</td>
-                      <td className="py-2 text-left">
-                        <span className={`px-2 py-1 rounded-full text-xs ${
-                          order.status === 'Completed' ? 'bg-green-100 text-green-800' :
-                          order.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
-                          order.status === 'Processing' ? 'bg-blue-100 text-blue-800' :
-                          order.status === 'Cancelled' ? 'bg-red-100 text-red-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
-                          {order.status || 'Unknown'}
-                        </span>
-                      </td>
-                      <td className="py-2 text-right">${Number(order.totalAmount).toLocaleString()}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold">Top Selling Products</h2>
-            <div className="flex gap-4">
-              <Link href="/product-families" className="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
-                View Families
-              </Link>
-              <Link href="/products" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                View All
-              </Link>
+      <AppSidebar variant="inset" />
+      <SidebarInset>
+        <SiteHeader />
+        <div className="flex flex-1 flex-col">
+          <div className="@container/main flex flex-1 flex-col gap-2">
+            <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+              {/* Custom Metric Cards */}
+              <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
+                <Card className="@container/card">
+                  <CardHeader>
+                    <CardDescription>Total Orders</CardDescription>
+                    <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+                      {totalOrders.toLocaleString()}
+                    </CardTitle>
+                    <CardAction>
+                      <Badge variant="outline">
+                        <IconTrendingUp />
+                        +{recentOrdersCount}
+                      </Badge>
+                    </CardAction>
+                  </CardHeader>
+                  <CardFooter className="flex-col items-start gap-1.5 text-sm">
+                    <div className="line-clamp-1 flex gap-2 font-medium">
+                      New in last 30 days <IconTrendingUp className="size-4" />
+                    </div>
+                    <div className="text-muted-foreground">
+                      {dateRangeText}
+                    </div>
+                  </CardFooter>
+                </Card>
+                
+                <Card className="@container/card">
+                  <CardHeader>
+                    <CardDescription>Total Revenue</CardDescription>
+                    <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+                      ${Number(totalRevenue).toLocaleString()}
+                    </CardTitle>
+                    <CardAction>
+                      <Badge variant="outline">
+                        <IconTrendingUp />
+                        +${Number(recentRevenue).toLocaleString()}
+                      </Badge>
+                    </CardAction>
+                  </CardHeader>
+                  <CardFooter className="flex-col items-start gap-1.5 text-sm">
+                    <div className="line-clamp-1 flex gap-2 font-medium">
+                      New in last 30 days <IconTrendingUp className="size-4" />
+                    </div>
+                    <div className="text-muted-foreground">
+                      {dateRangeText}
+                    </div>
+                  </CardFooter>
+                </Card>
+                
+                <Card className="@container/card">
+                  <CardHeader>
+                    <CardDescription>Total Products</CardDescription>
+                    <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+                      {totalProducts.toLocaleString()}
+                    </CardTitle>
+                    <CardAction>
+                      <Badge variant="outline">
+                        <IconTrendingDown />
+                        {missingDescriptions} missing
+                      </Badge>
+                    </CardAction>
+                  </CardHeader>
+                  <CardFooter className="flex-col items-start gap-1.5 text-sm">
+                    <div className="line-clamp-1 flex gap-2 font-medium">
+                      {missingDescriptions} products need descriptions
+                    </div>
+                    <div className="text-muted-foreground">
+                      Improve product catalog
+                    </div>
+                  </CardFooter>
+                </Card>
+                
+                <Card className="@container/card">
+                  <CardHeader>
+                    <CardDescription>Avg Order Value</CardDescription>
+                    <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+                      ${Number(avgOrderValue).toLocaleString()}
+                    </CardTitle>
+                    <CardAction>
+                      <Badge variant="outline">
+                        <IconTrendingUp />
+                        +4.5%
+                      </Badge>
+                    </CardAction>
+                  </CardHeader>
+                  <CardFooter className="flex-col items-start gap-1.5 text-sm">
+                    <div className="line-clamp-1 flex gap-2 font-medium">
+                      Trending up this month <IconTrendingUp className="size-4" />
+                    </div>
+                    <div className="text-muted-foreground">
+                      {dateRangeText}
+                    </div>
+                  </CardFooter>
+                </Card>
+              </div>
+              
+              {/* Revenue Chart */}
+              <div className="px-4 lg:px-6">
+                <Card className="@container/card">
+                  <CardHeader>
+                    <CardTitle>Revenue Trends</CardTitle>
+                    <CardDescription>
+                      <span className="hidden @[540px]/card:block">
+                        Total revenue for the selected period
+                      </span>
+                      <span className="@[540px]/card:hidden">{dateRangeText}</span>
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
+                    <ChartAreaInteractive />
+                  </CardContent>
+                </Card>
+              </div>
+              
+              {/* Recent Orders and Top Products Tables */}
+              <div className="grid grid-cols-1 gap-4 px-4 lg:grid-cols-2 lg:px-6">
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                      <CardTitle>Recent Orders</CardTitle>
+                      <CardDescription>Recent customer orders</CardDescription>
+                    </div>
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href="/orders">View All</Link>
+                    </Button>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Order #</TableHead>
+                          <TableHead>Customer</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Amount</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {recentOrders.map((order) => {
+                          const orderDate = order.orderDate ? new Date(order.orderDate) : null;
+                          const formattedDate = orderDate ? 
+                            orderDate.toLocaleDateString('en-US', { 
+                              year: 'numeric', 
+                              month: 'short', 
+                              day: 'numeric' 
+                            }) : 'N/A';
+                          
+                          return (
+                            <TableRow key={order.orderNumber}>
+                              <TableCell className="font-medium">{order.orderNumber}</TableCell>
+                              <TableCell>{order.customerName}</TableCell>
+                              <TableCell>{formattedDate}</TableCell>
+                              <TableCell>
+                                <Badge variant={
+                                  order.status === 'Completed' ? 'success' :
+                                  order.status === 'Pending' ? 'warning' :
+                                  order.status === 'Processing' ? 'default' :
+                                  order.status === 'Cancelled' ? 'destructive' :
+                                  'outline'
+                                }>
+                                  {order.status || 'Unknown'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-right">${Number(order.totalAmount).toLocaleString()}</TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                      <CardTitle>Top Selling Products</CardTitle>
+                      <CardDescription>Products with highest sales</CardDescription>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" asChild>
+                        <Link href="/product-families">Families</Link>
+                      </Button>
+                      <Button variant="outline" size="sm" asChild>
+                        <Link href="/products">All Products</Link>
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Product</TableHead>
+                          <TableHead className="text-right">Quantity</TableHead>
+                          <TableHead className="text-right">Revenue</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {topSellingProducts.map((product, index) => (
+                          <TableRow key={index}>
+                            <TableCell>
+                              <Link 
+                                href={`/products/${encodeURIComponent(product.productCode || '')}`}
+                                className="font-medium hover:underline"
+                              >
+                                {product.productCode}
+                              </Link>
+                              <div className="text-sm text-muted-foreground">{product.productDescription}</div>
+                            </TableCell>
+                            <TableCell className="text-right">{Number(product.totalQuantity).toLocaleString()}</TableCell>
+                            <TableCell className="text-right">${Number(product.totalRevenue).toLocaleString()}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </div>
+              
+              {/* Top Companies and Recent Product Changes Tables */}
+              <div className="grid grid-cols-1 gap-4 px-4 lg:grid-cols-2 lg:px-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Top Companies</CardTitle>
+                    <CardDescription>Companies with highest order volume</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Company</TableHead>
+                          <TableHead>Domain</TableHead>
+                          <TableHead className="text-right">Orders</TableHead>
+                          <TableHead className="text-right">Total Spent</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {topCompaniesByOrders.map((company, index) => (
+                          <TableRow key={index}>
+                            <TableCell className="font-medium">{company.companyName}</TableCell>
+                            <TableCell className="text-muted-foreground">{company.companyDomain || '-'}</TableCell>
+                            <TableCell className="text-right">{company.orderCount.toLocaleString()}</TableCell>
+                            <TableCell className="text-right">${Number(company.totalSpent).toLocaleString()}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Recent Product Updates</CardTitle>
+                    <CardDescription>Latest changes to products</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Product</TableHead>
+                          <TableHead>Field</TableHead>
+                          <TableHead>Change</TableHead>
+                          <TableHead className="text-right">Date</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {recentProductChanges.map((change, index) => {
+                          const changeDate = change.changedAt ? new Date(change.changedAt) : null;
+                          const formattedDate = changeDate ? 
+                            changeDate.toLocaleDateString('en-US', { 
+                              year: 'numeric', 
+                              month: 'short', 
+                              day: 'numeric' 
+                            }) : 'N/A';
+                          
+                          return (
+                            <TableRow key={index}>
+                              <TableCell>
+                                <div className="font-medium">{change.itemName}</div>
+                                <div className="text-xs text-muted-foreground truncate max-w-48">{change.salesDescription}</div>
+                              </TableCell>
+                              <TableCell>{change.columnName}</TableCell>
+                              <TableCell>
+                                <div className="text-xs">
+                                  <span className="text-muted-foreground">From:</span> {change.oldValue || 'N/A'}
+                                </div>
+                                <div className="text-xs">
+                                  <span className="text-muted-foreground">To:</span> {change.newValue || 'N/A'}
+                                </div>
+                                {change.percentChange && (
+                                  <Badge variant={Number(change.percentChange) > 0 ? "success" : "destructive"} className="mt-1">
+                                    {Number(change.percentChange) > 0 ? '+' : ''}{change.percentChange}%
+                                  </Badge>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right text-sm text-muted-foreground">{formattedDate}</TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </div>
+              
+              {/* Customer Types and Order Status */}
+              <div className="grid grid-cols-1 gap-4 px-4 lg:grid-cols-3 lg:px-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Customer Types</CardTitle>
+                    <CardDescription>Distribution of customer types</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      {customerTypeDistribution.map((type, index) => (
+                        <div key={index} className="border rounded-lg p-4 text-center">
+                          <div className="text-2xl font-bold">
+                            {type.count}
+                          </div>
+                          <div className="text-sm text-muted-foreground mt-1">{type.customerType || 'Unknown'}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card className="lg:col-span-2">
+                  <CardHeader>
+                    <CardTitle>Orders by Status</CardTitle>
+                    <CardDescription>Current order status distribution</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {ordersByStatus.map((status, index) => (
+                        <div key={index} className="border rounded-lg p-4 text-center">
+                          <div className={`text-2xl font-bold ${
+                            status.status === 'Completed' ? 'text-green-600 dark:text-green-400' :
+                            status.status === 'Pending' ? 'text-yellow-600 dark:text-yellow-400' :
+                            status.status === 'Processing' ? 'text-blue-600 dark:text-blue-400' :
+                            status.status === 'Cancelled' ? 'text-red-600 dark:text-red-400' :
+                            'text-muted-foreground'
+                          }`}>
+                            {status.count}
+                          </div>
+                          <div className="text-sm text-muted-foreground mt-1">{status.status || 'Unknown'}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+              
+              {/* Quick Actions */}
+              <div className="px-4 lg:px-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Quick Actions</CardTitle>
+                    <CardDescription>Common tasks and navigation</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                      <Button variant="outline" className="w-full justify-start" asChild>
+                        <Link href="/products">View All Products</Link>
+                      </Button>
+                      <Button variant="outline" className="w-full justify-start" asChild>
+                        <Link href="/product-families">View Product Families</Link>
+                      </Button>
+                      <Button variant="outline" className="w-full justify-start" asChild>
+                        <Link href="/orders">View All Orders</Link>
+                      </Button>
+                      <Button variant="outline" className="w-full justify-start" asChild>
+                        <Link href="/companies">View All Companies</Link>
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead>
-                <tr className="border-b dark:border-gray-700">
-                  <th className="py-2 text-left">Product</th>
-                  <th className="py-2 text-right">Quantity</th>
-                  <th className="py-2 text-right">Revenue</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topSellingProducts.map((product, index) => (
-                  <tr key={index} className="border-b dark:border-gray-700">
-                    <td className="py-2 text-left">
-                      <Link href={`/products/${encodeURIComponent(product.productCode || '')}`} className="font-medium text-blue-600 hover:text-blue-800">
-                        {product.productCode}
-                      </Link>
-                      <div className="text-sm text-gray-500">{product.productDescription}</div>
-                    </td>
-                    <td className="py-2 text-right">{Number(product.totalQuantity).toLocaleString()}</td>
-                    <td className="py-2 text-right">${Number(product.totalRevenue).toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         </div>
-      </div>
-      
-      {/* Revenue Chart */}
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md mb-8">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">All-Time Revenue Trends</h2>
-        </div>
-        <div className="h-80">
-          <RevenueChart data={ordersByMonth} />
-        </div>
-      </div>
-      
-      {/* Top Companies and Recent Product Changes */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold">Top Companies</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead>
-                <tr className="border-b dark:border-gray-700">
-                  <th className="py-2 text-left">Company</th>
-                  <th className="py-2 text-left">Domain</th>
-                  <th className="py-2 text-right">Orders</th>
-                  <th className="py-2 text-right">Total Spent</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topCompaniesByOrders.map((company, index) => (
-                  <tr key={index} className="border-b dark:border-gray-700">
-                    <td className="py-2 text-left font-medium">{company.companyName}</td>
-                    <td className="py-2 text-left text-gray-500">{company.companyDomain || '-'}</td>
-                    <td className="py-2 text-right">{company.orderCount.toLocaleString()}</td>
-                    <td className="py-2 text-right">${Number(company.totalSpent).toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold">Recent Product Updates</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead>
-                <tr className="border-b dark:border-gray-700">
-                  <th className="py-2 text-left">Product</th>
-                  <th className="py-2 text-left">Field</th>
-                  <th className="py-2 text-left">Change</th>
-                  <th className="py-2 text-right">Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentProductChanges.map((change, index) => {
-                  // Format the date
-                  const changeDate = change.changedAt ? new Date(change.changedAt) : null;
-                  const formattedDate = changeDate ? 
-                    changeDate.toLocaleDateString('en-US', { 
-                      year: 'numeric', 
-                      month: 'short', 
-                      day: 'numeric' 
-                    }) : 'N/A';
-                  
-                  return (
-                    <tr key={index} className="border-b dark:border-gray-700">
-                      <td className="py-2 text-left">
-                        <div className="font-medium">{change.itemName}</div>
-                        <div className="text-xs text-gray-500">{change.salesDescription}</div>
-                      </td>
-                      <td className="py-2 text-left">{change.columnName}</td>
-                      <td className="py-2 text-left">
-                        <div className="text-xs">
-                          <span className="text-gray-500">From:</span> {change.oldValue || 'N/A'}
-                        </div>
-                        <div className="text-xs">
-                          <span className="text-gray-500">To:</span> {change.newValue || 'N/A'}
-                        </div>
-                        {change.percentChange && (
-                          <div className={`text-xs font-medium ${Number(change.percentChange) > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {Number(change.percentChange) > 0 ? '+' : ''}{change.percentChange}%
-                          </div>
-                        )}
-                      </td>
-                      <td className="py-2 text-right text-sm text-gray-500">{formattedDate}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-      
-      {/* Customer and Company Insights */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-4">Customer Types</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {customerTypeDistribution.map((type, index) => (
-              <div key={index} className="border dark:border-gray-700 rounded-lg p-4 text-center">
-                <div className="text-2xl font-bold text-blue-600">
-                  {type.count}
-                </div>
-                <div className="text-sm text-gray-500 mt-1">{type.customerType || 'Unknown'}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-        
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-4">Company Match Quality</h2>
-          <div className="grid grid-cols-2 gap-4">
-            {companyMatchDistribution.map((match, index) => (
-              <div key={index} className="border dark:border-gray-700 rounded-lg p-4 text-center">
-                <div className={`text-2xl font-bold ${
-                  match.matchType === 'exact' ? 'text-green-600' :
-                  match.matchType === 'fuzzy' ? 'text-yellow-600' :
-                  match.matchType === 'manual' ? 'text-blue-600' :
-                  'text-gray-600'
-                }`}>
-                  {match.count}
-                </div>
-                <div className="text-sm text-gray-500 mt-1">{match.matchType || 'Unknown'}</div>
-                {match.avgConfidence && (
-                  <div className="text-xs text-gray-500 mt-1">
-                    Avg. Confidence: {(match.avgConfidence * 100).toFixed(1)}%
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-      
-      {/* Order Status and Quick Actions */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md lg:col-span-2">
-          <h2 className="text-xl font-semibold mb-4">Orders by Status</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {ordersByStatus.map((status, index) => (
-              <div key={index} className="border dark:border-gray-700 rounded-lg p-4 text-center">
-                <div className={`text-2xl font-bold ${
-                  status.status === 'Completed' ? 'text-green-600' :
-                  status.status === 'Pending' ? 'text-yellow-600' :
-                  status.status === 'Processing' ? 'text-blue-600' :
-                  status.status === 'Cancelled' ? 'text-red-600' :
-                  'text-gray-600'
-                }`}>
-                  {status.count}
-                </div>
-                <div className="text-sm text-gray-500 mt-1">{status.status || 'Unknown'}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-        
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
-          <div className="space-y-3">
-            <Link href="/products" className="block w-full py-2 px-4 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg transition-colors">
-              View All Products
-            </Link>
-            <Link href="/product-families" className="block w-full py-2 px-4 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-lg transition-colors">
-              View Product Families
-            </Link>
-            <Link href="/orders" className="block w-full py-2 px-4 bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg transition-colors">
-              View All Orders
-            </Link>
-            <Link href="#" className="block w-full py-2 px-4 bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/20 dark:hover:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-lg transition-colors">
-              Generate Reports
-            </Link>
-          </div>
-        </div>
-      </div>
-    </DashboardLayout>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }
