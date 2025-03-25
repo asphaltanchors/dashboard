@@ -22,51 +22,44 @@ import {
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 
-// Define product family information
-const productFamilies = [
-  {
-    id: "sp10",
+// Product family descriptions and additional info
+const familyDetails = {
+  "SP10": {
     name: "SP10 Asphalt Anchors",
     description: "6-inch asphalt anchors with various thread sizes and coatings",
-    pattern: "01-6310%",
     image: "/sp10-family.jpg", // Placeholder - would need to add actual image
   },
-  {
-    id: "sp12",
+  "SP12": {
     name: "SP12 Asphalt Anchors",
     description: "8-inch asphalt anchors with various thread sizes and coatings",
-    pattern: "01-6315%",
     image: "/sp12-family.jpg", // Placeholder
   },
-  {
-    id: "sp18",
+  "SP18": {
     name: "SP18 Asphalt Anchors",
     description: "10-inch asphalt anchors with various thread sizes and coatings",
-    pattern: "01-6318%",
     image: "/sp18-family.jpg", // Placeholder
   },
-  {
-    id: "sp58",
+  "SP58": {
     name: "SP58 Asphalt Anchors",
     description: "Heavy-duty 10-inch asphalt anchors with 5/8\" or M16 thread",
-    pattern: "01-6358%",
     image: "/sp58-family.jpg", // Placeholder
   },
-  {
-    id: "am625",
+  "AM625": {
     name: "AM625 Asphalt Anchors",
     description: "Plastic asphalt anchors for lighter applications",
-    pattern: "01-7625%",
     image: "/am625-family.jpg", // Placeholder
   },
-  {
-    id: "epx",
-    name: "EPX Anchoring Grouts",
-    description: "Various epoxy and cement-based anchoring grouts",
-    pattern: "82-%",
-    image: "/epx-family.jpg", // Placeholder
+  "Adhesives": {
+    name: "Adhesives",
+    description: "Various adhesives for different applications",
+    image: "/adhesives-family.jpg", // Placeholder
   },
-];
+  "Kits": {
+    name: "Installation Kits",
+    description: "Complete kits for installation of various anchors",
+    image: "/kits-family.jpg", // Placeholder
+  }
+};
 
 export default async function ProductFamilies({
   searchParams,
@@ -86,11 +79,23 @@ export default async function ProductFamilies({
     displayText
   } = getDateRangeFromTimeFrame(range);
 
+  // Get distinct product families from database
+  const distinctFamiliesResult = await db.execute(sql`
+    SELECT DISTINCT product_family 
+    FROM product_families 
+    ORDER BY product_family
+  `);
+  
+  // Process the result to get array of families
+  const distinctFamilies = distinctFamiliesResult.map((row: any) => ({
+    id: row.product_family.toLowerCase(),
+    familyId: row.product_family
+  }));
+
   // For each family, get the count of products and total sales
   const familyStats = await Promise.all(
-    productFamilies.map(async (family) => {
-      // Get product count and total sales for this family
-      // Strip the " IN" suffix from product codes when counting distinct products
+    distinctFamilies.map(async (family) => {
+      // Get product count and total sales for this family using the product_families table
       const statsResult = await db.execute(sql`
         SELECT 
           COUNT(DISTINCT REGEXP_REPLACE(oi.product_code, ' IN$', '')) as product_count,
@@ -98,7 +103,8 @@ export default async function ProductFamilies({
           SUM(CAST(oi.quantity AS NUMERIC)) as total_quantity
         FROM order_items oi
         JOIN orders o ON oi.order_number = o.order_number
-        WHERE oi.product_code LIKE ${family.pattern}
+        JOIN product_families pf ON pf.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
+        WHERE pf.product_family = ${family.familyId}
         AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
       `);
       
@@ -111,7 +117,6 @@ export default async function ProductFamilies({
         : { productCount: 0, totalSales: 0, totalQuantity: 0 };
       
       // Get top selling product in this family
-      // Strip the " IN" suffix from product codes when grouping
       const topProductResult = await db.execute(sql`
         SELECT 
           REGEXP_REPLACE(oi.product_code, ' IN$', '') as product_code,
@@ -119,7 +124,8 @@ export default async function ProductFamilies({
           SUM(oi.line_amount) as total_sales
         FROM order_items oi
         JOIN orders o ON oi.order_number = o.order_number
-        WHERE oi.product_code LIKE ${family.pattern}
+        JOIN product_families pf ON pf.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
+        WHERE pf.product_family = ${family.familyId}
         AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
         GROUP BY REGEXP_REPLACE(oi.product_code, ' IN$', ''), oi.product_description
         ORDER BY total_sales DESC
@@ -131,7 +137,6 @@ export default async function ProductFamilies({
         : null;
       
       // Get all products in this family
-      // Strip the " IN" suffix from product codes when grouping
       const products = await db.execute(sql`
         SELECT
           REGEXP_REPLACE(oi.product_code, ' IN$', '') as product_code,
@@ -140,14 +145,26 @@ export default async function ProductFamilies({
           SUM(CAST(oi.quantity AS NUMERIC)) as total_quantity
         FROM order_items oi
         JOIN orders o ON oi.order_number = o.order_number
-        WHERE oi.product_code LIKE ${family.pattern}
+        JOIN product_families pf ON pf.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
+        WHERE pf.product_family = ${family.familyId}
         AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
         GROUP BY REGEXP_REPLACE(oi.product_code, ' IN$', ''), oi.product_description
         ORDER BY total_sales DESC
       `);
       
+      // Get family details from the lookup object or provide defaults
+      const details = familyDetails[family.familyId] || {
+        name: family.familyId,
+        description: `Products in the ${family.familyId} family`,
+        image: "/default-family.jpg"
+      };
+      
       return {
-        ...family,
+        id: family.id,
+        name: details.name,
+        description: details.description,
+        image: details.image,
+        familyId: family.familyId,
         stats,
         topProduct,
         products,
@@ -182,7 +199,7 @@ export default async function ProductFamilies({
                   <CardHeader>
                     <CardDescription>Total Product Families</CardDescription>
                     <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-                      {productFamilies.length}
+                      {distinctFamilies.length}
                     </CardTitle>
                   </CardHeader>
                   <CardFooter className="flex-col items-start gap-1.5 text-sm">

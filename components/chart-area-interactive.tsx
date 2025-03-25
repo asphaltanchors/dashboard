@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Area, AreaChart, CartesianGrid, XAxis } from "recharts"
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from "recharts"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import {
@@ -140,141 +140,146 @@ const chartConfig = {
   },
 } satisfies ChartConfig
 
-export function ChartAreaInteractive() {
+export function ChartAreaInteractive({ data }: { data?: any[] }) {
   const isMobile = useIsMobile()
   
-  // Use the last 90 days of data by default
-  const referenceDate = new Date("2024-06-30")
-  const startDate = new Date(referenceDate)
-  startDate.setDate(startDate.getDate() - 90)
+  // Use dummy data if no real data is provided
+  const displayData = data || chartData
   
-  // Filter to last 90 days (will be filtered further by the page's date range)
-  const filteredData = chartData.filter((item) => {
+  // Get the most recent month from the chart data
+  const today = new Date()
+  const referenceDate = data ? new Date(today) : new Date("2024-06-30")
+  
+  // Get data for the last 24 months
+  const startDate = new Date(referenceDate)
+  startDate.setMonth(startDate.getMonth() - 24)
+  
+  // Filter to last 24 months if using dummy data
+  const filteredData = !data ? displayData.filter((item) => {
     const date = new Date(item.date)
     return date >= startDate
-  })
+  }) : displayData
   
-  // Group data by week
-  const groupedByWeek = React.useMemo(() => {
-    const weeks: Record<string, { date: string, desktop: number, mobile: number }> = {}
-    
-    filteredData.forEach(item => {
-      const date = new Date(item.date)
-      // Get the week start date (Sunday)
-      const weekStart = new Date(date)
-      weekStart.setDate(date.getDate() - date.getDay())
-      const weekKey = weekStart.toISOString().split('T')[0]
-      
-      if (!weeks[weekKey]) {
-        weeks[weekKey] = { date: weekKey, desktop: 0, mobile: 0 }
-      }
-      
-      weeks[weekKey].desktop += item.desktop
-      weeks[weekKey].mobile += item.mobile
-    })
-    
-    return Object.values(weeks).sort((a, b) => 
-      new Date(a.date).getTime() - new Date(b.date).getTime()
-    )
-  }, [filteredData])
+  // Convert data to match the expected format
+  const formattedData = React.useMemo(() => {
+    if (data) {
+      // Real data from the database is already in the right format (YYYY-MM)
+      // Just need to convert it to the proper object structure
+      return filteredData.map(item => ({
+        date: item.date,
+        desktop: item.orders || 0,  // Orders 
+        mobile: item.revenue || 0   // Revenue
+      }))
+    } else {
+      // Use the dummy data
+      return filteredData
+    }
+  }, [filteredData, data])
 
   return (
-    <Card className="@container/card">
-      <CardHeader>
-        <CardTitle>Revenue & Orders</CardTitle>
-        <CardDescription>
-          <span className="hidden @[540px]/card:block">
-            Revenue trends for the selected period
-          </span>
-          <span className="@[540px]/card:hidden">Revenue trends</span>
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
-        <ChartContainer
-          config={chartConfig}
-          className="aspect-auto h-[250px] w-full"
-        >
-          <AreaChart data={groupedByWeek}>
-            <defs>
-              <linearGradient id="fillDesktop" x1="0" y1="0" x2="0" y2="1">
-                <stop
-                  offset="5%"
-                  stopColor="var(--color-desktop)"
-                  stopOpacity={1.0}
-                />
-                <stop
-                  offset="95%"
-                  stopColor="var(--color-desktop)"
-                  stopOpacity={0.1}
-                />
-              </linearGradient>
-              <linearGradient id="fillMobile" x1="0" y1="0" x2="0" y2="1">
-                <stop
-                  offset="5%"
-                  stopColor="var(--color-mobile)"
-                  stopOpacity={0.8}
-                />
-                <stop
-                  offset="95%"
-                  stopColor="var(--color-mobile)"
-                  stopOpacity={0.1}
-                />
-              </linearGradient>
-            </defs>
-            <CartesianGrid vertical={false} />
-            <XAxis
-              dataKey="date"
-              tickLine={false}
-              axisLine={false}
-              tickMargin={8}
-              minTickGap={20}
-              tickFormatter={(value) => {
-                const date = new Date(value)
-                return date.toLocaleDateString("en-US", {
-                  month: "short",
-                  day: "numeric",
-                })
-              }}
-            />
-            <ChartTooltip
-              cursor={false}
-              defaultIndex={-1}
-              content={
-                <ChartTooltipContent
-                  labelFormatter={(value) => {
-                    const date = new Date(value);
-                    const endDate = new Date(date);
-                    endDate.setDate(date.getDate() + 6);
-                    
-                    return `Week of ${date.toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                    })} - ${endDate.toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                    })}`;
-                  }}
-                  indicator="dot"
-                />
-              }
-            />
-            <Area
-              dataKey="mobile"
-              type="natural"
-              fill="url(#fillMobile)"
-              stroke="var(--color-mobile)"
-              stackId="a"
-            />
-            <Area
-              dataKey="desktop"
-              type="natural"
-              fill="url(#fillDesktop)"
-              stroke="var(--color-desktop)"
-              stackId="a"
-            />
-          </AreaChart>
+    <div className="@container/chart w-full">
+      <ChartContainer
+        config={chartConfig}
+        className="aspect-auto h-[300px] w-full"
+      >
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={formattedData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="fillRevenue" x1="0" y1="0" x2="0" y2="1">
+                  <stop
+                    offset="5%"
+                    stopColor="#0ea5e9" /* Sky color for revenue */
+                    stopOpacity={0.8}
+                  />
+                  <stop
+                    offset="95%"
+                    stopColor="#0ea5e9"
+                    stopOpacity={0.1}
+                  />
+                </linearGradient>
+                <linearGradient id="fillOrders" x1="0" y1="0" x2="0" y2="1">
+                  <stop
+                    offset="5%"
+                    stopColor="#f59e0b" /* Amber color for orders */
+                    stopOpacity={0.8}
+                  />
+                  <stop
+                    offset="95%"
+                    stopColor="#f59e0b"
+                    stopOpacity={0.1}
+                  />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis
+                dataKey="date"
+                tickLine={false}
+                axisLine={true}
+                tickMargin={8}
+                minTickGap={20}
+                tickFormatter={(value) => {
+                  // If data contains YYYY-MM format (from database)
+                  if (value.includes('-') && value.length === 7) {
+                    const [year, month] = value.split('-');
+                    return `${new Date(0, parseInt(month) - 1).toLocaleString('default', { month: 'short' })} ${year}`;
+                  }
+                  
+                  // Otherwise (for demo data)
+                  const date = new Date(value)
+                  return date.toLocaleDateString("en-US", {
+                    month: "short",
+                    year: "numeric"
+                  })
+                }}
+              />
+              {/* Y-axis for Revenue */}
+              <YAxis 
+                tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                stroke="#0ea5e9"
+                axisLine={{ stroke: '#0ea5e9' }}
+                tickLine={{ stroke: '#0ea5e9' }}
+                label={{ value: 'Revenue', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle' } }}
+              />
+              <ChartTooltip
+                cursor={false}
+                defaultIndex={-1}
+                content={
+                  <ChartTooltipContent
+                    labelFormatter={(value) => {
+                      // If data contains YYYY-MM format (from database)
+                      if (value.includes('-') && value.length === 7) {
+                        const [year, month] = value.split('-');
+                        return `${new Date(parseInt(year), parseInt(month) - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}`;
+                      }
+                      
+                      // Otherwise (for demo data)
+                      const date = new Date(value);
+                      return date.toLocaleDateString("en-US", {
+                        month: "long",
+                        year: "numeric",
+                      });
+                    }}
+                    indicator="dot"
+                    formatter={(value, name) => {
+                      if (name === "Revenue") {
+                        return [`$${Number(value).toLocaleString()}`, name];
+                      }
+                      return [Number(value).toLocaleString(), name];
+                    }}
+                  />
+                }
+              />
+              {/* Only showing revenue data */}
+              <Area
+                dataKey={data ? "mobile" : "mobile"}
+                type="monotone"
+                fill="url(#fillRevenue)"
+                stroke="#0ea5e9"
+                name="Revenue"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
         </ChartContainer>
-      </CardContent>
-    </Card>
+    </div>
   )
 }

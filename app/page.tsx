@@ -156,6 +156,16 @@ export default async function Dashboard({
   .groupBy(sql`month`)
   .orderBy(sql`month ASC`);
   
+  // Query to get all-time orders by month for the chart (ignoring date range)
+  const allTimeOrdersByMonth = await db.select({
+    month: sql<string>`TO_CHAR(order_date, 'YYYY-MM')`.as('month'),
+    orderCount: sql<number>`count(*)`.as('order_count'),
+    totalAmount: sql<number>`SUM(total_amount)`.as('total_amount')
+  })
+  .from(orders)
+  .groupBy(sql`month`)
+  .orderBy(sql`month ASC`);
+  
   // Query to get top companies by order count within selected time frame
   const topCompaniesByOrders = await db.select({
     companyId: orderCompanyView.companyId,
@@ -206,8 +216,8 @@ export default async function Dashboard({
 
   const dateRangeText = displayText;
 
-  // Convert ordersByMonth data for the chart
-  const chartData = ordersByMonth.map((item) => ({
+  // Convert all-time orders data for the chart
+  const chartData = allTimeOrdersByMonth.map((item) => ({
     date: item.month,
     orders: item.orderCount,
     revenue: Number(item.totalAmount)
@@ -327,16 +337,13 @@ export default async function Dashboard({
               <div className="px-4 lg:px-6">
                 <Card className="@container/card">
                   <CardHeader>
-                    <CardTitle>Revenue Trends</CardTitle>
+                    <CardTitle>Revenue Over Time</CardTitle>
                     <CardDescription>
-                      <span className="hidden @[540px]/card:block">
-                        Total revenue for the selected period
-                      </span>
-                      <span className="@[540px]/card:hidden">{dateRangeText}</span>
+                      <span>All-time monthly revenue trends</span>
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
-                    <ChartAreaInteractive />
+                    <ChartAreaInteractive data={chartData} />
                   </CardContent>
                 </Card>
               </div>

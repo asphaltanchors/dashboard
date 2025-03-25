@@ -30,13 +30,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 
-// Define product family information
-const productFamilies = [
-  {
+// Product family details
+const familyDetails = {
+  "SP10": {
     id: "sp10",
     name: "SP10 Asphalt Anchors",
     description: "6-inch asphalt anchors with various thread sizes and coatings. The SP10 is our most popular anchor for light to medium-duty applications. Available with 3/8\", M8, or M10 threads and various coatings including zinc plated, stainless steel, and Dacromet.",
-    pattern: "01-6310%",
     image: "/sp10-family.jpg", // Placeholder
     features: [
       "6-inch length for secure anchoring in asphalt",
@@ -46,11 +45,10 @@ const productFamilies = [
       "Installs in minutes with common tools"
     ]
   },
-  {
+  "SP12": {
     id: "sp12",
     name: "SP12 Asphalt Anchors",
     description: "8-inch asphalt anchors with various thread sizes and coatings. The SP12 provides increased holding power for medium-duty applications. Available with 3/8\" or M10 threads and various coatings including zinc plated, stainless steel, and Dacromet.",
-    pattern: "01-6315%",
     image: "/sp12-family.jpg", // Placeholder
     features: [
       "8-inch length for deeper anchoring in asphalt",
@@ -60,11 +58,10 @@ const productFamilies = [
       "Ideal for medium-duty applications"
     ]
   },
-  {
+  "SP18": {
     id: "sp18",
     name: "SP18 Asphalt Anchors",
     description: "10-inch asphalt anchors with various thread sizes and coatings. The SP18 is designed for heavy-duty applications requiring maximum holding power. Available with 7/16\" or M12 threads and various coatings including zinc plated, stainless steel, and Dacromet.",
-    pattern: "01-6318%",
     image: "/sp18-family.jpg", // Placeholder
     features: [
       "10-inch length for maximum anchoring depth",
@@ -74,11 +71,10 @@ const productFamilies = [
       "Ideal for heavy-duty applications"
     ]
   },
-  {
+  "SP58": {
     id: "sp58",
     name: "SP58 Asphalt Anchors",
     description: "Heavy-duty 10-inch asphalt anchors with 5/8\" or M16 thread. The SP58 is our strongest anchor, designed for the most demanding applications. Available with 5/8\" or M16 threads and various coatings including zinc plated, stainless steel, and Dacromet.",
-    pattern: "01-6358%",
     image: "/sp58-family.jpg", // Placeholder
     features: [
       "10-inch length with larger diameter for maximum strength",
@@ -88,11 +84,10 @@ const productFamilies = [
       "Our strongest anchor for the most demanding applications"
     ]
   },
-  {
+  "AM625": {
     id: "am625",
     name: "AM625 Asphalt Anchors",
     description: "Plastic asphalt anchors for lighter applications. The AM625 is a cost-effective solution for light-duty applications where metal anchors would be overkill. Made from high-strength engineering plastic with a 6\" length and 3/4\" diameter.",
-    pattern: "01-7625%",
     image: "/am625-family.jpg", // Placeholder
     features: [
       "6-inch length plastic anchor for light-duty applications",
@@ -102,21 +97,33 @@ const productFamilies = [
       "Ideal for temporary installations or lighter loads"
     ]
   },
-  {
-    id: "epx",
-    name: "EPX Anchoring Grouts",
-    description: "Various epoxy and cement-based anchoring grouts for securing our anchors in asphalt. Our EPX series includes different formulations for various application needs and environmental conditions.",
-    pattern: "82-%",
-    image: "/epx-family.jpg", // Placeholder
+  "Adhesives": {
+    id: "adhesives",
+    name: "Adhesives",
+    description: "Various adhesives for different applications.",
+    image: "/adhesives-family.jpg", // Placeholder
     features: [
-      "EPX2: Cement-based grout in various package sizes",
-      "EPX3: Two-part epoxy in convenient cartridges",
-      "EPX5: High-performance epoxy for extreme conditions",
-      "Fast curing options available",
-      "Formulations for different temperature ranges and environmental conditions"
+      "High-strength epoxy adhesives",
+      "Fast curing formulations",
+      "Weather resistant options",
+      "Industrial grade performance",
+      "Various package sizes available"
     ]
   },
-];
+  "Kits": {
+    id: "kits",
+    name: "Installation Kits",
+    description: "Complete kits for installation of various anchors.",
+    image: "/kits-family.jpg", // Placeholder
+    features: [
+      "All-in-one installation packages",
+      "Includes all necessary components",
+      "Simple instructions included",
+      "Available for various anchor types",
+      "Professional grade tools and materials"
+    ]
+  }
+};
 
 export default async function ProductFamilyDetail({
   params,
@@ -142,10 +149,19 @@ export default async function ProductFamilyDetail({
     displayText
   } = getDateRangeFromTimeFrame(range);
   
-  // Find the family information
-  const family = productFamilies.find(f => f.id === familyId);
+  // Convert familyId to proper case for matching with the database
+  const normalizedFamilyId = familyId.toUpperCase();
   
-  if (!family) {
+  // Get family data from the database using the product_families table
+  const familyResult = await db.execute(sql`
+    SELECT product_family 
+    FROM product_families 
+    WHERE LOWER(product_family) = LOWER(${familyId})
+    LIMIT 1
+  `);
+  
+  // Check if we found a matching family
+  if (!familyResult.length) {
     return (
       <SidebarProvider
         style={
@@ -183,6 +199,18 @@ export default async function ProductFamilyDetail({
     );
   }
   
+  // Get the actual family ID from database
+  const dbFamilyId = familyResult[0].product_family;
+  
+  // Find additional family details from our lookup or create default
+  const family = familyDetails[dbFamilyId] || {
+    id: familyId,
+    name: dbFamilyId,
+    description: `Products in the ${dbFamilyId} family`,
+    image: "/default-family.jpg",
+    features: ["No specific features available for this family"]
+  };
+  
   // Define types for our data
   type Product = {
     product_code: string;
@@ -199,8 +227,7 @@ export default async function ProductFamilyDetail({
     total_quantity: number;
   };
 
-  // Get all products in this family with sales data
-  // Strip the " IN" suffix from product codes when grouping
+  // Get all products in this family with sales data using the product_families table
   const productsResult = await db.execute(sql`
     SELECT 
       REGEXP_REPLACE(oi.product_code, ' IN$', '') as product_code,
@@ -211,7 +238,8 @@ export default async function ProductFamilyDetail({
       AVG(oi.unit_price) as avg_unit_price
     FROM order_items oi
     JOIN orders o ON oi.order_number = o.order_number
-    WHERE oi.product_code LIKE ${family.pattern}
+    JOIN product_families pf ON pf.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
+    WHERE pf.product_family = ${dbFamilyId}
     AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
     GROUP BY REGEXP_REPLACE(oi.product_code, ' IN$', ''), oi.product_description
     ORDER BY total_sales DESC
@@ -229,7 +257,8 @@ export default async function ProductFamilyDetail({
       COUNT(DISTINCT o.customer_name) as customer_count
     FROM order_items oi
     INNER JOIN orders o ON oi.order_number = o.order_number
-    WHERE oi.product_code LIKE ${family.pattern}
+    JOIN product_families pf ON pf.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
+    WHERE pf.product_family = ${dbFamilyId}
     AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
   `);
   
@@ -255,7 +284,8 @@ export default async function ProductFamilyDetail({
       SUM(CAST(oi.quantity AS NUMERIC)) as total_quantity
     FROM order_items oi
     INNER JOIN orders o ON oi.order_number = o.order_number
-    WHERE oi.product_code LIKE ${family.pattern}
+    JOIN product_families pf ON pf.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
+    WHERE pf.product_family = ${dbFamilyId}
     AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
     GROUP BY month
     ORDER BY month DESC
@@ -266,24 +296,23 @@ export default async function ProductFamilyDetail({
   const monthlySales = monthlySalesResult as unknown as MonthlySales[];
   
   // Get recent orders for this family
-  const recentOrders = await db.select({
-    orderNumber: orderItems.orderNumber,
-    orderDate: orders.orderDate,
-    productCode: orderItems.productCode,
-    productDescription: orderItems.productDescription,
-    quantity: orderItems.quantity,
-    lineAmount: orderItems.lineAmount,
-    customerName: orders.customerName
-  })
-  .from(orderItems)
-  .innerJoin(
-    orders,
-    sql`${orderItems.orderNumber} = ${orders.orderNumber}`
-  )
-  .where(sql`${orderItems.productCode} LIKE ${family.pattern}`)
-  .where(sql`${orders.orderDate} BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
-  .orderBy(sql`${orders.orderDate} DESC`)
-  .limit(10);
+  const recentOrders = await db.execute(sql`
+    SELECT 
+      oi.order_number, 
+      o.order_date,
+      oi.product_code,
+      oi.product_description,
+      oi.quantity,
+      oi.line_amount,
+      o.customer_name
+    FROM order_items oi
+    INNER JOIN orders o ON oi.order_number = o.order_number
+    JOIN product_families pf ON pf.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
+    WHERE pf.product_family = ${dbFamilyId}
+    AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
+    ORDER BY o.order_date DESC
+    LIMIT 10
+  `);
 
   // Create URL back to product families with the same time frame
   const backToFamiliesUrl = `/product-families?range=${range}`;
@@ -463,18 +492,18 @@ export default async function ProductFamilyDetail({
                         {recentOrders.map((order, index) => (
                           <TableRow key={index}>
                             <TableCell className="font-medium">
-                              <Link href={`/orders/${order.orderNumber}?range=${range}`} className="hover:underline">
-                                {order.orderNumber}
+                              <Link href={`/orders/${order.order_number}?range=${range}`} className="hover:underline">
+                                {order.order_number}
                               </Link>
                             </TableCell>
-                            <TableCell>{order.orderDate ? new Date(order.orderDate).toLocaleDateString() : 'N/A'}</TableCell>
-                            <TableCell>{order.customerName}</TableCell>
+                            <TableCell>{order.order_date ? new Date(order.order_date).toLocaleDateString() : 'N/A'}</TableCell>
+                            <TableCell>{order.customer_name}</TableCell>
                             <TableCell>
-                              <div className="font-medium">{order.productCode}</div>
-                              <div className="text-sm text-muted-foreground truncate max-w-56">{order.productDescription}</div>
+                              <div className="font-medium">{order.product_code}</div>
+                              <div className="text-sm text-muted-foreground truncate max-w-56">{order.product_description}</div>
                             </TableCell>
                             <TableCell className="text-right">{Number(order.quantity).toLocaleString()}</TableCell>
-                            <TableCell className="text-right">${Number(order.lineAmount).toLocaleString()}</TableCell>
+                            <TableCell className="text-right">${Number(order.line_amount).toLocaleString()}</TableCell>
                           </TableRow>
                         ))}
                         {recentOrders.length === 0 && (
