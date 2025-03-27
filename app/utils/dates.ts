@@ -102,6 +102,32 @@ export function getDateRangeFromTimeFrame(timeFrame: string, startDate?: string,
 }
 
 /**
+ * Calculate the date range immediately preceding the given range.
+ */
+export function getPreviousDateRange(currentStartDate: Date, currentEndDate: Date): {
+  startDate: Date;
+  endDate: Date;
+  formattedStartDate: string;
+  formattedEndDate: string;
+} {
+  const duration = currentEndDate.getTime() - currentStartDate.getTime();
+  const endDate = new Date(currentStartDate.getTime() - 1); // Day before current start date
+  const startDate = new Date(endDate.getTime() - duration);
+
+  // Adjust to beginning/end of day
+  startDate.setHours(0, 0, 0, 0);
+  endDate.setHours(23, 59, 59, 999);
+
+  return {
+    startDate,
+    endDate,
+    formattedStartDate: formatDateForSql(startDate),
+    formattedEndDate: formatDateForSql(endDate),
+  };
+}
+
+
+/**
  * Format a date object as YYYY-MM-DD for SQL queries
  */
 export function formatDateForSql(date: Date): string {

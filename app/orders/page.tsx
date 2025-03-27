@@ -1,14 +1,15 @@
 import { db } from "@/db"
 import { sql } from "drizzle-orm"
 import { orders, orderCompanyView } from "@/db/schema"
-import { desc } from "drizzle-orm"
-import { getDateRangeFromTimeFrame } from "@/app/utils/dates"
+import { desc, sum, count, eq, and, gte, lte } from "drizzle-orm" // Import necessary Drizzle functions
+import { getDateRangeFromTimeFrame, getPreviousDateRange } from "@/app/utils/dates" // Import getPreviousDateRange
 import Link from "next/link"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { Badge, badgeVariants } from "@/components/ui/badge" // Import badgeVariants
+import { type VariantProps } from "class-variance-authority" // Import VariantProps
 import {
   Table,
   TableBody,
@@ -17,6 +18,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+// Import the new component and its type
+import SalesChannelTable, { SalesChannelMetric } from "@/app/components/SalesChannelTable"
 
 export default function OrdersPage({
   searchParams,
@@ -24,16 +27,20 @@ export default function OrdersPage({
   searchParams?: { [key: string]: string | string[] | undefined }
 }) {
   // Handle search params safely
-  const range = searchParams && searchParams.range 
-    ? Array.isArray(searchParams.range) 
-      ? searchParams.range[0] 
+  const range = searchParams && searchParams.range
+    ? Array.isArray(searchParams.range)
+      ? searchParams.range[0]
       : searchParams.range
     : "last-12-months"
-  
+
   // Calculate date range based on the selected time frame
   const dateRange = getDateRangeFromTimeFrame(range)
-  const { formattedStartDate, formattedEndDate } = dateRange
-  
+  const { formattedStartDate, formattedEndDate, startDate, endDate } = dateRange // Destructure start/end dates
+
+  // Calculate the previous date range
+  const previousDateRange = getPreviousDateRange(startDate, endDate)
+  const { formattedStartDate: prevFormattedStartDate, formattedEndDate: prevFormattedEndDate } = previousDateRange
+
   // Query to get total number of orders and revenue for the selected time frame
   const orderSummaryResultPromise = db
     .select({
@@ -43,9 +50,14 @@ export default function OrdersPage({
     })
     .from(orders)
     .where(
-      sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`
+      // Use Drizzle's 'and', 'gte', 'lte' for type safety if possible, or stick to sql``
+      and(
+        gte(orders.orderDate, formattedStartDate),
+        lte(orders.orderDate, formattedEndDate)
+      )
+      // sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`
     )
-  
+
   // Query to get orders by status
   const ordersByStatusPromise = db
     .select({
@@ -55,7 +67,11 @@ export default function OrdersPage({
     })
     .from(orders)
     .where(
-      sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`
+      and(
+        gte(orders.orderDate, formattedStartDate),
+        lte(orders.orderDate, formattedEndDate)
+      )
+      // sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`
     )
     .groupBy(orders.status)
     .orderBy(sql`count DESC`)
@@ -69,7 +85,11 @@ export default function OrdersPage({
     })
     .from(orders)
     .where(
-      sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`
+      and(
+        gte(orders.orderDate, formattedStartDate),
+        lte(orders.orderDate, formattedEndDate)
+      )
+      // sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`
     )
     .groupBy(orders.paymentMethod)
     .orderBy(sql`count DESC`)
@@ -88,50 +108,163 @@ export default function OrdersPage({
     })
     .from(orderCompanyView)
     .where(
-      sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`
+      and(
+        gte(orderCompanyView.orderDate, formattedStartDate),
+        lte(orderCompanyView.orderDate, formattedEndDate)
+      )
+      // sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`
     )
     .orderBy(desc(orderCompanyView.orderDate))
     .limit(25)
 
+  // --- NEW: Query for Sales Channel Metrics (Current Period) ---
+  const currentSalesChannelMetricsPromise = db
+    .select({
+      sales_channel: orders.class, // 'class' column likely holds the channel
+      total_revenue: sum(orders.totalAmount).mapWith(String), // Ensure string type
+      order_count: count(orders.orderNumber).mapWith(String), // Ensure string type
+    })
+    .from(orders)
+    .where(
+      and(
+        gte(orders.orderDate, formattedStartDate),
+        lte(orders.orderDate, formattedEndDate),
+        // Optional: Add other filters if needed, e.g., filter out null channels
+        sql`${orders.class} IS NOT NULL`
+      )
+    )
+    .groupBy(orders.class)
+
+  // --- NEW: Query for Sales Channel Metrics (Previous Period) ---
+  const previousSalesChannelMetricsPromise = db
+    .select({
+      sales_channel: orders.class,
+      total_revenue: sum(orders.totalAmount).mapWith(String),
+      order_count: count(orders.orderNumber).mapWith(String),
+    })
+    .from(orders)
+    .where(
+      and(
+        gte(orders.orderDate, prevFormattedStartDate),
+        lte(orders.orderDate, prevFormattedEndDate),
+        sql`${orders.class} IS NOT NULL`
+      )
+    )
+    .groupBy(orders.class)
+
+
   // Helper function to join all data fetching promises and render UI
   async function OrdersPageContent() {
     // Wait for all data to be fetched in parallel
-    const [orderSummaryResult, ordersByStatus, ordersByPaymentMethod, recentOrdersList] = await Promise.all([
+    const [
+      orderSummaryResult,
+      ordersByStatus,
+      ordersByPaymentMethod,
+      recentOrdersList,
+      currentSalesChannelMetrics, // Add new promise result
+      previousSalesChannelMetrics // Add new promise result
+    ] = await Promise.all([
       orderSummaryResultPromise,
       ordersByStatusPromise,
       ordersByPaymentMethodPromise,
-      recentOrdersListPromise
+      recentOrdersListPromise,
+      currentSalesChannelMetricsPromise, // Add new promise
+      previousSalesChannelMetricsPromise // Add new promise
     ])
+
+    // --- NEW: Combine Sales Channel Metrics ---
+    const combinedMetrics: { [key: string]: SalesChannelMetric } = {};
+
+    // Process current period data
+    currentSalesChannelMetrics.forEach(metric => {
+      if (!metric.sales_channel) return; // Skip null channels
+      combinedMetrics[metric.sales_channel] = {
+        sales_channel: metric.sales_channel,
+        periods: [{
+          period_start: formattedStartDate,
+          period_end: formattedEndDate,
+          total_revenue: metric.total_revenue || "0",
+          order_count: metric.order_count || "0",
+        }]
+      };
+    });
+
+    // Process previous period data
+    previousSalesChannelMetrics.forEach(metric => {
+      if (!metric.sales_channel) return; // Skip null channels
+      const periodData = {
+        period_start: prevFormattedStartDate,
+        period_end: prevFormattedEndDate,
+        total_revenue: metric.total_revenue || "0",
+        order_count: metric.order_count || "0",
+      };
+      if (combinedMetrics[metric.sales_channel]) {
+        // Add to existing channel's periods array (ensure current is first)
+        combinedMetrics[metric.sales_channel].periods.push(periodData);
+      } else {
+        // Channel exists only in previous period, create entry with empty current period
+        combinedMetrics[metric.sales_channel] = {
+          sales_channel: metric.sales_channel,
+          periods: [
+            { // Placeholder for current period
+              period_start: formattedStartDate,
+              period_end: formattedEndDate,
+              total_revenue: "0",
+              order_count: "0",
+            },
+            periodData // Previous period data
+          ]
+        };
+      }
+    });
+
+    // Ensure all channels from current period have a previous period entry (even if zero)
+     Object.values(combinedMetrics).forEach(metric => {
+       if (metric.periods.length === 1) {
+         metric.periods.push({
+           period_start: prevFormattedStartDate,
+           period_end: prevFormattedEndDate,
+           total_revenue: "0",
+           order_count: "0",
+         });
+       }
+       // Ensure periods are ordered: current, previous
+       metric.periods.sort((a, b) => new Date(b.period_start).getTime() - new Date(a.period_start).getTime());
+     });
+
+    const salesChannelMetrics: SalesChannelMetric[] = Object.values(combinedMetrics);
+    // --- END NEW ---
+
 
     const totalOrders = orderSummaryResult[0]?.totalOrders || 0
     const totalRevenue = orderSummaryResult[0]?.totalRevenue || 0
     const avgOrderValue = orderSummaryResult[0]?.avgOrderValue || 0
 
     // Match type badge variant mapping
-    const getMatchTypeVariant = (matchType: string | null) => {
+    const getMatchTypeVariant = (matchType: string | null): VariantProps<typeof badgeVariants>["variant"] => {
       switch (matchType) {
         case "exact":
-          return "success"
+          return "default" // Changed from "success"
         case "fuzzy":
-          return "warning"
+          return "secondary" // Changed from "warning"
         case "manual":
-          return "info"
+          return "outline" // Changed from "info"
         default:
-          return "secondary"
+          return "secondary" // Kept as secondary
       }
     }
 
     // Fetch status information directly from orders table for each order
-    const orderStatusPromises = recentOrdersList.map(order => 
+    const orderStatusPromises = recentOrdersList.map(order =>
       db.select({ status: orders.status })
         .from(orders)
         .where(sql`${orders.orderNumber} = ${order.orderNumber}`)
         .limit(1)
     )
-    
+
     // Wait for all status queries to complete
     const orderStatuses = await Promise.all(orderStatusPromises)
-    
+
     // Add status information to each order in the list
     const ordersWithStatus = recentOrdersList.map((order, index) => ({
       ...order,
@@ -139,14 +272,14 @@ export default function OrdersPage({
     }))
 
     // Status badge variant mapping
-    const getStatusVariant = (status: string | null) => {
+    const getStatusVariant = (status: string | null): VariantProps<typeof badgeVariants>["variant"] => {
       switch (status) {
         case "Paid":
-          return "success"
+          return "default" // Changed from "success"
         case "Pending":
-          return "warning"
+          return "secondary" // Changed from "warning"
         default:
-          return "secondary"
+          return "outline" // Changed from "secondary"
       }
     }
 
@@ -160,7 +293,8 @@ export default function OrdersPage({
         </div>
 
         <div className="grid grid-cols-1 gap-6 px-6 md:grid-cols-3">
-          <Card>
+          {/* Summary Cards ... */}
+           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium">
                 Total Orders
@@ -203,7 +337,23 @@ export default function OrdersPage({
           </Card>
         </div>
 
+        {/* --- NEW: Render Sales Channel Table --- */}
+        <div className="px-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Sales by Channel</CardTitle>
+            </CardHeader>
+            {/* Add overflow-x-auto here for scrolling */}
+            <CardContent className="overflow-x-auto"> 
+              <SalesChannelTable metrics={salesChannelMetrics} />
+            </CardContent>
+          </Card>
+        </div>
+        {/* --- END NEW --- */}
+
+
         <div className="grid grid-cols-1 gap-6 px-6 lg:grid-cols-2">
+          {/* Orders by Status/Payment Method Cards ... */}
           <Card>
             <CardHeader>
               <CardTitle>Orders by Status</CardTitle>
@@ -232,7 +382,7 @@ export default function OrdersPage({
                           ${Number(status.totalAmount).toLocaleString()}
                         </TableCell>
                         <TableCell className="text-right">
-                          {((status.count / totalOrders) * 100).toFixed(1)}%
+                          {totalOrders > 0 ? ((status.count / totalOrders) * 100).toFixed(1) : '0.0'}%
                         </TableCell>
                       </TableRow>
                     ))}
@@ -277,7 +427,7 @@ export default function OrdersPage({
                           ${Number(method.totalAmount).toLocaleString()}
                         </TableCell>
                         <TableCell className="text-right">
-                          {((method.count / totalOrders) * 100).toFixed(1)}%
+                          {totalOrders > 0 ? ((method.count / totalOrders) * 100).toFixed(1) : '0.0'}%
                         </TableCell>
                       </TableRow>
                     ))}
@@ -296,7 +446,8 @@ export default function OrdersPage({
         </div>
 
         <Card className="mx-6">
-          <CardHeader>
+          {/* Recent Orders Table ... */}
+           <CardHeader>
             <CardTitle>Recent Orders</CardTitle>
           </CardHeader>
           <CardContent>
@@ -332,7 +483,7 @@ export default function OrdersPage({
                         <TableCell className="font-medium">
                           <Link
                             href={`/orders/${encodeURIComponent(
-                              order.orderNumber
+                              order.orderNumber ?? '' // Handle potential null order number
                             )}?range=${range}`}
                             className="text-primary hover:underline"
                           >
@@ -413,7 +564,7 @@ export default function OrdersPage({
         <div className="flex flex-1 flex-col">
           <div className="@container/main flex flex-1 flex-col gap-2">
             <div className="flex flex-col gap-6 py-6">
-              {/* @ts-expect-error - OrdersPageContent is an async component */}
+              {/* OrdersPageContent is an async component, Next.js handles this */}
               <OrdersPageContent />
             </div>
           </div>
