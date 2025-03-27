@@ -19,13 +19,14 @@ import {
 } from "@/components/ui/table"
 import { Separator } from "@/components/ui/separator"
 
-export default async function OrderDetailPage({
-  params,
-  searchParams,
-}: {
-  params: { orderNumber: string }
-  searchParams: { range?: string }
-}) {
+export default async function OrderDetailPage(
+  props: {
+    params: Promise<{ orderNumber: string }>
+    searchParams: Promise<{ range?: string }>
+  }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const { orderNumber } = params
   const range = searchParams.range || "last-12-months"
 

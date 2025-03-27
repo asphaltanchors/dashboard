@@ -17,19 +17,20 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-export default function CompaniesPage({
-  searchParams,
-}: {
-  searchParams?: { [key: string]: string | string[] | undefined }
-}) {
-  // Get range param directly
-  const rangeParam = searchParams?.range
+export default async function CompaniesPage(
+  props: {
+    searchParams: Promise<{ range?: string | string[] }>
+  }
+) {
+  const searchParams = await props.searchParams;
+  // Get range param from searchParams
+  const rangeParam = searchParams.range
   const range = rangeParam
     ? Array.isArray(rangeParam)
       ? rangeParam[0]
       : rangeParam
     : "last-12-months"
-  
+
   // Calculate date range based on the selected time frame
   const dateRange = getDateRangeFromTimeFrame(range)
   const { formattedStartDate, formattedEndDate } = dateRange
@@ -40,6 +41,7 @@ export default function CompaniesPage({
       count: sql<number>`count(*)`.as("count"),
     })
     .from(companies)
+    .where(sql`${companies.isConsumerDomain} = false`)
 
   // Query to get companies with customers
   const companiesWithCustomersPromise = db
@@ -47,6 +49,7 @@ export default function CompaniesPage({
       count: sql<number>`count(DISTINCT ${companies.companyId})`.as("count"),
     })
     .from(companies)
+    .where(sql`${companies.isConsumerDomain} = false`)
     .innerJoin(
       customers,
       sql`${companies.companyId} = ${customers.companyId}`
@@ -58,6 +61,7 @@ export default function CompaniesPage({
       count: sql<number>`count(DISTINCT ${companies.companyId})`.as("count"),
     })
     .from(companies)
+    .where(sql`${companies.isConsumerDomain} = false`)
     .innerJoin(
       companyOrderMapping,
       sql`${companies.companyId} = ${companyOrderMapping.companyId}`
@@ -70,7 +74,7 @@ export default function CompaniesPage({
     })
     .from(companies)
     .where(
-      sql`created_at >= ${formattedStartDate} AND created_at <= ${formattedEndDate}`
+      sql`${companies.isConsumerDomain} = false AND created_at >= ${formattedStartDate} AND created_at <= ${formattedEndDate}`
     )
 
   // Query to get top companies by revenue in the selected time frame
@@ -83,6 +87,7 @@ export default function CompaniesPage({
       orderCount: sql<number>`COUNT(DISTINCT ${orders.orderNumber})`.as("order_count"),
     })
     .from(companies)
+    .where(sql`${companies.isConsumerDomain} = false`)
     .innerJoin(
       companyOrderMapping,
       sql`${companies.companyId} = ${companyOrderMapping.companyId}`
@@ -108,6 +113,7 @@ export default function CompaniesPage({
       ),
     })
     .from(companies)
+    .where(sql`${companies.isConsumerDomain} = false`)
     .leftJoin(
       customers,
       sql`${companies.companyId} = ${customers.companyId}`
@@ -126,6 +132,7 @@ export default function CompaniesPage({
       createdAt: companies.createdAt,
     })
     .from(companies)
+    .where(sql`${companies.isConsumerDomain} = false`)
     .orderBy(sql`created_at DESC`)
     .limit(10)
 
@@ -140,6 +147,7 @@ export default function CompaniesPage({
       customerName: orders.customerName,
     })
     .from(companies)
+    .where(sql`${companies.isConsumerDomain} = false`)
     .innerJoin(
       companyOrderMapping,
       sql`${companies.companyId} = ${companyOrderMapping.companyId}`

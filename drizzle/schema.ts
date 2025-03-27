@@ -1,7 +1,21 @@
-import { pgTable, text, date, numeric, boolean, integer, timestamp, primaryKey, varchar, doublePrecision, pgView, bigint } from "drizzle-orm/pg-core"
+import { pgTable, text, numeric, date, boolean, integer, timestamp, primaryKey, varchar, doublePrecision, pgView, bigint } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 
+
+export const orderItems = pgTable("order_items", {
+	orderId: text("order_id"),
+	orderNumber: text("order_number"),
+	orderType: text("order_type"),
+	productCode: text("product_code"),
+	productDescription: text("product_description"),
+	quantity: numeric(),
+	unitPrice: numeric("unit_price"),
+	lineAmount: numeric("line_amount"),
+	productClass: text("product_class"),
+	serviceDate: text("service_date"),
+	salesTaxCode: text("sales_tax_code"),
+});
 
 export const orders = pgTable("orders", {
 	quickbooksId: text("quickbooks_id"),
@@ -30,6 +44,14 @@ export const products = pgTable("products", {
 	itemQuantity: integer("item_quantity"),
 });
 
+export const itemHistory = pgTable("item_history", {
+	itemName: text("item_name"),
+	columnName: text("column_name"),
+	oldValue: text("old_value"),
+	newValue: text("new_value"),
+	changedAt: timestamp("changed_at", { mode: 'string' }),
+});
+
 export const customers = pgTable("customers", {
 	quickbooksId: text("quickbooks_id"),
 	customerName: text("customer_name"),
@@ -37,28 +59,6 @@ export const customers = pgTable("customers", {
 	lastName: text("last_name"),
 	customerType: text("customer_type"),
 	companyId: text("company_id"),
-});
-
-export const orderItems = pgTable("order_items", {
-	orderId: text("order_id"),
-	orderNumber: text("order_number"),
-	orderType: text("order_type"),
-	productCode: text("product_code"),
-	productDescription: text("product_description"),
-	quantity: numeric(),
-	unitPrice: numeric("unit_price"),
-	lineAmount: numeric("line_amount"),
-	productClass: text("product_class"),
-	serviceDate: text("service_date"),
-	salesTaxCode: text("sales_tax_code"),
-});
-
-export const itemHistory = pgTable("item_history", {
-	itemName: text("item_name"),
-	columnName: text("column_name"),
-	oldValue: text("old_value"),
-	newValue: text("new_value"),
-	changedAt: timestamp("changed_at", { mode: 'string' }),
 });
 
 export const companyOrderMapping = pgTable("company_order_mapping", {
@@ -103,8 +103,9 @@ export const companies = pgView("companies", {	companyId: text("company_id"),
 	companyName: text("company_name"),
 	customerName: text("customer_name"),
 	companyDomain: text("company_domain"),
+	isConsumerDomain: boolean("is_consumer_domain"),
 	createdAt: date("created_at"),
-}).as(sql`WITH email_domains AS ( SELECT customers."QuickBooks Internal Id" AS quickbooks_id, customers."Company Name" AS company_name, customers."Customer Name" AS customer_name, customers."Main Email" AS email_raw, regexp_split_to_table(customers."Main Email", ''::text) AS email_address FROM raw.customers WHERE customers."Main Email" IS NOT NULL ), extracted_domains AS ( SELECT email_domains.quickbooks_id, email_domains.company_name, email_domains.customer_name, email_domains.email_raw, CASE WHEN POSITION(('@'::text) IN (email_domains.email_address)) > 0 THEN lower(TRIM(BOTH FROM SUBSTRING(email_domains.email_address FROM POSITION(('@'::text) IN (email_domains.email_address)) + 1))) ELSE NULL::text END AS domain FROM email_domains WHERE POSITION(('@'::text) IN (email_domains.email_address)) > 0 ), domain_counts AS ( SELECT extracted_domains.quickbooks_id, extracted_domains.company_name, extracted_domains.customer_name, extracted_domains.domain, count(*) AS domain_count FROM extracted_domains WHERE extracted_domains.domain IS NOT NULL GROUP BY extracted_domains.quickbooks_id, extracted_domains.company_name, extracted_domains.customer_name, extracted_domains.domain ), ranked_domains AS ( SELECT domain_counts.quickbooks_id, domain_counts.company_name, domain_counts.customer_name, domain_counts.domain, domain_counts.domain_count, row_number() OVER (PARTITION BY domain_counts.quickbooks_id ORDER BY domain_counts.domain_count DESC, domain_counts.domain) AS domain_rank FROM domain_counts ), customer_domains AS ( SELECT c."QuickBooks Internal Id" AS quickbooks_id, c."Company Name" AS company_name, c."Customer Name" AS customer_name, COALESCE(rd.domain, CASE WHEN c."Main Email" IS NOT NULL AND POSITION(('@'::text) IN (c."Main Email")) > 0 THEN lower(SUBSTRING(c."Main Email" FROM POSITION(('@'::text) IN (c."Main Email")) + 1)) ELSE NULL::text END) AS company_domain, CASE WHEN c."Created Date" IS NOT NULL AND c."Created Date" <> ''::text THEN to_date(c."Created Date", 'MM-DD-YYYY'::text) ELSE NULL::date END AS created_date FROM raw.customers c LEFT JOIN ranked_domains rd ON c."QuickBooks Internal Id" = rd.quickbooks_id AND rd.domain_rank = 1 WHERE rd.domain IS NOT NULL OR c."Main Email" IS NOT NULL AND POSITION(('@'::text) IN (c."Main Email")) > 0 ), unique_domains AS ( SELECT DISTINCT customer_domains.company_domain, first_value(customer_domains.company_name) OVER (PARTITION BY customer_domains.company_domain ORDER BY ( CASE WHEN customer_domains.company_name IS NOT NULL AND TRIM(BOTH FROM customer_domains.company_name) <> ''::text THEN 0 ELSE 1 END), customer_domains.company_name) AS company_name, first_value(customer_domains.customer_name) OVER (PARTITION BY customer_domains.company_domain ORDER BY ( CASE WHEN customer_domains.customer_name IS NOT NULL AND TRIM(BOTH FROM customer_domains.customer_name) <> ''::text THEN 0 ELSE 1 END), customer_domains.customer_name) AS customer_name, min(customer_domains.created_date) OVER (PARTITION BY customer_domains.company_domain) AS earliest_created_date FROM customer_domains WHERE customer_domains.company_domain IS NOT NULL ) SELECT md5(unique_domains.company_domain) AS company_id, unique_domains.company_name, unique_domains.customer_name, unique_domains.company_domain, COALESCE(unique_domains.earliest_created_date, CURRENT_DATE) AS created_at FROM unique_domains;`);
+}).as(sql`WITH email_domains AS ( SELECT customers."QuickBooks Internal Id" AS quickbooks_id, customers."Company Name" AS company_name, customers."Customer Name" AS customer_name, customers."Main Email" AS email_raw, regexp_split_to_table(customers."Main Email", ''::text) AS email_address FROM raw.customers WHERE customers."Main Email" IS NOT NULL ), extracted_domains AS ( SELECT email_domains.quickbooks_id, email_domains.company_name, email_domains.customer_name, email_domains.email_raw, CASE WHEN POSITION(('@'::text) IN (email_domains.email_address)) > 0 THEN lower(TRIM(BOTH FROM SUBSTRING(email_domains.email_address FROM POSITION(('@'::text) IN (email_domains.email_address)) + 1))) ELSE NULL::text END AS domain FROM email_domains WHERE POSITION(('@'::text) IN (email_domains.email_address)) > 0 ), domain_counts AS ( SELECT extracted_domains.quickbooks_id, extracted_domains.company_name, extracted_domains.customer_name, extracted_domains.domain, count(*) AS domain_count FROM extracted_domains WHERE extracted_domains.domain IS NOT NULL GROUP BY extracted_domains.quickbooks_id, extracted_domains.company_name, extracted_domains.customer_name, extracted_domains.domain ), ranked_domains AS ( SELECT domain_counts.quickbooks_id, domain_counts.company_name, domain_counts.customer_name, domain_counts.domain, domain_counts.domain_count, row_number() OVER (PARTITION BY domain_counts.quickbooks_id ORDER BY domain_counts.domain_count DESC, domain_counts.domain) AS domain_rank FROM domain_counts ), customer_domains AS ( SELECT c."QuickBooks Internal Id" AS quickbooks_id, c."Company Name" AS company_name, c."Customer Name" AS customer_name, COALESCE(rd.domain, CASE WHEN c."Main Email" IS NOT NULL AND POSITION(('@'::text) IN (c."Main Email")) > 0 THEN lower(SUBSTRING(c."Main Email" FROM POSITION(('@'::text) IN (c."Main Email")) + 1)) ELSE NULL::text END) AS company_domain, CASE WHEN c."Created Date" IS NOT NULL AND c."Created Date" <> ''::text THEN to_date(c."Created Date", 'MM-DD-YYYY'::text) ELSE NULL::date END AS created_date FROM raw.customers c LEFT JOIN ranked_domains rd ON c."QuickBooks Internal Id" = rd.quickbooks_id AND rd.domain_rank = 1 WHERE rd.domain IS NOT NULL OR c."Main Email" IS NOT NULL AND POSITION(('@'::text) IN (c."Main Email")) > 0 ), unique_domains AS ( SELECT DISTINCT customer_domains.company_domain, first_value(customer_domains.company_name) OVER (PARTITION BY customer_domains.company_domain ORDER BY ( CASE WHEN customer_domains.company_name IS NOT NULL AND TRIM(BOTH FROM customer_domains.company_name) <> ''::text THEN 0 ELSE 1 END), customer_domains.company_name) AS company_name, first_value(customer_domains.customer_name) OVER (PARTITION BY customer_domains.company_domain ORDER BY ( CASE WHEN customer_domains.customer_name IS NOT NULL AND TRIM(BOTH FROM customer_domains.customer_name) <> ''::text THEN 0 ELSE 1 END), customer_domains.customer_name) AS customer_name, min(customer_domains.created_date) OVER (PARTITION BY customer_domains.company_domain) AS earliest_created_date FROM customer_domains WHERE customer_domains.company_domain IS NOT NULL ), consumer_domains AS ( SELECT unnest(ARRAY['gmail.com'::text, 'yahoo.com'::text, 'yahoo.com.mx'::text, 'yahoo.com.brhotmail.com'::text, 'outlook.com'::text, 'aol.com'::text, 'icloud.com'::text, 'protonmail.com'::text, 'marketplace.amazon.com'::text, 'comcast.net'::text, 'verizon.net'::text, 'msn.com'::text, 'me.com'::text, 'att.net'::text, 'live.com'::text, 'bellsouth.net'::text, 'sbcglobal.net'::text, 'cox.net'::text, 'mac.com'::text, 'mail.com'::text, 'unknown-domain.com'::text, 'amazon-fba.com'::text, 'amazon.com'::text, 'zoho.com'::text, 'yandex.com'::text, 'gmx.com'::text]) AS domain ) SELECT md5(unique_domains.company_domain) AS company_id, unique_domains.company_name, unique_domains.customer_name, unique_domains.company_domain, (EXISTS ( SELECT 1 FROM consumer_domains WHERE consumer_domains.domain = unique_domains.company_domain)) AS is_consumer_domain, COALESCE(unique_domains.earliest_created_date, CURRENT_DATE) AS created_at FROM unique_domains;`);
 
 export const companyStats = pgView("company_stats", {	companyId: text("company_id"),
 	// You can use { mode: "bigint" } if numbers are exceeding js number limitations

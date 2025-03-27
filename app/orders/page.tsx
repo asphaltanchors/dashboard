@@ -21,11 +21,12 @@ import {
 // Import the new component and its type
 import SalesChannelTable, { SalesChannelMetric } from "@/app/components/SalesChannelTable"
 
-export default function OrdersPage({
-  searchParams,
-}: {
-  searchParams?: { [key: string]: string | string[] | undefined }
-}) {
+export default async function OrdersPage(
+  props: {
+    searchParams?: Promise<{ [key: string]: string | string[] | undefined }>
+  }
+) {
+  const searchParams = await props.searchParams;
   // Handle search params safely
   const range = searchParams && searchParams.range
     ? Array.isArray(searchParams.range)

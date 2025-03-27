@@ -30,13 +30,14 @@ const formatNumber = (value: number | null | undefined) => {
   return new Intl.NumberFormat("en-US").format(value);
 };
 
-export default async function ChannelDetailPage({
-  params,
-  searchParams,
-}: {
-  params: { channelId: string };
-  searchParams?: { [key: string]: string | string[] | undefined };
-}) {
+export default async function ChannelDetailPage(
+  props: {
+    params: Promise<{ channelId: string }>;
+    searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
+  }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const channelId = params.channelId;
   const channelName = decodeURIComponent(channelId); // Decode the channel name from URL
 

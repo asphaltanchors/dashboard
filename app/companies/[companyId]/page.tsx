@@ -19,16 +19,17 @@ import {
 import { getDateRangeFromTimeFrame } from "@/app/utils/dates"
 import { formatCurrency } from "@/lib/utils"
 
-export default async function CompanyDetailPage({
-  params,
-  searchParams,
-}: {
-  params: { companyId: string }
-  searchParams: { range?: string }
-}) {
+export default async function CompanyDetailPage(
+  props: {
+    params: Promise<{ companyId: string }>
+    searchParams: Promise<{ range?: string }>
+  }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const { companyId } = params
   const range = searchParams.range || "last-12-months"
-  
+
   // Get date range based on the range parameter
   const dateRange = getDateRangeFromTimeFrame(range)
   const { formattedStartDate, formattedEndDate } = dateRange
