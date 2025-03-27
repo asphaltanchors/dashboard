@@ -1,6 +1,6 @@
 import { db } from "../../db";
 import { sql } from "drizzle-orm";
-import { orderItems, orders } from "../../db/schema";
+import { orderItems, orders, products } from "../../db/schema";
 import Link from "next/link";
 import { getDateRangeFromTimeFrame } from "../utils/dates";
 
@@ -82,20 +82,22 @@ export default async function ProductFamilies({
   // Get distinct product families from database
   const distinctFamiliesResult = await db.execute(sql`
     SELECT DISTINCT product_family 
-    FROM product_families 
+    FROM products 
     ORDER BY product_family
   `);
   
-  // Process the result to get array of families
-  const distinctFamilies = distinctFamiliesResult.map((row: any) => ({
-    id: row.product_family.toLowerCase(),
-    familyId: row.product_family
-  }));
+  // Process the result to get array of families, filtering out null values
+  const distinctFamilies = distinctFamiliesResult
+    .filter((row: any) => row.product_family !== null)
+    .map((row: any) => ({
+      id: row.product_family.toLowerCase(),
+      familyId: row.product_family
+    }));
 
   // For each family, get the count of products and total sales
   const familyStats = await Promise.all(
     distinctFamilies.map(async (family) => {
-      // Get product count and total sales for this family using the product_families table
+      // Get product count and total sales for this family using the products table
       const statsResult = await db.execute(sql`
         SELECT 
           COUNT(DISTINCT REGEXP_REPLACE(oi.product_code, ' IN$', '')) as product_count,
@@ -103,8 +105,8 @@ export default async function ProductFamilies({
           SUM(CAST(oi.quantity AS NUMERIC)) as total_quantity
         FROM order_items oi
         JOIN orders o ON oi.order_number = o.order_number
-        JOIN product_families pf ON pf.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
-        WHERE pf.product_family = ${family.familyId}
+        JOIN products p ON p.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
+        WHERE p.product_family = ${family.familyId}
         AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
       `);
       
@@ -124,8 +126,8 @@ export default async function ProductFamilies({
           SUM(oi.line_amount) as total_sales
         FROM order_items oi
         JOIN orders o ON oi.order_number = o.order_number
-        JOIN product_families pf ON pf.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
-        WHERE pf.product_family = ${family.familyId}
+        JOIN products p ON p.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
+        WHERE p.product_family = ${family.familyId}
         AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
         GROUP BY REGEXP_REPLACE(oi.product_code, ' IN$', ''), oi.product_description
         ORDER BY total_sales DESC
@@ -145,15 +147,15 @@ export default async function ProductFamilies({
           SUM(CAST(oi.quantity AS NUMERIC)) as total_quantity
         FROM order_items oi
         JOIN orders o ON oi.order_number = o.order_number
-        JOIN product_families pf ON pf.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
-        WHERE pf.product_family = ${family.familyId}
+        JOIN products p ON p.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
+        WHERE p.product_family = ${family.familyId}
         AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
         GROUP BY REGEXP_REPLACE(oi.product_code, ' IN$', ''), oi.product_description
         ORDER BY total_sales DESC
       `);
       
       // Get family details from the lookup object or provide defaults
-      const details = familyDetails[family.familyId] || {
+      const details = familyDetails[family.familyId as keyof typeof familyDetails] || {
         name: family.familyId,
         description: `Products in the ${family.familyId} family`,
         image: "/default-family.jpg"
@@ -276,8 +278,8 @@ export default async function ProductFamilies({
                           <div className="mt-4 pt-4 border-t">
                             <h4 className="text-sm font-medium mb-2">Top Product</h4>
                             <div className="text-sm">
-                              <p className="font-medium">{family.topProduct.product_code}</p>
-                              <p className="text-muted-foreground truncate">{family.topProduct.product_description}</p>
+                              <p className="font-medium">{String(family.topProduct.product_code)}</p>
+                              <p className="text-muted-foreground truncate">{String(family.topProduct.product_description)}</p>
                               <Badge className="mt-1" variant="outline">
                                 ${Number(family.topProduct.total_sales).toLocaleString()}
                               </Badge>

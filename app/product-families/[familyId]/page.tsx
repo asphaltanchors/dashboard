@@ -1,6 +1,6 @@
 import { db } from "../../../db";
 import { sql } from "drizzle-orm";
-import { orderItems, orders } from "../../../db/schema";
+import { orderItems, orders, products } from "../../../db/schema";
 import Link from "next/link";
 import { getDateRangeFromTimeFrame } from "../../utils/dates";
 
@@ -152,11 +152,11 @@ export default async function ProductFamilyDetail({
   // Convert familyId to proper case for matching with the database
   const normalizedFamilyId = familyId.toUpperCase();
   
-  // Get family data from the database using the product_families table
+  // Get family data from the database using the products table
   const familyResult = await db.execute(sql`
     SELECT product_family 
-    FROM product_families 
-    WHERE LOWER(product_family) = LOWER(${familyId})
+    FROM products 
+    WHERE product_family IS NOT NULL AND LOWER(product_family) = LOWER(${familyId})
     LIMIT 1
   `);
   
@@ -203,7 +203,7 @@ export default async function ProductFamilyDetail({
   const dbFamilyId = familyResult[0].product_family;
   
   // Find additional family details from our lookup or create default
-  const family = familyDetails[dbFamilyId] || {
+  const family = familyDetails[dbFamilyId as keyof typeof familyDetails] || {
     id: familyId,
     name: dbFamilyId,
     description: `Products in the ${dbFamilyId} family`,
@@ -227,7 +227,7 @@ export default async function ProductFamilyDetail({
     total_quantity: number;
   };
 
-  // Get all products in this family with sales data using the product_families table
+  // Get all products in this family with sales data using the products table
   const productsResult = await db.execute(sql`
     SELECT 
       REGEXP_REPLACE(oi.product_code, ' IN$', '') as product_code,
@@ -238,8 +238,8 @@ export default async function ProductFamilyDetail({
       AVG(oi.unit_price) as avg_unit_price
     FROM order_items oi
     JOIN orders o ON oi.order_number = o.order_number
-    JOIN product_families pf ON pf.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
-    WHERE pf.product_family = ${dbFamilyId}
+    JOIN products p ON p.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
+    WHERE p.product_family = ${dbFamilyId}
     AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
     GROUP BY REGEXP_REPLACE(oi.product_code, ' IN$', ''), oi.product_description
     ORDER BY total_sales DESC
@@ -257,8 +257,8 @@ export default async function ProductFamilyDetail({
       COUNT(DISTINCT o.customer_name) as customer_count
     FROM order_items oi
     INNER JOIN orders o ON oi.order_number = o.order_number
-    JOIN product_families pf ON pf.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
-    WHERE pf.product_family = ${dbFamilyId}
+    JOIN products p ON p.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
+    WHERE p.product_family = ${dbFamilyId}
     AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
   `);
   
@@ -284,8 +284,8 @@ export default async function ProductFamilyDetail({
       SUM(CAST(oi.quantity AS NUMERIC)) as total_quantity
     FROM order_items oi
     INNER JOIN orders o ON oi.order_number = o.order_number
-    JOIN product_families pf ON pf.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
-    WHERE pf.product_family = ${dbFamilyId}
+    JOIN products p ON p.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
+    WHERE p.product_family = ${dbFamilyId}
     AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
     GROUP BY month
     ORDER BY month DESC
@@ -307,8 +307,8 @@ export default async function ProductFamilyDetail({
       o.customer_name
     FROM order_items oi
     INNER JOIN orders o ON oi.order_number = o.order_number
-    JOIN product_families pf ON pf.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
-    WHERE pf.product_family = ${dbFamilyId}
+    JOIN products p ON p.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
+    WHERE p.product_family = ${dbFamilyId}
     AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
     ORDER BY o.order_date DESC
     LIMIT 10
@@ -354,7 +354,7 @@ export default async function ProductFamilyDetail({
                     <div>
                       <h3 className="text-lg font-medium mb-2">Key Features</h3>
                       <ul className="ml-5 space-y-1 list-disc text-muted-foreground">
-                        {family.features.map((feature, index) => (
+                        {family.features.map((feature: string, index: number) => (
                           <li key={index}>{feature}</li>
                         ))}
                       </ul>
@@ -489,18 +489,18 @@ export default async function ProductFamilyDetail({
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {recentOrders.map((order, index) => (
+                        {Array.isArray(recentOrders) && recentOrders.map((order: any, index) => (
                           <TableRow key={index}>
                             <TableCell className="font-medium">
-                              <Link href={`/orders/${order.order_number}?range=${range}`} className="hover:underline">
-                                {order.order_number}
+                              <Link href={`/orders/${String(order.order_number)}?range=${range}`} className="hover:underline">
+                                {String(order.order_number)}
                               </Link>
                             </TableCell>
-                            <TableCell>{order.order_date ? new Date(order.order_date).toLocaleDateString() : 'N/A'}</TableCell>
-                            <TableCell>{order.customer_name}</TableCell>
+                            <TableCell>{order.order_date ? new Date(String(order.order_date)).toLocaleDateString() : 'N/A'}</TableCell>
+                            <TableCell>{String(order.customer_name)}</TableCell>
                             <TableCell>
-                              <div className="font-medium">{order.product_code}</div>
-                              <div className="text-sm text-muted-foreground truncate max-w-56">{order.product_description}</div>
+                              <div className="font-medium">{String(order.product_code)}</div>
+                              <div className="text-sm text-muted-foreground truncate max-w-56">{String(order.product_description)}</div>
                             </TableCell>
                             <TableCell className="text-right">{Number(order.quantity).toLocaleString()}</TableCell>
                             <TableCell className="text-right">${Number(order.line_amount).toLocaleString()}</TableCell>

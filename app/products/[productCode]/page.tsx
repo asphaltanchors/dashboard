@@ -1,6 +1,6 @@
 import { db } from "@/db"
 import { sql } from "drizzle-orm"
-import { orderItems, orders, productFamilies } from "@/db/schema"
+import { orderItems, orders, products } from "@/db/schema"
 import Link from "next/link"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
@@ -32,16 +32,16 @@ export default async function ProductDashboard({
   const dateRange = getDateRangeFromTimeFrame(range)
   const { formattedStartDate, formattedEndDate } = dateRange
 
-  // Query to get product family information
+  // Query to get product family information from the products table
   const productFamilyResult = await db
     .select({
-      productFamily: productFamilies.productFamily
+      productFamily: products.productFamily
     })
-    .from(productFamilies)
-    .where(sql`${productFamilies.itemName} = ${productCode}`)
+    .from(products)
+    .where(sql`${products.itemName} = ${productCode}`)
     .limit(1)
 
-  const productFamily = productFamilyResult.length > 0 ? productFamilyResult[0].productFamily : null
+  const productFamily = productFamilyResult.length > 0 && productFamilyResult[0].productFamily ? productFamilyResult[0].productFamily : null
   const productFamilyId = productFamily ? productFamily.toLowerCase() : null
 
   // Query to get product details with date range filter

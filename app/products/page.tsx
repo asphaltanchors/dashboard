@@ -5,6 +5,9 @@ import Link from "next/link";
 import { getDateRangeFromTimeFrame } from "../utils/dates";
 
 import { IconTrendingUp } from "@tabler/icons-react";
+import { SearchableProductsTable } from "../components/SearchableProductsTable";
+import { MaterialPieChart } from "../components/MaterialPieChart";
+import { ProductLinePerformanceChart } from "../components/ProductLinePerformanceChart";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
 import {
@@ -31,6 +34,17 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 
+// Define the Product type to match the SearchableProductsTable component
+type Product = {
+  productCode: string | null;
+  productDescription: string | null;
+  totalProductsSold: number;
+  totalSales: number;
+  productFamily?: string | null;
+  materialType?: string | null;
+  orderCount?: number;
+};
+
 export default async function ProductsAnalytics({
   searchParams,
 }: {
@@ -49,30 +63,12 @@ export default async function ProductsAnalytics({
     displayText
   } = getDateRangeFromTimeFrame(range);
   
-  // Calculate dates for time-based queries
-  const last30DaysDate = new Date(endDate);
-  last30DaysDate.setDate(endDate.getDate() - 30);
-  
-  const last90DaysDate = new Date(endDate);
-  last90DaysDate.setDate(endDate.getDate() - 90);
-  
-  const formattedLast30Days = last30DaysDate.toISOString().split('T')[0];
-  const formattedLast90Days = last90DaysDate.toISOString().split('T')[0];
-
   // Query to get total number of products
   const totalProductsResult = await db.select({
     count: sql<number>`count(*)`.as('count')
   }).from(products);
   
   const totalProducts = totalProductsResult[0]?.count || 0;
-
-  // Query to get products with missing descriptions
-  const missingDescriptionsResult = await db.select({
-    count: sql<number>`count(*)`.as('count')
-  }).from(products)
-  .where(sql`sales_description = '' OR sales_description IS NULL`);
-  
-  const missingDescriptions = missingDescriptionsResult[0]?.count || 0;
 
   // Query to get top selling products by quantity
   const topSellingProducts = await db.select({
@@ -92,64 +88,10 @@ export default async function ProductsAnalytics({
   .limit(10);
 
   // Define types for our custom queries
-  type GrowingProduct = {
-    product_code: string;
-    product_description: string;
-    current_quantity: number;
-    previous_quantity: number | null;
-    current_revenue: number;
-    previous_revenue: number | null;
-    growth_percent: number;
-  };
-
   type AvgProductsResult = {
     avg_products: number;
   };
 
-  // Query to get products with fastest growing sales (comparing last 30 days vs previous 30 days)
-  const growingProductsResult = await db.execute(sql`
-    WITH last_30_days AS (
-      SELECT 
-        oi.product_code,
-        oi.product_description,
-        SUM(CAST(oi.quantity AS NUMERIC)) as quantity,
-        SUM(oi.line_amount) as revenue
-      FROM order_items oi
-      JOIN orders o ON o.order_number = oi.order_number
-      WHERE o.order_date >= ${formattedLast30Days}
-      GROUP BY oi.product_code, oi.product_description
-    ),
-    previous_30_days AS (
-      SELECT 
-        oi.product_code,
-        SUM(CAST(oi.quantity AS NUMERIC)) as quantity,
-        SUM(oi.line_amount) as revenue
-      FROM order_items oi
-      JOIN orders o ON o.order_number = oi.order_number
-      WHERE o.order_date >= ${formattedLast90Days} AND o.order_date < ${formattedLast30Days}
-      GROUP BY oi.product_code
-    )
-    SELECT 
-      l.product_code,
-      l.product_description,
-      l.quantity as current_quantity,
-      p.quantity as previous_quantity,
-      l.revenue as current_revenue,
-      p.revenue as previous_revenue,
-      CASE 
-        WHEN p.quantity = 0 OR p.quantity IS NULL THEN 100
-        ELSE ROUND((l.quantity - p.quantity) / p.quantity * 100, 1)
-      END as growth_percent
-    FROM last_30_days l
-    LEFT JOIN previous_30_days p ON l.product_code = p.product_code
-    WHERE l.quantity > 0 AND (p.quantity = 0 OR p.quantity IS NULL OR l.quantity > p.quantity)
-    ORDER BY growth_percent DESC, l.quantity DESC
-    LIMIT 5
-  `);
-  
-  // Cast the result to our type using double assertion
-  const growingProducts = growingProductsResult as unknown as GrowingProduct[];
-  
   // Query to get average products per order
   const avgProductsPerOrderResult = await db.execute(sql`
     SELECT AVG(product_count) as avg_products
@@ -163,21 +105,120 @@ export default async function ProductsAnalytics({
   // Cast the result to our type using double assertion
   const avgProductsPerOrder = avgProductsPerOrderResult as unknown as AvgProductsResult[];
   
+  // Query to get revenue by material type for the selected time period
+  const revenueByMaterialResult = await db.execute(sql`
+    SELECT 
+      p.material_type,
+      SUM(oi.line_amount) as total_revenue
+    FROM order_items oi
+    INNER JOIN orders o ON o.order_number = oi.order_number
+    INNER JOIN products p ON p.item_name = oi.product_code
+    WHERE 
+      p.material_type IS NOT NULL 
+      AND p.material_type <> '' 
+      AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
+    GROUP BY p.material_type
+    ORDER BY total_revenue DESC
+  `);
   
-  // Query to get all products that had sales with total sales amount
-  const productsWithSales = await db.select({
-    productCode: orderItems.productCode,
-    productDescription: orderItems.productDescription,
-    totalSales: sql<number>`SUM(line_amount)`.as('total_sales')
-  })
-  .from(orderItems)
-  .innerJoin(
-    sql`orders`,
-    sql`orders.order_number = ${orderItems.orderNumber}`
-  )
-  .where(sql`product_code IS NOT NULL AND orders.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
-  .groupBy(orderItems.productCode, orderItems.productDescription)
-  .orderBy(sql`total_sales DESC`);
+  // Define type for the result
+  type MaterialRevenue = {
+    material_type: string;
+    total_revenue: number;
+  };
+  
+  // Cast the result to our type
+  const materialRevenues = revenueByMaterialResult as unknown as MaterialRevenue[];
+  
+  // Calculate total revenue for percentage calculation
+  const totalRevenue = materialRevenues.reduce(
+    (sum, item) => sum + Number(item.total_revenue), 
+    0
+  );
+  
+  // Format the material data for the pie chart
+  const materialData = materialRevenues.map(item => ({
+    material: item.material_type || 'Other',
+    value: Number(item.total_revenue),
+    percentage: totalRevenue > 0 
+      ? Number(((Number(item.total_revenue) / totalRevenue) * 100).toFixed(1))
+      : 0
+  }));
+  
+  // Query to get product line performance data comparing current period to previous period
+  const productLinePerformanceResult = await db.execute(sql`
+    WITH date_ranges AS (
+      SELECT 
+        ${formattedStartDate}::date as current_start,
+        ${formattedEndDate}::date as current_end,
+        (${formattedStartDate}::date - (${formattedEndDate}::date - ${formattedStartDate}::date))::date as prev_start,
+        (${formattedStartDate}::date - INTERVAL '1 day')::date as prev_end
+    ),
+    current_period AS (
+      SELECT 
+        COALESCE(p.product_family, 'Uncategorized') as product_line,
+        SUM(oi.line_amount) as revenue
+      FROM order_items oi
+      INNER JOIN orders o ON o.order_number = oi.order_number
+      LEFT JOIN products p ON p.item_name = oi.product_code
+      CROSS JOIN date_ranges dr
+      WHERE o.order_date BETWEEN dr.current_start AND dr.current_end
+      GROUP BY COALESCE(p.product_family, 'Uncategorized')
+    ),
+    previous_period AS (
+      SELECT 
+        COALESCE(p.product_family, 'Uncategorized') as product_line,
+        SUM(oi.line_amount) as revenue
+      FROM order_items oi
+      INNER JOIN orders o ON o.order_number = oi.order_number
+      LEFT JOIN products p ON p.item_name = oi.product_code
+      CROSS JOIN date_ranges dr
+      WHERE o.order_date BETWEEN dr.prev_start AND dr.prev_end
+      GROUP BY COALESCE(p.product_family, 'Uncategorized')
+    )
+    SELECT 
+      cp.product_line as product,
+      cp.revenue as current,
+      COALESCE(pp.revenue, 0) as previous
+    FROM current_period cp
+    LEFT JOIN previous_period pp ON cp.product_line = pp.product_line
+    ORDER BY current DESC
+    LIMIT 10
+  `);
+  
+  // Define type for the product line performance result
+  type ProductLinePerformance = {
+    product: string;
+    current: number;
+    previous: number;
+  };
+  
+  // Cast the result to our type
+  const productLinePerformanceData = productLinePerformanceResult as unknown as ProductLinePerformance[];
+  
+  // Query to get all products that had sales with total sales amount and total products sold
+  // Now including product line, material type, and order count
+  const productsWithSalesResult = await db.execute(sql`
+    SELECT 
+      oi.product_code as "productCode",
+      oi.product_description as "productDescription",
+      SUM(oi.line_amount) as "totalSales",
+      SUM(CAST(oi.quantity AS NUMERIC) * COALESCE(p.item_quantity, 1)) as "totalProductsSold",
+      p.product_family as "productFamily",
+      p.material_type as "materialType",
+      COUNT(DISTINCT oi.order_number) as "orderCount"
+    FROM order_items oi
+    INNER JOIN orders o ON o.order_number = oi.order_number
+    LEFT JOIN products p ON p.item_name = oi.product_code
+    WHERE 
+      oi.product_code IS NOT NULL 
+      AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
+    GROUP BY oi.product_code, oi.product_description, p.product_family, p.material_type
+    ORDER BY "totalSales" DESC
+  `);
+  
+  // Cast the result to our Product type
+  const productsWithSales = productsWithSalesResult as unknown as Product[];
 
   return (
     <SidebarProvider
@@ -196,45 +237,6 @@ export default async function ProductsAnalytics({
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
               {/* Key Metrics */}
               <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-3 @5xl/main:grid-cols-4">
-                <Card className="@container/card">
-                  <CardHeader>
-                    <CardDescription>Total Products</CardDescription>
-                    <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-                      {totalProducts.toLocaleString()}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardFooter className="flex-col items-start gap-1.5 text-sm">
-                    <div className="line-clamp-1 flex gap-2 font-medium">
-                      Active product catalog
-                    </div>
-                    <div className="text-muted-foreground">
-                      {displayText}
-                    </div>
-                  </CardFooter>
-                </Card>
-                
-                <Card className="@container/card">
-                  <CardHeader>
-                    <CardDescription>Missing Descriptions</CardDescription>
-                    <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-                      {missingDescriptions.toLocaleString()}
-                    </CardTitle>
-                    <CardAction>
-                      <Badge variant="outline">
-                        {((missingDescriptions / totalProducts) * 100).toFixed(1)}%
-                      </Badge>
-                    </CardAction>
-                  </CardHeader>
-                  <CardFooter className="flex-col items-start gap-1.5 text-sm">
-                    <div className="line-clamp-1 flex gap-2 font-medium">
-                      Products need descriptions
-                    </div>
-                    <div className="text-muted-foreground">
-                      Improve product data quality
-                    </div>
-                  </CardFooter>
-                </Card>
-                
                 <Card className="@container/card">
                   <CardHeader>
                     <CardDescription>Top Product Revenue</CardDescription>
@@ -274,81 +276,21 @@ export default async function ProductsAnalytics({
                 </Card>
               </div>
               
-              {/* Top Selling Products and Growing Products */}
-              <div className="grid grid-cols-1 gap-4 px-4 lg:grid-cols-2 lg:px-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Top Selling Products</CardTitle>
-                    <CardDescription>{displayText}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Product</TableHead>
-                          <TableHead className="text-right">Quantity</TableHead>
-                          <TableHead className="text-right">Revenue</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {topSellingProducts.map((product, index) => (
-                          <TableRow key={index}>
-                            <TableCell>
-                              <Link 
-                                href={`/products/${encodeURIComponent(product.productCode || '')}`}
-                                className="font-medium hover:underline"
-                              >
-                                {product.productCode}
-                              </Link>
-                              <div className="text-sm text-muted-foreground truncate max-w-72">{product.productDescription}</div>
-                            </TableCell>
-                            <TableCell className="text-right">{Number(product.totalQuantity).toLocaleString()}</TableCell>
-                            <TableCell className="text-right">${Number(product.totalRevenue).toLocaleString()}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-                
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Fastest Growing Products</CardTitle>
-                    <CardDescription>Last 30 Days vs Previous 30 Days</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Product</TableHead>
-                          <TableHead className="text-right">Growth</TableHead>
-                          <TableHead className="text-right">Current</TableHead>
-                          <TableHead className="text-right">Previous</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {growingProducts.map((product, index) => (
-                          <TableRow key={index}>
-                            <TableCell>
-                              <Link 
-                                href={`/products/${encodeURIComponent(product.product_code || '')}`}
-                                className="font-medium hover:underline"
-                              >
-                                {product.product_code}
-                              </Link>
-                              <div className="text-sm text-muted-foreground truncate max-w-72">{product.product_description}</div>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <Badge variant="success">+{product.growth_percent}%</Badge>
-                            </TableCell>
-                            <TableCell className="text-right">{Number(product.current_quantity).toLocaleString()}</TableCell>
-                            <TableCell className="text-right">{Number(product.previous_quantity || 0).toLocaleString()}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
+              {/* Material Revenue Chart and Product Line Performance Chart */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 px-4 lg:px-6">
+                <div className="md:col-span-1">
+                  <MaterialPieChart 
+                    materialData={materialData}
+                    timeframe={displayText}
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <ProductLinePerformanceChart 
+                    data={productLinePerformanceData}
+                    description={`Revenue Comparison - ${displayText} vs Previous Period`}
+                    dateRange={range.includes('days') ? `${range.replace('last-', '').replace('-days', '')}d` : '365d'}
+                  />
+                </div>
               </div>
               
               {/* All Products */}
@@ -361,35 +303,7 @@ export default async function ProductsAnalytics({
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Product Code</TableHead>
-                          <TableHead>Description</TableHead>
-                          <TableHead className="text-right">Total Sales</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {productsWithSales.map((product, index) => (
-                          <TableRow key={index}>
-                            <TableCell className="font-medium">
-                              {product.productCode ? (
-                                <Link 
-                                  href={`/products/${encodeURIComponent(product.productCode)}`} 
-                                  className="font-medium hover:underline"
-                                >
-                                  {product.productCode}
-                                </Link>
-                              ) : (
-                                <span>Unknown</span>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-muted-foreground truncate max-w-96">{product.productDescription}</TableCell>
-                            <TableCell className="text-right">${Number(product.totalSales).toLocaleString()}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                    <SearchableProductsTable products={productsWithSales} />
                   </CardContent>
                 </Card>
               </div>
