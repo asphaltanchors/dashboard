@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm"
 import { companies, companyOrderMapping, customers, orders } from "@/db/schema"
 import Link from "next/link"
 import { getDateRangeFromTimeFrame } from "@/app/utils/dates"
+import { formatCurrency } from "@/lib/utils"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
@@ -78,31 +79,22 @@ export default function CompaniesPage({
       companyId: companies.companyId,
       companyName: companies.companyName,
       companyDomain: companies.companyDomain,
-      customerCount: sql<number>`count(DISTINCT ${customers.quickbooksId})`.as(
-        "customer_count"
-      ),
-      orderCount: sql<number>`count(DISTINCT ${companyOrderMapping.orderNumber})`.as(
-        "order_count"
-      ),
-      totalRevenue: sql<number>`SUM(${orders.totalAmount})`.as("total_revenue"),
+      totalRevenue: sql<number>`COALESCE(SUM(${orders.totalAmount}), 0)`.as("total_revenue"),
+      orderCount: sql<number>`COUNT(DISTINCT ${orders.orderNumber})`.as("order_count"),
     })
     .from(companies)
-    .leftJoin(
-      customers,
-      sql`${companies.companyId} = ${customers.companyId}`
-    )
-    .leftJoin(
+    .innerJoin(
       companyOrderMapping,
       sql`${companies.companyId} = ${companyOrderMapping.companyId}`
     )
-    .leftJoin(
+    .innerJoin(
       orders,
       sql`${companyOrderMapping.orderNumber} = ${orders.orderNumber} 
         AND ${orders.orderDate} >= ${formattedStartDate} 
         AND ${orders.orderDate} <= ${formattedEndDate}`
     )
     .groupBy(companies.companyId, companies.companyName, companies.companyDomain)
-    .orderBy(sql`total_revenue DESC NULLS LAST`)
+    .orderBy(sql`total_revenue DESC`)
     .limit(10)
 
   // Query to get top companies by customer count
@@ -256,7 +248,6 @@ export default function CompaniesPage({
                   <TableHeader>
                     <TableRow>
                       <TableHead>Company</TableHead>
-                      <TableHead className="text-right">Customers</TableHead>
                       <TableHead className="text-right">Orders</TableHead>
                       <TableHead className="text-right">Revenue</TableHead>
                     </TableRow>
@@ -265,26 +256,30 @@ export default function CompaniesPage({
                     {topCompaniesByRevenue.map((company, index) => (
                       <TableRow key={index}>
                         <TableCell>
-                          <div className="font-medium">{company.companyName}</div>
+                          <div className="font-medium">
+                            <Link
+                              href={`/companies/${encodeURIComponent(company.companyId || '')}?range=${range}`}
+                              className="text-primary hover:underline"
+                            >
+                              {company.companyName}
+                            </Link>
+                          </div>
                           <div className="text-sm text-muted-foreground">
                             {company.companyDomain}
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          {Number(company.customerCount).toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-right">
                           {Number(company.orderCount).toLocaleString()}
                         </TableCell>
                         <TableCell className="text-right">
-                          ${Number(company.totalRevenue || 0).toLocaleString()}
+                          {formatCurrency(Number(company.totalRevenue || 0))}
                         </TableCell>
                       </TableRow>
                     ))}
                     {topCompaniesByRevenue.length === 0 && (
                       <TableRow>
                         <TableCell
-                          colSpan={4}
+                          colSpan={3}
                           className="py-6 text-center text-muted-foreground"
                         >
                           No data available
@@ -315,7 +310,12 @@ export default function CompaniesPage({
                     {topCompaniesByCustomers.map((company, index) => (
                       <TableRow key={index}>
                         <TableCell className="font-medium">
-                          {company.companyName}
+                          <Link
+                            href={`/companies/${encodeURIComponent(company.companyId || '')}?range=${range}`}
+                            className="text-primary hover:underline"
+                          >
+                            {company.companyName}
+                          </Link>
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {company.companyDomain}
@@ -361,13 +361,18 @@ export default function CompaniesPage({
                     {recentCompanies.map((company, index) => (
                       <TableRow key={index}>
                         <TableCell className="font-medium">
-                          {company.companyName}
+                          <Link
+                            href={`/companies/${encodeURIComponent(company.companyId || '')}?range=${range}`}
+                            className="text-primary hover:underline"
+                          >
+                            {company.companyName}
+                          </Link>
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {company.companyDomain}
                         </TableCell>
                         <TableCell className="text-right">
-                          {new Date(company.createdAt).toLocaleDateString()}
+                          {company.createdAt ? new Date(company.createdAt).toLocaleDateString() : 'N/A'}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -406,12 +411,17 @@ export default function CompaniesPage({
                     {recentCompanyOrders.map((order, index) => (
                       <TableRow key={index}>
                         <TableCell className="font-medium">
-                          {order.companyName}
+                          <Link
+                            href={`/companies/${encodeURIComponent(order.companyId || '')}?range=${range}`}
+                            className="text-primary hover:underline"
+                          >
+                            {order.companyName}
+                          </Link>
                         </TableCell>
                         <TableCell>
                           <Link
                             href={`/orders/${encodeURIComponent(
-                              order.orderNumber
+                              order.orderNumber || ''
                             )}?range=${range}`}
                             className="text-primary hover:underline"
                           >
@@ -419,10 +429,10 @@ export default function CompaniesPage({
                           </Link>
                         </TableCell>
                         <TableCell className="text-right">
-                          {new Date(order.orderDate).toLocaleDateString()}
+                          {order.orderDate ? new Date(order.orderDate).toLocaleDateString() : 'N/A'}
                         </TableCell>
                         <TableCell className="text-right">
-                          ${Number(order.totalAmount).toLocaleString()}
+                          {formatCurrency(Number(order.totalAmount || 0))}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -494,7 +504,6 @@ export default function CompaniesPage({
         <div className="flex flex-1 flex-col">
           <div className="@container/main flex flex-1 flex-col gap-2">
             <div className="flex flex-col gap-6 py-6">
-              {/* @ts-expect-error - CompaniesContent is an async component */}
               <CompaniesContent />
             </div>
           </div>
