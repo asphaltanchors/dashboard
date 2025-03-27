@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Label } from "recharts"
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts"
 
 import {
   Card,
@@ -12,8 +12,6 @@ import {
 import {
   ChartConfig,
   ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
 } from "@/components/ui/chart"
 
 type SalesData = {
@@ -24,7 +22,7 @@ type SalesData = {
 
 interface ProductSalesChartProps {
   salesData: SalesData[];
-  productCode: string;
+  // productCode is not used in this chart
 }
 
 const chartConfig = {
@@ -41,7 +39,7 @@ const chartConfig = {
   },
 } satisfies ChartConfig
 
-export function ProductSalesChart({ salesData, productCode }: ProductSalesChartProps) {
+export function ProductSalesChart({ salesData }: ProductSalesChartProps) {
   const [activeChart, setActiveChart] = React.useState<keyof typeof chartConfig>("revenue")
 
   // Process data to ensure numbers
@@ -63,7 +61,7 @@ export function ProductSalesChart({ salesData, productCode }: ProductSalesChartP
     try {
       const [year, monthNum] = month.split('-')
       return `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][parseInt(monthNum) - 1]} ${year}`
-    } catch (e) {
+    } catch { // Removed unused 'e' variable
       return month
     }
   }
@@ -75,8 +73,8 @@ export function ProductSalesChart({ salesData, productCode }: ProductSalesChartP
           <CardTitle>All-Time Sales Trend</CardTitle>
         </div>
         <div className="flex">
-          {["revenue", "quantity"].map((key) => {
-            const chart = key as keyof typeof chartConfig
+          {(["revenue", "quantity"] as const).map((key) => { // Use 'as const' for stricter type inference
+            const chart = key // Type is now correctly "revenue" | "quantity"
             return (
               <button
                 key={chart}

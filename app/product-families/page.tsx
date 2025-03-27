@@ -1,6 +1,5 @@
 import { db } from "../../db";
 import { sql } from "drizzle-orm";
-import { orderItems, orders, products } from "../../db/schema";
 import Link from "next/link";
 import { getDateRangeFromTimeFrame } from "../utils/dates";
 
@@ -20,7 +19,6 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 
 // Product family descriptions and additional info
 const familyDetails = {

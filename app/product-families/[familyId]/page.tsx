@@ -1,6 +1,5 @@
 import { db } from "../../../db";
 import { sql } from "drizzle-orm";
-import { orderItems, orders, products } from "../../../db/schema";
 import Link from "next/link";
 import { getDateRangeFromTimeFrame } from "../../utils/dates";
 
@@ -10,14 +9,12 @@ import {
   SidebarInset,
   SidebarProvider,
 } from "@/components/ui/sidebar";
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardHeader,
   CardTitle,
   CardDescription,
   CardContent,
-  CardFooter,
 } from "@/components/ui/card";
 import {
   Table,
@@ -142,15 +139,10 @@ export default async function ProductFamilyDetail({
   
   // Calculate date range based on the selected range
   const {
-    startDate,
-    endDate,
     formattedStartDate,
     formattedEndDate,
     displayText
   } = getDateRangeFromTimeFrame(range);
-  
-  // Convert familyId to proper case for matching with the database
-  const normalizedFamilyId = familyId.toUpperCase();
   
   // Get family data from the database using the products table
   const familyResult = await db.execute(sql`
@@ -226,11 +218,21 @@ export default async function ProductFamilyDetail({
     total_sales: number;
     total_quantity: number;
   };
+  
+  type OrderData = {
+    order_number: string;
+    order_date: string;
+    product_code: string;
+    product_description: string;
+    quantity: number;
+    line_amount: number;
+    customer_name: string;
+  };
 
   // Get all products in this family with sales data using the products table
   const productsResult = await db.execute(sql`
     SELECT 
-      REGEXP_REPLACE(oi.product_code, ' IN$', '') as product_code,
+      REGEXP_REPLACE(oi.product_code, ' IN$', &apos;&apos;) as product_code,
       oi.product_description,
       SUM(oi.line_amount) as total_sales,
       SUM(CAST(oi.quantity AS NUMERIC)) as total_quantity,
@@ -238,10 +240,10 @@ export default async function ProductFamilyDetail({
       AVG(oi.unit_price) as avg_unit_price
     FROM order_items oi
     JOIN orders o ON oi.order_number = o.order_number
-    JOIN products p ON p.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
+    JOIN products p ON p.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', &apos;&apos;)
     WHERE p.product_family = ${dbFamilyId}
     AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
-    GROUP BY REGEXP_REPLACE(oi.product_code, ' IN$', ''), oi.product_description
+    GROUP BY REGEXP_REPLACE(oi.product_code, ' IN$', &apos;&apos;), oi.product_description
     ORDER BY total_sales DESC
   `);
   
@@ -257,7 +259,7 @@ export default async function ProductFamilyDetail({
       COUNT(DISTINCT o.customer_name) as customer_count
     FROM order_items oi
     INNER JOIN orders o ON oi.order_number = o.order_number
-    JOIN products p ON p.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
+    JOIN products p ON p.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', &apos;&apos;)
     WHERE p.product_family = ${dbFamilyId}
     AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
   `);
@@ -284,7 +286,7 @@ export default async function ProductFamilyDetail({
       SUM(CAST(oi.quantity AS NUMERIC)) as total_quantity
     FROM order_items oi
     INNER JOIN orders o ON oi.order_number = o.order_number
-    JOIN products p ON p.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
+    JOIN products p ON p.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', &apos;&apos;)
     WHERE p.product_family = ${dbFamilyId}
     AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
     GROUP BY month
@@ -296,7 +298,7 @@ export default async function ProductFamilyDetail({
   const monthlySales = monthlySalesResult as unknown as MonthlySales[];
   
   // Get recent orders for this family
-  const recentOrders = await db.execute(sql`
+  const recentOrdersResult = await db.execute(sql`
     SELECT 
       oi.order_number, 
       o.order_date,
@@ -307,12 +309,15 @@ export default async function ProductFamilyDetail({
       o.customer_name
     FROM order_items oi
     INNER JOIN orders o ON oi.order_number = o.order_number
-    JOIN products p ON p.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
+    JOIN products p ON p.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', &apos;&apos;)
     WHERE p.product_family = ${dbFamilyId}
     AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
     ORDER BY o.order_date DESC
     LIMIT 10
   `);
+  
+  // Cast the result to our OrderData type
+  const recentOrders = recentOrdersResult as unknown as OrderData[];
 
   // Create URL back to product families with the same time frame
   const backToFamiliesUrl = `/product-families?range=${range}`;
@@ -451,7 +456,7 @@ export default async function ProductFamilyDetail({
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {Array.isArray(monthlySales) && monthlySales.map((month: any, index) => (
+                        {Array.isArray(monthlySales) && monthlySales.map((month: MonthlySales, index) => (
                           <TableRow key={index}>
                             <TableCell className="font-medium">{month.month}</TableCell>
                             <TableCell className="text-right">{Number(month.total_quantity || 0).toLocaleString()}</TableCell>
@@ -489,7 +494,7 @@ export default async function ProductFamilyDetail({
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {Array.isArray(recentOrders) && recentOrders.map((order: any, index) => (
+                        {Array.isArray(recentOrders) && recentOrders.map((order: OrderData, index) => (
                           <TableRow key={index}>
                             <TableCell className="font-medium">
                               <Link href={`/orders/${String(order.order_number)}?range=${range}`} className="hover:underline">

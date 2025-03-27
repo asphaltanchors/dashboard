@@ -26,6 +26,14 @@ type MaterialData = {
   fill?: string; // Make fill optional
 }
 
+// Type for data after processing, ensuring numeric values
+type ProcessedMaterialData = {
+  material: string;
+  value: number;
+  count: number;
+  percentage: number;
+}
+
 interface MaterialPieChartProps {
   materialData: MaterialData[];
   timeframe: string;
@@ -91,9 +99,15 @@ const getMaterialColor = (material: string): string => {
   return "#94a3b8"; // slate-400
 }
 
+// Define the type for chart config items
+type ChartConfigItem = {
+  label: string;
+  color?: string;
+}
+
 // Create a dynamic chart config based on the materials in the data
 const createChartConfig = (materialData: MaterialData[]): ChartConfig => {
-  const config: Record<string, any> = {
+  const config: Record<string, ChartConfigItem> = {
     count: {
       label: "Count",
     },
@@ -144,10 +158,15 @@ export function MaterialPieChart({ materialData, timeframe }: MaterialPieChartPr
                 <ChartTooltip
                   cursor={false}
                   content={
-                    <ChartTooltipContent 
-                      formatter={(value, name, entry) => {
-                        const item = entry.payload;
-                        return [`${item.percentage}% ($${Number(item.value).toLocaleString()})`, item.material];
+                    <ChartTooltipContent
+                      formatter={(value, name, entry: { payload?: ProcessedMaterialData }) => {
+                        // Check if payload exists before accessing properties
+                        if (entry.payload) {
+                          const item = entry.payload;
+                          return [`${item.percentage.toFixed(2)}% ($${item.value.toLocaleString()})`, item.material];
+                        }
+                        // Fallback if payload is missing
+                        return ["", ""]; 
                       }}
                     />
                   }

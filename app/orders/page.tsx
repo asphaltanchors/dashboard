@@ -1,7 +1,7 @@
 import { db } from "@/db"
 import { sql } from "drizzle-orm"
 import { orders, orderCompanyView } from "@/db/schema"
-import { desc, sum, count, eq, and, gte, lte } from "drizzle-orm" // Import necessary Drizzle functions
+import { desc, sum, count, and, gte, lte } from "drizzle-orm" // Import necessary Drizzle functions
 import { getDateRangeFromTimeFrame, getPreviousDateRange } from "@/app/utils/dates" // Import getPreviousDateRange
 import Link from "next/link"
 import { AppSidebar } from "@/components/app-sidebar"
@@ -345,7 +345,8 @@ export default function OrdersPage({
             </CardHeader>
             {/* Add overflow-x-auto here for scrolling */}
             <CardContent className="overflow-x-auto"> 
-              <SalesChannelTable metrics={salesChannelMetrics} />
+              {/* Pass the range prop */}
+              <SalesChannelTable metrics={salesChannelMetrics} range={range} />
             </CardContent>
           </Card>
         </div>

@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { db } from "../db";
 import { sql } from "drizzle-orm";
-import { orders, products, orderItems, companies, customers, itemHistoryView, orderCompanyView } from "../db/schema";
+import { orders, products, orderItems, customers, itemHistoryView, orderCompanyView } from "../db/schema";
 import { getDateRangeFromTimeFrame } from "./utils/dates";
 
 import { IconTrendingUp, IconTrendingDown } from "@tabler/icons-react";
 import { AppSidebar } from "@/components/app-sidebar";
-import { SectionCards } from "@/components/section-cards";
 import { ChartAreaInteractive } from "@/components/chart-area-interactive";
 import { SiteHeader } from "@/components/site-header";
 import {
@@ -32,7 +31,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 
 export default async function Dashboard({
   searchParams,
@@ -49,7 +47,6 @@ export default async function Dashboard({
   
   // Calculate date range based on the selected range
   const {
-    startDate,
     endDate,
     formattedStartDate,
     formattedEndDate,
@@ -60,10 +57,6 @@ export default async function Dashboard({
   const formattedLast30Days = new Date(endDate);
   formattedLast30Days.setDate(endDate.getDate() - 30);
   const formattedLast30DaysStr = formattedLast30Days.toISOString().split('T')[0];
-  
-  const formattedLast90Days = new Date(endDate);
-  formattedLast90Days.setDate(endDate.getDate() - 90);
-  const formattedLast90DaysStr = formattedLast90Days.toISOString().split('T')[0];
 
   // Query to get total orders and revenue within selected time frame
   const orderSummaryResult = await db.select({
@@ -144,17 +137,7 @@ export default async function Dashboard({
   .groupBy(orders.status)
   .orderBy(sql`count DESC`);
   
-  // Query to get orders by month within selected time frame
-  const ordersByMonth = await db.select({
-    month: sql<string>`TO_CHAR(order_date, 'YYYY-MM')`.as('month'),
-    orderCount: sql<number>`count(*)`.as('order_count'),
-    totalAmount: sql<number>`SUM(total_amount)`.as('total_amount'),
-    avgOrderValue: sql<number>`AVG(total_amount)`.as('avg_order_value')
-  })
-  .from(orders)
-  .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
-  .groupBy(sql`month`)
-  .orderBy(sql`month ASC`);
+  // We don't need to query orders by month since we're using all-time orders for the chart
   
   // Query to get all-time orders by month for the chart (ignoring date range)
   const allTimeOrdersByMonth = await db.select({
@@ -203,16 +186,7 @@ export default async function Dashboard({
   .groupBy(customers.customerType)
   .orderBy(sql`count DESC`);
   
-  // Query to get company match type distribution within selected time frame
-  const companyMatchDistribution = await db.select({
-    matchType: orderCompanyView.matchType,
-    count: sql<number>`count(*)`.as('count'),
-    avgConfidence: sql<number>`AVG(confidence)`.as('avg_confidence')
-  })
-  .from(orderCompanyView)
-  .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
-  .groupBy(orderCompanyView.matchType)
-  .orderBy(sql`count DESC`);
+  // We don't need to query company match distribution since it's not used in the UI
 
   const dateRangeText = displayText;
 
@@ -388,8 +362,8 @@ export default async function Dashboard({
                               <TableCell>{formattedDate}</TableCell>
                               <TableCell>
                                 <Badge variant={
-                                  order.status === 'Completed' ? 'success' :
-                                  order.status === 'Pending' ? 'warning' :
+                                  order.status === 'Completed' ? 'default' :
+                                  order.status === 'Pending' ? 'secondary' :
                                   order.status === 'Processing' ? 'default' :
                                   order.status === 'Cancelled' ? 'destructive' :
                                   'outline'
@@ -523,7 +497,7 @@ export default async function Dashboard({
                                   <span className="text-muted-foreground">To:</span> {change.newValue || 'N/A'}
                                 </div>
                                 {change.percentChange && (
-                                  <Badge variant={Number(change.percentChange) > 0 ? "success" : "destructive"} className="mt-1">
+                                  <Badge variant={Number(change.percentChange) > 0 ? "default" : "destructive"} className="mt-1">
                                     {Number(change.percentChange) > 0 ? '+' : ''}{change.percentChange}%
                                   </Badge>
                                 )}

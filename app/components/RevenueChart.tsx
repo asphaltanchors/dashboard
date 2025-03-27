@@ -52,7 +52,6 @@ export default function RevenueChart({ data }: RevenueChartProps) {
     });
     
     // For large datasets, we may want to reduce the number of labels shown
-    let displayData = sortedData;
     let skipLabels = 1;
     
     // If we have more than 24 months, show fewer labels to avoid crowding

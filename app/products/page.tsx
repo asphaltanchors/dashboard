@@ -1,10 +1,8 @@
 import { db } from "../../db";
 import { sql } from "drizzle-orm";
-import { products, orderItems, orders } from "../../db/schema";
-import Link from "next/link";
+import { products, orderItems } from "../../db/schema";
 import { getDateRangeFromTimeFrame } from "../utils/dates";
 
-import { IconTrendingUp } from "@tabler/icons-react";
 import { SearchableProductsTable } from "../components/SearchableProductsTable";
 import { MaterialPieChart } from "../components/MaterialPieChart";
 import { ProductLinePerformanceChart } from "../components/ProductLinePerformanceChart";
@@ -14,7 +12,6 @@ import {
   SidebarInset,
   SidebarProvider,
 } from "@/components/ui/sidebar";
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardHeader,
@@ -22,17 +19,7 @@ import {
   CardDescription,
   CardContent,
   CardFooter,
-  CardAction,
 } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
 
 // Define the Product type to match the SearchableProductsTable component
 type Product = {
@@ -56,19 +43,15 @@ export default async function ProductsAnalytics({
   
   // Calculate date range based on the selected range
   const {
-    startDate,
-    endDate,
     formattedStartDate,
     formattedEndDate,
     displayText
   } = getDateRangeFromTimeFrame(range);
   
   // Query to get total number of products
-  const totalProductsResult = await db.select({
+  await db.select({
     count: sql<number>`count(*)`.as('count')
   }).from(products);
-  
-  const totalProducts = totalProductsResult[0]?.count || 0;
 
   // Query to get top selling products by quantity
   const topSellingProducts = await db.select({
