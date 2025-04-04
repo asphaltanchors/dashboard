@@ -232,7 +232,7 @@ export default async function ProductFamilyDetail({
   // Get all products in this family with sales data using the products table
   const productsResult = await db.execute(sql`
     SELECT 
-      REGEXP_REPLACE(oi.product_code, ' IN$', &apos;&apos;) as product_code,
+      REGEXP_REPLACE(oi.product_code, ' IN$', '') as product_code,
       oi.product_description,
       SUM(oi.line_amount) as total_sales,
       SUM(CAST(oi.quantity AS NUMERIC)) as total_quantity,
@@ -240,10 +240,10 @@ export default async function ProductFamilyDetail({
       AVG(oi.unit_price) as avg_unit_price
     FROM order_items oi
     JOIN orders o ON oi.order_number = o.order_number
-    JOIN products p ON p.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', &apos;&apos;)
+    JOIN products p ON p.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
     WHERE p.product_family = ${dbFamilyId}
     AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
-    GROUP BY REGEXP_REPLACE(oi.product_code, ' IN$', &apos;&apos;), oi.product_description
+    GROUP BY REGEXP_REPLACE(oi.product_code, ' IN$', ''), oi.product_description
     ORDER BY total_sales DESC
   `);
   
@@ -259,7 +259,7 @@ export default async function ProductFamilyDetail({
       COUNT(DISTINCT o.customer_name) as customer_count
     FROM order_items oi
     INNER JOIN orders o ON oi.order_number = o.order_number
-    JOIN products p ON p.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', &apos;&apos;)
+    JOIN products p ON p.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
     WHERE p.product_family = ${dbFamilyId}
     AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
   `);
@@ -286,7 +286,7 @@ export default async function ProductFamilyDetail({
       SUM(CAST(oi.quantity AS NUMERIC)) as total_quantity
     FROM order_items oi
     INNER JOIN orders o ON oi.order_number = o.order_number
-    JOIN products p ON p.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', &apos;&apos;)
+    JOIN products p ON p.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
     WHERE p.product_family = ${dbFamilyId}
     AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
     GROUP BY month
@@ -309,7 +309,7 @@ export default async function ProductFamilyDetail({
       o.customer_name
     FROM order_items oi
     INNER JOIN orders o ON oi.order_number = o.order_number
-    JOIN products p ON p.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', &apos;&apos;)
+    JOIN products p ON p.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
     WHERE p.product_family = ${dbFamilyId}
     AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
     ORDER BY o.order_date DESC

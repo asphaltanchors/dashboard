@@ -38,9 +38,17 @@ export default async function OrdersPage(
   const dateRange = getDateRangeFromTimeFrame(range)
   const { formattedStartDate, formattedEndDate, startDate, endDate } = dateRange // Destructure start/end dates
 
-  // Calculate the previous date range
-  const previousDateRange = getPreviousDateRange(startDate, endDate)
-  const { formattedStartDate: prevFormattedStartDate, formattedEndDate: prevFormattedEndDate } = previousDateRange
+  // Calculate the previous date ranges for 3 additional periods
+  const previousDateRange1 = getPreviousDateRange(startDate, endDate)
+  const { formattedStartDate: prevFormattedStartDate1, formattedEndDate: prevFormattedEndDate1 } = previousDateRange1
+  
+  // Calculate 2nd previous period
+  const previousDateRange2 = getPreviousDateRange(previousDateRange1.startDate, previousDateRange1.endDate)
+  const { formattedStartDate: prevFormattedStartDate2, formattedEndDate: prevFormattedEndDate2 } = previousDateRange2
+  
+  // Calculate 3rd previous period
+  const previousDateRange3 = getPreviousDateRange(previousDateRange2.startDate, previousDateRange2.endDate)
+  const { formattedStartDate: prevFormattedStartDate3, formattedEndDate: prevFormattedEndDate3 } = previousDateRange3
 
   // Query to get total number of orders and revenue for the selected time frame
   const orderSummaryResultPromise = db
@@ -94,6 +102,20 @@ export default async function OrdersPage(
     )
     .groupBy(orders.paymentMethod)
     .orderBy(sql`count DESC`)
+    
+  // Query to get accounts receivable (sum of non-paid invoices)
+  const accountsReceivablePromise = db
+    .select({
+      totalUnpaid: sql<number>`SUM(total_amount)`.as("total_unpaid"),
+    })
+    .from(orders)
+    .where(
+      and(
+        gte(orders.orderDate, formattedStartDate),
+        lte(orders.orderDate, formattedEndDate),
+        sql`${orders.status} != 'Paid' AND ${orders.status} != 'Closed'` // Exclude both Paid and Closed orders
+      )
+    )
 
   // Query to get most recent orders list with company information
   const recentOrdersListPromise = db
@@ -136,8 +158,8 @@ export default async function OrdersPage(
     )
     .groupBy(orders.class)
 
-  // --- NEW: Query for Sales Channel Metrics (Previous Period) ---
-  const previousSalesChannelMetricsPromise = db
+  // --- Query for Sales Channel Metrics (Previous Periods) ---
+  const previousSalesChannelMetricsPromise1 = db
     .select({
       sales_channel: orders.class,
       total_revenue: sum(orders.totalAmount).mapWith(String),
@@ -146,8 +168,42 @@ export default async function OrdersPage(
     .from(orders)
     .where(
       and(
-        gte(orders.orderDate, prevFormattedStartDate),
-        lte(orders.orderDate, prevFormattedEndDate),
+        gte(orders.orderDate, prevFormattedStartDate1),
+        lte(orders.orderDate, prevFormattedEndDate1),
+        sql`${orders.class} IS NOT NULL`
+      )
+    )
+    .groupBy(orders.class)
+    
+  // Query for 2nd previous period
+  const previousSalesChannelMetricsPromise2 = db
+    .select({
+      sales_channel: orders.class,
+      total_revenue: sum(orders.totalAmount).mapWith(String),
+      order_count: count(orders.orderNumber).mapWith(String),
+    })
+    .from(orders)
+    .where(
+      and(
+        gte(orders.orderDate, prevFormattedStartDate2),
+        lte(orders.orderDate, prevFormattedEndDate2),
+        sql`${orders.class} IS NOT NULL`
+      )
+    )
+    .groupBy(orders.class)
+    
+  // Query for 3rd previous period
+  const previousSalesChannelMetricsPromise3 = db
+    .select({
+      sales_channel: orders.class,
+      total_revenue: sum(orders.totalAmount).mapWith(String),
+      order_count: count(orders.orderNumber).mapWith(String),
+    })
+    .from(orders)
+    .where(
+      and(
+        gte(orders.orderDate, prevFormattedStartDate3),
+        lte(orders.orderDate, prevFormattedEndDate3),
         sql`${orders.class} IS NOT NULL`
       )
     )
@@ -162,15 +218,21 @@ export default async function OrdersPage(
       ordersByStatus,
       ordersByPaymentMethod,
       recentOrdersList,
-      currentSalesChannelMetrics, // Add new promise result
-      previousSalesChannelMetrics // Add new promise result
+      currentSalesChannelMetrics,
+      previousSalesChannelMetrics1,
+      previousSalesChannelMetrics2,
+      previousSalesChannelMetrics3,
+      accountsReceivable // Add accounts receivable result
     ] = await Promise.all([
       orderSummaryResultPromise,
       ordersByStatusPromise,
       ordersByPaymentMethodPromise,
       recentOrdersListPromise,
-      currentSalesChannelMetricsPromise, // Add new promise
-      previousSalesChannelMetricsPromise // Add new promise
+      currentSalesChannelMetricsPromise,
+      previousSalesChannelMetricsPromise1,
+      previousSalesChannelMetricsPromise2,
+      previousSalesChannelMetricsPromise3,
+      accountsReceivablePromise // Add accounts receivable promise
     ])
 
     // --- NEW: Combine Sales Channel Metrics ---
@@ -190,17 +252,18 @@ export default async function OrdersPage(
       };
     });
 
-    // Process previous period data
-    previousSalesChannelMetrics.forEach(metric => {
+    // Process previous periods data
+    // First previous period
+    previousSalesChannelMetrics1.forEach(metric => {
       if (!metric.sales_channel) return; // Skip null channels
       const periodData = {
-        period_start: prevFormattedStartDate,
-        period_end: prevFormattedEndDate,
+        period_start: prevFormattedStartDate1,
+        period_end: prevFormattedEndDate1,
         total_revenue: metric.total_revenue || "0",
         order_count: metric.order_count || "0",
       };
       if (combinedMetrics[metric.sales_channel]) {
-        // Add to existing channel's periods array (ensure current is first)
+        // Add to existing channel's periods array
         combinedMetrics[metric.sales_channel].periods.push(periodData);
       } else {
         // Channel exists only in previous period, create entry with empty current period
@@ -218,20 +281,142 @@ export default async function OrdersPage(
         };
       }
     });
+    
+    // Second previous period
+    previousSalesChannelMetrics2.forEach(metric => {
+      if (!metric.sales_channel) return; // Skip null channels
+      const periodData = {
+        period_start: prevFormattedStartDate2,
+        period_end: prevFormattedEndDate2,
+        total_revenue: metric.total_revenue || "0",
+        order_count: metric.order_count || "0",
+      };
+      if (combinedMetrics[metric.sales_channel]) {
+        // Add to existing channel's periods array
+        combinedMetrics[metric.sales_channel].periods.push(periodData);
+      } else {
+        // Channel exists only in this period, create entry with empty periods for current and first previous
+        combinedMetrics[metric.sales_channel] = {
+          sales_channel: metric.sales_channel,
+          periods: [
+            { // Placeholder for current period
+              period_start: formattedStartDate,
+              period_end: formattedEndDate,
+              total_revenue: "0",
+              order_count: "0",
+            },
+            { // Placeholder for first previous period
+              period_start: prevFormattedStartDate1,
+              period_end: prevFormattedEndDate1,
+              total_revenue: "0",
+              order_count: "0",
+            },
+            periodData // Second previous period data
+          ]
+        };
+      }
+    });
+    
+    // Third previous period
+    previousSalesChannelMetrics3.forEach(metric => {
+      if (!metric.sales_channel) return; // Skip null channels
+      const periodData = {
+        period_start: prevFormattedStartDate3,
+        period_end: prevFormattedEndDate3,
+        total_revenue: metric.total_revenue || "0",
+        order_count: metric.order_count || "0",
+      };
+      if (combinedMetrics[metric.sales_channel]) {
+        // Add to existing channel's periods array
+        combinedMetrics[metric.sales_channel].periods.push(periodData);
+      } else {
+        // Channel exists only in this period, create entry with empty periods for current and previous periods
+        combinedMetrics[metric.sales_channel] = {
+          sales_channel: metric.sales_channel,
+          periods: [
+            { // Placeholder for current period
+              period_start: formattedStartDate,
+              period_end: formattedEndDate,
+              total_revenue: "0",
+              order_count: "0",
+            },
+            { // Placeholder for first previous period
+              period_start: prevFormattedStartDate1,
+              period_end: prevFormattedEndDate1,
+              total_revenue: "0",
+              order_count: "0",
+            },
+            { // Placeholder for second previous period
+              period_start: prevFormattedStartDate2,
+              period_end: prevFormattedEndDate2,
+              total_revenue: "0",
+              order_count: "0",
+            },
+            periodData // Third previous period data
+          ]
+        };
+      }
+    });
 
-    // Ensure all channels from current period have a previous period entry (even if zero)
-     Object.values(combinedMetrics).forEach(metric => {
-       if (metric.periods.length === 1) {
-         metric.periods.push({
-           period_start: prevFormattedStartDate,
-           period_end: prevFormattedEndDate,
-           total_revenue: "0",
-           order_count: "0",
-         });
-       }
-       // Ensure periods are ordered: current, previous
-       metric.periods.sort((a, b) => new Date(b.period_start).getTime() - new Date(a.period_start).getTime());
-     });
+    // Ensure all channels have entries for all periods (even if zero)
+    Object.values(combinedMetrics).forEach(metric => {
+      // Check if we need to add placeholders for missing periods
+      const periodsNeeded = 4; // We want 4 total periods
+      const existingPeriods = metric.periods.length;
+      
+      // Add placeholders for missing periods
+      if (existingPeriods < periodsNeeded) {
+        // Define all possible period ranges
+        const allPeriods = [
+          {
+            period_start: formattedStartDate,
+            period_end: formattedEndDate,
+            label: "current"
+          },
+          {
+            period_start: prevFormattedStartDate1,
+            period_end: prevFormattedEndDate1,
+            label: "prev1"
+          },
+          {
+            period_start: prevFormattedStartDate2,
+            period_end: prevFormattedEndDate2,
+            label: "prev2"
+          },
+          {
+            period_start: prevFormattedStartDate3,
+            period_end: prevFormattedEndDate3,
+            label: "prev3"
+          }
+        ];
+        
+        // Find which periods are missing
+        const existingPeriodLabels = metric.periods.map(p => {
+          // Determine which period this is based on start date
+          for (const period of allPeriods) {
+            if (p.period_start === period.period_start) {
+              return period.label;
+            }
+          }
+          return null;
+        }).filter(Boolean);
+        
+        // Add missing periods
+        allPeriods.forEach(period => {
+          if (!existingPeriodLabels.includes(period.label)) {
+            metric.periods.push({
+              period_start: period.period_start,
+              period_end: period.period_end,
+              total_revenue: "0",
+              order_count: "0",
+            });
+          }
+        });
+      }
+      
+      // Ensure periods are ordered: current, prev1, prev2, prev3
+      metric.periods.sort((a, b) => new Date(b.period_start).getTime() - new Date(a.period_start).getTime());
+    });
 
     const salesChannelMetrics: SalesChannelMetric[] = Object.values(combinedMetrics);
     // --- END NEW ---
@@ -293,7 +478,7 @@ export default async function OrdersPage(
           </h2>
         </div>
 
-        <div className="grid grid-cols-1 gap-6 px-6 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 px-6 md:grid-cols-4">
           {/* Summary Cards ... */}
            <Card>
             <CardHeader className="pb-2">
@@ -333,6 +518,19 @@ export default async function OrdersPage(
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
                 })}
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">
+                Accounts Receivable
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-primary">
+                ${Number(accountsReceivable[0]?.totalUnpaid || 0).toLocaleString()}
               </div>
             </CardContent>
           </Card>

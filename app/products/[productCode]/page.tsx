@@ -1,6 +1,6 @@
 import { db } from "@/db"
 import { sql } from "drizzle-orm"
-import { orderItems, orders, products } from "@/db/schema"
+import { orderItems, orders, products, companies, companyOrderMapping } from "@/db/schema"
 import Link from "next/link"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
@@ -131,6 +131,39 @@ export default async function ProductDashboard(
     )
     .groupBy(orders.paymentMethod)
     .orderBy(sql`count DESC`)
+    
+  // Query to get top companies for this product
+  const topCompaniesForProduct = await db
+    .select({
+      companyId: companies.companyId,
+      companyName: companies.companyName,
+      companyDomain: companies.companyDomain,
+      totalQuantity: sql<number>`SUM(CAST(${orderItems.quantity} AS NUMERIC))`.as("total_quantity"),
+      totalRevenue: sql<number>`SUM(${orderItems.lineAmount})`.as("total_revenue"),
+      orderCount: sql<number>`COUNT(DISTINCT ${orderItems.orderNumber})`.as("order_count"),
+    })
+    .from(orderItems)
+    .innerJoin(orders, sql`${orders.orderNumber} = ${orderItems.orderNumber}`)
+    .innerJoin(companyOrderMapping, sql`${orders.orderNumber} = ${companyOrderMapping.orderNumber}`)
+    .innerJoin(companies, sql`${companyOrderMapping.companyId} = ${companies.companyId}`)
+    .where(
+      sql`${orderItems.productCode} = ${productCode} AND 
+          ${orders.orderDate} >= ${formattedStartDate} AND 
+          ${orders.orderDate} <= ${formattedEndDate} AND
+          ${companies.isConsumerDomain} = false`
+    )
+    .groupBy(companies.companyId, companies.companyName, companies.companyDomain)
+    .orderBy(sql`total_revenue DESC`)
+    .limit(5)
+    
+  // Calculate the concentration (percentage of revenue from top 5 companies)
+  const totalRevenueFromTop5 = topCompaniesForProduct.reduce(
+    (sum, company) => sum + Number(company.totalRevenue || 0), 
+    0
+  )
+  const concentrationPercentage = productDetails.totalRevenue > 0
+    ? (totalRevenueFromTop5 / Number(productDetails.totalRevenue)) * 100
+    : 0
 
   return (
     <SidebarProvider
@@ -250,7 +283,7 @@ export default async function ProductDashboard(
                 </Card>
               </div>
 
-              <div className="grid grid-cols-1 gap-6 px-6 md:grid-cols-3">
+              <div className="grid grid-cols-1 gap-6 px-6 md:grid-cols-4">
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-medium">
@@ -297,15 +330,87 @@ export default async function ProductDashboard(
                     </div>
                   </CardContent>
                 </Card>
+                
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">
+                      Customer Concentration
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-primary">
+                      {concentrationPercentage.toFixed(1)}%
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Revenue from top 5 companies
+                    </p>
+                  </CardContent>
+                </Card>
               </div>
 
               <div className="px-6 mb-6">
                 <ProductSalesChart 
-                  salesData={allTimeSalesData} 
-                  productCode={productCode}
+                  salesData={allTimeSalesData}
                 />
               </div>
 
+              <div className="px-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Top Companies for This Product</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Company</TableHead>
+                            <TableHead className="text-right">Quantity</TableHead>
+                            <TableHead className="text-right">Revenue</TableHead>
+                            <TableHead className="text-right">Percentage</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {topCompaniesForProduct.map((company, index) => (
+                            <TableRow key={index}>
+                              <TableCell>
+                                <div className="font-medium">
+                                  <Link
+                                    href={`/companies/${encodeURIComponent(company.companyId || '')}?range=${range}`}
+                                    className="text-primary hover:underline"
+                                  >
+                                    {company.companyName}
+                                  </Link>
+                                </div>
+                                <div className="text-sm text-muted-foreground">
+                                  {company.companyDomain}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {Number(company.totalQuantity).toLocaleString()}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                ${Number(company.totalRevenue).toLocaleString()}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {((Number(company.totalQuantity) / Number(productDetails.totalQuantity)) * 100).toFixed(1)}%
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                          {topCompaniesForProduct.length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={4} className="text-center text-muted-foreground">
+                                No company data available
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+              
               <div className="px-6">
                 <Card>
                   <CardHeader>
