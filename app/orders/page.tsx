@@ -1,39 +1,47 @@
 import { db } from "@/db"
 import { sql } from "drizzle-orm"
 import { orders, orderCompanyView } from "@/db/schema"
-import { desc, sum, count, and, gte, lte } from "drizzle-orm" // Import necessary Drizzle functions
+import { desc, sum, count, and, gte, lte, or, ilike } from "drizzle-orm" // Import necessary Drizzle functions
 import { getDateRangeFromTimeFrame, getPreviousDateRange } from "@/app/utils/dates" // Import getPreviousDateRange
 import { formatCurrency } from "@/lib/utils" // Import formatCurrency function
-import Link from "next/link"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge, badgeVariants } from "@/components/ui/badge" // Import badgeVariants
+import { badgeVariants } from "@/components/ui/badge" // Import badgeVariants
 import { type VariantProps } from "class-variance-authority" // Import VariantProps
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-// Import the new component and its type
+// Import the new components and their types
 import SalesChannelTable, { SalesChannelMetric } from "@/app/components/SalesChannelTable"
+import { PaginatedOrdersTable } from "@/app/components/PaginatedOrdersTable"
 
-export default async function OrdersPage(
-  props: {
-    searchParams?: Promise<{ [key: string]: string | string[] | undefined }>
-  }
-) {
-  const searchParams = await props.searchParams;
+export default async function OrdersPage({
+  searchParams,
+}: {
+  searchParams?: { [key: string]: string | string[] | undefined }
+}) {
   // Handle search params safely
-  const range = searchParams && searchParams.range
+  const range = searchParams?.range
     ? Array.isArray(searchParams.range)
       ? searchParams.range[0]
       : searchParams.range
     : "last-12-months"
+    
+  // Get pagination parameters
+  const page = searchParams?.page 
+    ? parseInt(Array.isArray(searchParams.page) ? searchParams.page[0] : searchParams.page) 
+    : 1
+  const pageSize = 25
+  const offset = (page - 1) * pageSize
+  
+  // Get search query
+  const searchQuery = searchParams?.search
+    ? Array.isArray(searchParams.search) ? searchParams.search[0] : searchParams.search
+    : ""
+    
+  // Get filter
+  const filter = searchParams?.filter
+    ? Array.isArray(searchParams.filter) ? searchParams.filter[0] : searchParams.filter
+    : ""
 
   // Calculate date range based on the selected time frame
   const dateRange = getDateRangeFromTimeFrame(range)
@@ -67,42 +75,21 @@ export default async function OrdersPage(
       )
       // sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`
     )
-
-  // Query to get orders by status
-  const ordersByStatusPromise = db
+    
+  // Query to get previous period's revenue for comparison
+  const previousPeriodRevenuePromise = db
     .select({
-      status: orders.status,
-      count: sql<number>`count(*)`.as("count"),
-      totalAmount: sql<number>`SUM(total_amount)`.as("total_amount"),
+      totalRevenue: sql<number>`SUM(total_amount)`.as("total_revenue"),
     })
     .from(orders)
     .where(
       and(
-        gte(orders.orderDate, formattedStartDate),
-        lte(orders.orderDate, formattedEndDate)
+        gte(orders.orderDate, prevFormattedStartDate1),
+        lte(orders.orderDate, prevFormattedEndDate1)
       )
-      // sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`
     )
-    .groupBy(orders.status)
-    .orderBy(sql`count DESC`)
 
-  // Query to get orders by payment method
-  const ordersByPaymentMethodPromise = db
-    .select({
-      paymentMethod: orders.paymentMethod,
-      count: sql<number>`count(*)`.as("count"),
-      totalAmount: sql<number>`SUM(total_amount)`.as("total_amount"),
-    })
-    .from(orders)
-    .where(
-      and(
-        gte(orders.orderDate, formattedStartDate),
-        lte(orders.orderDate, formattedEndDate)
-      )
-      // sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`
-    )
-    .groupBy(orders.paymentMethod)
-    .orderBy(sql`count DESC`)
+  // Removed orders by status and payment method queries
     
   // Query to get accounts receivable (sum of non-paid invoices)
   const accountsReceivablePromise = db
@@ -117,9 +104,57 @@ export default async function OrdersPage(
         sql`${orders.status} != 'Paid' AND ${orders.status} != 'Closed'` // Exclude both Paid and Closed orders
       )
     )
+    
+  // Query to get previous period's accounts receivable for comparison
+  const previousPeriodARPromise = db
+    .select({
+      totalUnpaid: sql<number>`SUM(total_amount)`.as("total_unpaid"),
+    })
+    .from(orders)
+    .where(
+      and(
+        gte(orders.orderDate, prevFormattedStartDate1),
+        lte(orders.orderDate, prevFormattedEndDate1),
+        sql`${orders.status} != 'Paid' AND ${orders.status} != 'Closed'` // Exclude both Paid and Closed orders
+      )
+    )
 
-  // Query to get most recent orders list with company information
-  const recentOrdersListPromise = db
+  // Build the base filter conditions
+  const baseConditions = [
+    gte(orderCompanyView.orderDate, formattedStartDate),
+    lte(orderCompanyView.orderDate, formattedEndDate),
+    // Add search conditions if search query is provided
+    searchQuery
+      ? or(
+          ilike(orderCompanyView.orderNumber, `%${searchQuery}%`),
+          ilike(orderCompanyView.customerName, `%${searchQuery}%`)
+        )
+      : undefined
+  ];
+  
+  // Add filter-specific conditions
+  if (filter === "ar") {
+    // For Accounts Receivable, we want orders that are not Paid or Closed
+    baseConditions.push(
+      sql`EXISTS (
+        SELECT 1 FROM orders o 
+        WHERE o.order_number = ${orderCompanyView.orderNumber} 
+        AND o.status != 'Paid' 
+        AND o.status != 'Closed'
+      )`
+    );
+  }
+  
+  // Query to get total count of orders for pagination
+  const totalOrdersCountPromise = db
+    .select({
+      count: sql<number>`count(*)`.as("count"),
+    })
+    .from(orderCompanyView)
+    .where(and(...baseConditions.filter(Boolean)))
+    
+  // Query to get paginated orders list with company information
+  const paginatedOrdersListPromise = db
     .select({
       orderNumber: orderCompanyView.orderNumber,
       customerName: orderCompanyView.customerName,
@@ -127,19 +162,15 @@ export default async function OrdersPage(
       totalAmount: orderCompanyView.totalAmount,
       companyName: orderCompanyView.companyName,
       companyDomain: orderCompanyView.companyDomain,
+      companyId: orderCompanyView.companyId,
       matchType: orderCompanyView.matchType,
       confidence: orderCompanyView.confidence,
     })
     .from(orderCompanyView)
-    .where(
-      and(
-        gte(orderCompanyView.orderDate, formattedStartDate),
-        lte(orderCompanyView.orderDate, formattedEndDate)
-      )
-      // sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`
-    )
+    .where(and(...baseConditions.filter(Boolean)))
     .orderBy(desc(orderCompanyView.orderDate))
-    .limit(25)
+    .limit(pageSize)
+    .offset(offset)
 
   // --- NEW: Query for Sales Channel Metrics (Current Period) ---
   const currentSalesChannelMetricsPromise = db
@@ -216,24 +247,26 @@ export default async function OrdersPage(
     // Wait for all data to be fetched in parallel
     const [
       orderSummaryResult,
-      ordersByStatus,
-      ordersByPaymentMethod,
-      recentOrdersList,
+      paginatedOrdersList,
+      totalOrdersCount,
       currentSalesChannelMetrics,
       previousSalesChannelMetrics1,
       previousSalesChannelMetrics2,
       previousSalesChannelMetrics3,
-      accountsReceivable // Add accounts receivable result
+      accountsReceivable, // Add accounts receivable result
+      previousPeriodRevenue, // Previous period revenue
+      previousPeriodAR // Previous period accounts receivable
     ] = await Promise.all([
       orderSummaryResultPromise,
-      ordersByStatusPromise,
-      ordersByPaymentMethodPromise,
-      recentOrdersListPromise,
+      paginatedOrdersListPromise,
+      totalOrdersCountPromise,
       currentSalesChannelMetricsPromise,
       previousSalesChannelMetricsPromise1,
       previousSalesChannelMetricsPromise2,
       previousSalesChannelMetricsPromise3,
-      accountsReceivablePromise // Add accounts receivable promise
+      accountsReceivablePromise,
+      previousPeriodRevenuePromise,
+      previousPeriodARPromise
     ])
 
     // --- NEW: Combine Sales Channel Metrics ---
@@ -442,7 +475,7 @@ export default async function OrdersPage(
     }
 
     // Fetch status information directly from orders table for each order
-    const orderStatusPromises = recentOrdersList.map(order =>
+    const orderStatusPromises = paginatedOrdersList.map(order =>
       db.select({ status: orders.status })
         .from(orders)
         .where(sql`${orders.orderNumber} = ${order.orderNumber}`)
@@ -453,22 +486,10 @@ export default async function OrdersPage(
     const orderStatuses = await Promise.all(orderStatusPromises)
 
     // Add status information to each order in the list
-    const ordersWithStatus = recentOrdersList.map((order, index) => ({
+    const ordersWithStatus = paginatedOrdersList.map((order, index) => ({
       ...order,
       status: orderStatuses[index][0]?.status || null
     }))
-
-    // Status badge variant mapping
-    const getStatusVariant = (status: string | null): VariantProps<typeof badgeVariants>["variant"] => {
-      switch (status) {
-        case "Paid":
-          return "default" // Changed from "success"
-        case "Pending":
-          return "secondary" // Changed from "warning"
-        default:
-          return "outline" // Changed from "secondary"
-      }
-    }
 
     return (
       <>
@@ -504,6 +525,27 @@ export default async function OrdersPage(
               <div className="text-2xl font-bold text-primary">
                 {formatCurrency(Number(totalRevenue))}
               </div>
+              {previousPeriodRevenue[0]?.totalRevenue !== null && (
+                <div className="mt-1 flex items-center text-sm">
+                  {(() => {
+                    const prevRevenue = Number(previousPeriodRevenue[0]?.totalRevenue || 0);
+                    const currentRevenue = Number(totalRevenue || 0);
+                    if (prevRevenue === 0) return null;
+                    
+                    const percentChange = ((currentRevenue - prevRevenue) / prevRevenue) * 100;
+                    const isPositive = percentChange >= 0;
+                    
+                    return (
+                      <>
+                        <span className={`mr-1 ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
+                          {isPositive ? '↑' : '↓'} {Math.abs(percentChange).toFixed(1)}%
+                        </span>
+                        <span className="text-muted-foreground">vs previous period</span>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -530,6 +572,28 @@ export default async function OrdersPage(
               <div className="text-2xl font-bold text-primary">
                 {formatCurrency(Number(accountsReceivable[0]?.totalUnpaid || 0))}
               </div>
+              {previousPeriodAR[0]?.totalUnpaid !== null && (
+                <div className="mt-1 flex items-center text-sm">
+                  {(() => {
+                    const prevAR = Number(previousPeriodAR[0]?.totalUnpaid || 0);
+                    const currentAR = Number(accountsReceivable[0]?.totalUnpaid || 0);
+                    if (prevAR === 0) return null;
+                    
+                    const percentChange = ((currentAR - prevAR) / prevAR) * 100;
+                    // For AR, an increase is generally negative (more unpaid invoices)
+                    const isPositive = percentChange <= 0;
+                    
+                    return (
+                      <>
+                        <span className={`mr-1 ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
+                          {isPositive ? '↓' : '↑'} {Math.abs(percentChange).toFixed(1)}%
+                        </span>
+                        <span className="text-muted-foreground">vs previous period</span>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -550,179 +614,23 @@ export default async function OrdersPage(
         {/* --- END NEW --- */}
 
 
-        <div className="grid grid-cols-1 gap-6 px-6 lg:grid-cols-2">
-          {/* Orders by Status/Payment Method Cards ... */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Orders by Status</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Orders</TableHead>
-                      <TableHead className="text-right">Revenue</TableHead>
-                      <TableHead className="text-right">Percentage</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {ordersByStatus.map((status, index) => (
-                      <TableRow key={index}>
-                        <TableCell className="font-medium">
-                          {status.status || "Unknown"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {status.count.toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(Number(status.totalAmount))}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {totalOrders > 0 ? ((status.count / totalOrders) * 100).toFixed(1) : '0.0'}%
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {ordersByStatus.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center text-muted-foreground">
-                          No data available
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Orders by Payment Method</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Payment Method</TableHead>
-                      <TableHead className="text-right">Orders</TableHead>
-                      <TableHead className="text-right">Revenue</TableHead>
-                      <TableHead className="text-right">Percentage</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {ordersByPaymentMethod.map((method, index) => (
-                      <TableRow key={index}>
-                        <TableCell className="font-medium">
-                          {method.paymentMethod || "Unknown"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {method.count.toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(Number(method.totalAmount))}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {totalOrders > 0 ? ((method.count / totalOrders) * 100).toFixed(1) : '0.0'}%
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {ordersByPaymentMethod.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center text-muted-foreground">
-                          No data available
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        {/* Removed Orders by Status and Payment Method cards */}
 
         <Card className="mx-6">
-          {/* Recent Orders Table ... */}
-           <CardHeader>
-            <CardTitle>Recent Orders</CardTitle>
+          {/* All Orders Table with Pagination */}
+          <CardHeader>
+            <CardTitle>All Orders</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Order #</TableHead>
-                    <TableHead>Customer</TableHead>
-                    <TableHead>Company</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {ordersWithStatus.map((order, index) => {
-                    // Format the date
-                    const orderDate = order.orderDate
-                      ? new Date(order.orderDate)
-                      : null
-                    const formattedDate = orderDate
-                      ? orderDate.toLocaleDateString("en-US", {
-                          year: "numeric",
-                          month: "short",
-                          day: "numeric",
-                        })
-                      : "N/A"
-
-                    return (
-                      <TableRow key={index}>
-                        <TableCell className="font-medium">
-                          <Link
-                            href={`/orders/${encodeURIComponent(
-                              order.orderNumber ?? '' // Handle potential null order number
-                            )}?range=${range}`}
-                            className="text-primary hover:underline"
-                          >
-                            {order.orderNumber}
-                          </Link>
-                        </TableCell>
-                        <TableCell>{order.customerName}</TableCell>
-                        <TableCell>
-                          <div className="font-medium">
-                            {order.companyName || "—"}
-                          </div>
-                          {order.companyDomain && (
-                            <div className="text-xs text-muted-foreground">
-                              {order.companyDomain}
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell>{formattedDate}</TableCell>
-                        <TableCell>
-                          <Badge variant={getStatusVariant(order.status)}>
-                            {order.status || "Unknown"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(Number(order.totalAmount))}
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                  {ordersWithStatus.length === 0 && (
-                    <TableRow>
-                      <TableCell
-                        colSpan={6}
-                        className="py-8 text-center text-muted-foreground"
-                      >
-                        No orders found for the selected date range
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+            <PaginatedOrdersTable
+              orders={ordersWithStatus}
+              totalOrders={totalOrdersCount[0]?.count || 0}
+              currentPage={page}
+              pageSize={pageSize}
+              searchQuery={searchQuery}
+              range={range}
+              filter={filter}
+            />
           </CardContent>
         </Card>
       </>

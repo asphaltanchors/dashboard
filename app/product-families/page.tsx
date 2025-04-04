@@ -70,8 +70,6 @@ export default async function ProductFamilies({
   
   // Calculate date range based on the selected range
   const {
-    startDate,
-    endDate,
     formattedStartDate,
     formattedEndDate,
     displayText
