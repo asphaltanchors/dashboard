@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm"
 import { orders, orderCompanyView } from "@/db/schema"
 import { desc, sum, count, and, gte, lte } from "drizzle-orm" // Import necessary Drizzle functions
 import { getDateRangeFromTimeFrame, getPreviousDateRange } from "@/app/utils/dates" // Import getPreviousDateRange
+import { formatCurrency } from "@/lib/utils" // Import formatCurrency function
 import Link from "next/link"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
@@ -501,7 +502,7 @@ export default async function OrdersPage(
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-primary">
-                ${Number(totalRevenue).toLocaleString()}
+                {formatCurrency(Number(totalRevenue))}
               </div>
             </CardContent>
           </Card>
@@ -514,10 +515,7 @@ export default async function OrdersPage(
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-primary">
-                ${Number(avgOrderValue).toLocaleString(undefined, {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
+                {formatCurrency(Number(avgOrderValue))}
               </div>
             </CardContent>
           </Card>
@@ -530,7 +528,7 @@ export default async function OrdersPage(
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-primary">
-                ${Number(accountsReceivable[0]?.totalUnpaid || 0).toLocaleString()}
+                {formatCurrency(Number(accountsReceivable[0]?.totalUnpaid || 0))}
               </div>
             </CardContent>
           </Card>
@@ -579,7 +577,7 @@ export default async function OrdersPage(
                           {status.count.toLocaleString()}
                         </TableCell>
                         <TableCell className="text-right">
-                          ${Number(status.totalAmount).toLocaleString()}
+                          {formatCurrency(Number(status.totalAmount))}
                         </TableCell>
                         <TableCell className="text-right">
                           {totalOrders > 0 ? ((status.count / totalOrders) * 100).toFixed(1) : '0.0'}%
@@ -624,7 +622,7 @@ export default async function OrdersPage(
                           {method.count.toLocaleString()}
                         </TableCell>
                         <TableCell className="text-right">
-                          ${Number(method.totalAmount).toLocaleString()}
+                          {formatCurrency(Number(method.totalAmount))}
                         </TableCell>
                         <TableCell className="text-right">
                           {totalOrders > 0 ? ((method.count / totalOrders) * 100).toFixed(1) : '0.0'}%
@@ -660,7 +658,6 @@ export default async function OrdersPage(
                     <TableHead>Company</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Match</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -707,25 +704,8 @@ export default async function OrdersPage(
                             {order.status || "Unknown"}
                           </Badge>
                         </TableCell>
-                        <TableCell>
-                          {order.matchType && (
-                            <div className="flex items-center gap-2">
-                              <Badge
-                                variant={getMatchTypeVariant(order.matchType)}
-                                className="text-xs"
-                              >
-                                {order.matchType}
-                              </Badge>
-                              {order.confidence && (
-                                <span className="text-xs text-muted-foreground">
-                                  {(order.confidence * 100).toFixed(1)}%
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </TableCell>
                         <TableCell className="text-right">
-                          ${Number(order.totalAmount).toLocaleString()}
+                          {formatCurrency(Number(order.totalAmount))}
                         </TableCell>
                       </TableRow>
                     )
@@ -733,7 +713,7 @@ export default async function OrdersPage(
                   {ordersWithStatus.length === 0 && (
                     <TableRow>
                       <TableCell
-                        colSpan={7}
+                        colSpan={6}
                         className="py-8 text-center text-muted-foreground"
                       >
                         No orders found for the selected date range
