@@ -1,7 +1,32 @@
-import { pgTable, text, numeric, date, boolean, integer, timestamp, primaryKey, varchar, doublePrecision, pgView, bigint } from "drizzle-orm/pg-core"
+import { pgTable, text, boolean, integer, numeric, date, timestamp, primaryKey, varchar, doublePrecision, pgView, bigint } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 
+
+export const products = pgTable("products", {
+	itemName: text("item_name"),
+	salesDescription: text("sales_description"),
+	productFamily: text("product_family"),
+	materialType: text("material_type"),
+	isKit: boolean("is_kit"),
+	itemQuantity: integer("item_quantity"),
+});
+
+export const customers = pgTable("customers", {
+	quickbooksId: text("quickbooks_id"),
+	customerName: text("customer_name"),
+	firstName: text("first_name"),
+	lastName: text("last_name"),
+	customerType: text("customer_type"),
+	billingCity: text("billing_city"),
+	billingState: text("billing_state"),
+	billingZip: text("billing_zip"),
+	shippingCity: text("shipping_city"),
+	shippingState: text("shipping_state"),
+	shippingZip: text("shipping_zip"),
+	email: text(),
+	companyId: text("company_id"),
+});
 
 export const orderItems = pgTable("order_items", {
 	orderId: text("order_id"),
@@ -35,30 +60,12 @@ export const orders = pgTable("orders", {
 	shippingAddressLine2: text("shipping_address_line_2"),
 });
 
-export const products = pgTable("products", {
-	itemName: text("item_name"),
-	salesDescription: text("sales_description"),
-	productFamily: text("product_family"),
-	materialType: text("material_type"),
-	isKit: boolean("is_kit"),
-	itemQuantity: integer("item_quantity"),
-});
-
 export const itemHistory = pgTable("item_history", {
 	itemName: text("item_name"),
 	columnName: text("column_name"),
 	oldValue: text("old_value"),
 	newValue: text("new_value"),
 	changedAt: timestamp("changed_at", { mode: 'string' }),
-});
-
-export const customers = pgTable("customers", {
-	quickbooksId: text("quickbooks_id"),
-	customerName: text("customer_name"),
-	firstName: text("first_name"),
-	lastName: text("last_name"),
-	customerType: text("customer_type"),
-	companyId: text("company_id"),
 });
 
 export const companyOrderMapping = pgTable("company_order_mapping", {

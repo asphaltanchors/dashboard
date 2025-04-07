@@ -1,6 +1,6 @@
 import { db } from "@/db"
 import { sql } from "drizzle-orm"
-import { orders, orderItems, orderCompanyView } from "@/db/schema"
+import { orders, orderItems, orderCompanyView, customers } from "@/db/schema"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { AppSidebar } from "@/components/app-sidebar"
@@ -18,6 +18,12 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Separator } from "@/components/ui/separator"
+
+// Helper function to safely format numbers
+const safeFormatNumber = (value: any, options?: Intl.NumberFormatOptions) => {
+  if (value === null || value === undefined) return "-";
+  return Number(value).toLocaleString(undefined, options);
+};
 
 export default async function OrderDetailPage(
   props: {
@@ -49,6 +55,15 @@ export default async function OrderDetailPage(
     .select()
     .from(orderItems)
     .where(sql`${orderItems.orderNumber} = ${orderNumber}`)
+
+  // Fetch customer information
+  const customerInfo = await db
+    .select()
+    .from(customers)
+    .where(sql`${customers.customerName} = ${order.customerName}`)
+    .limit(1)
+
+  const customer = customerInfo.length > 0 ? customerInfo[0] : null
 
   // Fetch company information if available
   const companyInfo = await db
@@ -90,9 +105,9 @@ export default async function OrderDetailPage(
   const getStatusVariant = (status: string | null) => {
     switch (status) {
       case "Paid":
-        return "success"
+        return "default"
       case "Pending":
-        return "warning"
+        return "outline"
       default:
         return "secondary"
     }
@@ -102,11 +117,11 @@ export default async function OrderDetailPage(
   const getMatchTypeVariant = (matchType: string) => {
     switch (matchType) {
       case "exact":
-        return "success"
+        return "default"
       case "fuzzy":
-        return "warning"
+        return "outline"
       case "manual":
-        return "info"
+        return "secondary"
       default:
         return "secondary"
     }
@@ -260,6 +275,13 @@ export default async function OrderDetailPage(
                       </span>{" "}
                       {order.customerName}
                     </p>
+                    
+                    <p className="mb-4">
+                      <span className="text-muted-foreground">
+                        Email:
+                      </span>{" "}
+                      {customer?.email || "N/A"}
+                    </p>
 
                     {hasCompanyInfo && (
                       <>
@@ -312,6 +334,15 @@ export default async function OrderDetailPage(
                         {order.billingAddressLine2 && (
                           <p>{order.billingAddressLine2}</p>
                         )}
+                        {(customer?.billingCity || customer?.billingState || customer?.billingZip) && (
+                          <p>
+                            {customer?.billingCity || ""}
+                            {customer?.billingCity && customer?.billingState ? ", " : ""}
+                            {customer?.billingState || ""}
+                            {(customer?.billingCity || customer?.billingState) && customer?.billingZip ? " " : ""}
+                            {customer?.billingZip || ""}
+                          </p>
+                        )}
                       </div>
 
                       <div>
@@ -319,6 +350,15 @@ export default async function OrderDetailPage(
                         <p>{order.shippingAddressLine1 || "N/A"}</p>
                         {order.shippingAddressLine2 && (
                           <p>{order.shippingAddressLine2}</p>
+                        )}
+                        {(customer?.shippingCity || customer?.shippingState || customer?.shippingZip) && (
+                          <p>
+                            {customer?.shippingCity || ""}
+                            {customer?.shippingCity && customer?.shippingState ? ", " : ""}
+                            {customer?.shippingState || ""}
+                            {(customer?.shippingCity || customer?.shippingState) && customer?.shippingZip ? " " : ""}
+                            {customer?.shippingZip || ""}
+                          </p>
                         )}
                       </div>
                     </div>
@@ -355,7 +395,7 @@ export default async function OrderDetailPage(
                                 ) : (
                                   <Link
                                     href={`/products/${encodeURIComponent(
-                                      item.productCode
+                                      item.productCode || ""
                                     )}?range=${range}`}
                                     className="text-primary hover:underline"
                                   >
@@ -370,17 +410,13 @@ export default async function OrderDetailPage(
                               )}
                             </TableCell>
                             <TableCell className="text-right">
-                              {item.quantity
-                                ? Number(item.quantity).toLocaleString()
-                                : "-"}
+                              {safeFormatNumber(item.quantity)}
                             </TableCell>
                             <TableCell className="text-right">
-                              $
-                              {Number(item.unitPrice || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                              ${safeFormatNumber(item.unitPrice, {minimumFractionDigits: 2, maximumFractionDigits: 2}) || "0.00"}
                             </TableCell>
                             <TableCell className="text-right">
-                              $
-                              {Number(item.lineAmount || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                              ${safeFormatNumber(item.lineAmount, {minimumFractionDigits: 2, maximumFractionDigits: 2}) || "0.00"}
                             </TableCell>
                           </TableRow>
                         ))}

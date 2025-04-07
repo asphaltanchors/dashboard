@@ -19,7 +19,11 @@ import {
 
 export default async function CompaniesPage(
   props: {
-    searchParams: Promise<{ range?: string | string[] }>
+    searchParams: Promise<{ 
+      range?: string | string[];
+      page?: string | string[];
+      search?: string | string[];
+    }>
   }
 ) {
   const searchParams = await props.searchParams;
@@ -30,6 +34,24 @@ export default async function CompaniesPage(
       ? rangeParam[0]
       : rangeParam
     : "last-12-months"
+    
+  // Get page param from searchParams
+  const pageParam = searchParams.page
+  const page = pageParam
+    ? parseInt(Array.isArray(pageParam) ? pageParam[0] : pageParam)
+    : 1
+    
+  // Get search param from searchParams
+  const searchParam = searchParams.search
+  const search = searchParam
+    ? Array.isArray(searchParam)
+      ? searchParam[0]
+      : searchParam
+    : ""
+    
+  // Items per page
+  const pageSize = 20
+  const offset = (page - 1) * pageSize
 
   // Calculate date range based on the selected time frame
   const dateRange = getDateRangeFromTimeFrame(range)
@@ -123,8 +145,13 @@ export default async function CompaniesPage(
     .orderBy(sql`customer_count DESC`)
     .limit(10)
 
-  // Query to get recent companies (sorted by creation date)
-  const recentCompaniesPromise = db
+  // Create search condition for companies
+  const searchCondition = search 
+    ? sql`${companies.companyName} ILIKE ${'%' + search + '%'} OR ${companies.companyDomain} ILIKE ${'%' + search + '%'}`
+    : sql`1=1`
+
+  // Query to get all companies with pagination and search
+  const allCompaniesPromise = db
     .select({
       companyId: companies.companyId,
       companyName: companies.companyName,
@@ -132,34 +159,18 @@ export default async function CompaniesPage(
       createdAt: companies.createdAt,
     })
     .from(companies)
-    .where(sql`${companies.isConsumerDomain} = false`)
+    .where(sql`${companies.isConsumerDomain} = false AND (${searchCondition})`)
     .orderBy(sql`created_at DESC`)
-    .limit(10)
-
-  // Query to get recent orders by company in the selected time frame
-  const recentCompanyOrdersPromise = db
+    .limit(pageSize)
+    .offset(offset)
+    
+  // Get total count for pagination
+  const totalCompaniesCountPromise = db
     .select({
-      companyId: companies.companyId,
-      companyName: companies.companyName,
-      orderNumber: orders.orderNumber,
-      orderDate: orders.orderDate,
-      totalAmount: orders.totalAmount,
-      customerName: orders.customerName,
+      count: sql<number>`count(*)`.as("count"),
     })
     .from(companies)
-    .where(sql`${companies.isConsumerDomain} = false`)
-    .innerJoin(
-      companyOrderMapping,
-      sql`${companies.companyId} = ${companyOrderMapping.companyId}`
-    )
-    .innerJoin(
-      orders,
-      sql`${companyOrderMapping.orderNumber} = ${orders.orderNumber} 
-        AND ${orders.orderDate} >= ${formattedStartDate} 
-        AND ${orders.orderDate} <= ${formattedEndDate}`
-    )
-    .orderBy(sql`${orders.orderDate} DESC`)
-    .limit(10)
+    .where(sql`${companies.isConsumerDomain} = false AND (${searchCondition})`)
 
   // Helper function to join all data fetching promises and render UI
   async function CompaniesContent() {
@@ -171,8 +182,8 @@ export default async function CompaniesPage(
       newCompaniesResult,
       topCompaniesByRevenue,
       topCompaniesByCustomers,
-      recentCompanies,
-      recentCompanyOrders,
+      allCompanies,
+      totalCompaniesCount,
     ] = await Promise.all([
       totalCompaniesPromise,
       companiesWithCustomersPromise,
@@ -180,8 +191,8 @@ export default async function CompaniesPage(
       newCompaniesPromise,
       topCompaniesByRevenuePromise,
       topCompaniesByCustomersPromise,
-      recentCompaniesPromise,
-      recentCompanyOrdersPromise,
+      allCompaniesPromise,
+      totalCompaniesCountPromise,
     ])
 
     const totalCompanies = totalCompaniesResult[0]?.count || 0
@@ -350,10 +361,21 @@ export default async function CompaniesPage(
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 gap-6 px-6 lg:grid-cols-2 mt-6">
+        <div className="px-6 mt-6">
           <Card>
-            <CardHeader>
-              <CardTitle>Recently Added Companies</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>All Companies</CardTitle>
+              <div className="relative w-64">
+                <form>
+                  <input
+                    type="text"
+                    name="search"
+                    placeholder="Search by name or domain..."
+                    defaultValue={search}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  />
+                </form>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -366,7 +388,7 @@ export default async function CompaniesPage(
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {recentCompanies.map((company, index) => (
+                    {allCompanies.map((company, index) => (
                       <TableRow key={index}>
                         <TableCell className="font-medium">
                           <Link
@@ -384,79 +406,44 @@ export default async function CompaniesPage(
                         </TableCell>
                       </TableRow>
                     ))}
-                    {recentCompanies.length === 0 && (
+                    {allCompanies.length === 0 && (
                       <TableRow>
                         <TableCell
                           colSpan={3}
                           className="py-6 text-center text-muted-foreground"
                         >
-                          No data available
+                          {search ? 'No companies found matching your search' : 'No data available'}
                         </TableCell>
                       </TableRow>
                     )}
                   </TableBody>
                 </Table>
               </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Company Orders</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Company</TableHead>
-                      <TableHead>Order #</TableHead>
-                      <TableHead className="text-right">Date</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {recentCompanyOrders.map((order, index) => (
-                      <TableRow key={index}>
-                        <TableCell className="font-medium">
-                          <Link
-                            href={`/companies/${encodeURIComponent(order.companyId || '')}?range=${range}`}
-                            className="text-primary hover:underline"
-                          >
-                            {order.companyName}
-                          </Link>
-                        </TableCell>
-                        <TableCell>
-                          <Link
-                            href={`/orders/${encodeURIComponent(
-                              order.orderNumber || ''
-                            )}?range=${range}`}
-                            className="text-primary hover:underline"
-                          >
-                            {order.orderNumber}
-                          </Link>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {order.orderDate ? new Date(order.orderDate).toLocaleDateString() : 'N/A'}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(Number(order.totalAmount || 0))}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {recentCompanyOrders.length === 0 && (
-                      <TableRow>
-                        <TableCell
-                          colSpan={4}
-                          className="py-6 text-center text-muted-foreground"
-                        >
-                          No orders found for the selected date range
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
+              
+              {/* Pagination */}
+              {totalCompaniesCount[0]?.count > 0 && (
+                <div className="flex items-center justify-between space-x-6 mt-4">
+                  <div className="text-sm text-muted-foreground">
+                    Showing {allCompanies.length > 0 ? offset + 1 : 0} to {Math.min(offset + pageSize, totalCompaniesCount[0]?.count)} of {totalCompaniesCount[0]?.count} companies
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Link
+                      href={`/companies?range=${range}&page=${Math.max(1, page - 1)}${search ? `&search=${encodeURIComponent(search)}` : ''}`}
+                      className={`rounded-md border border-input bg-background px-3 py-2 text-sm font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground ${page <= 1 ? 'pointer-events-none opacity-50' : ''}`}
+                      aria-disabled={page <= 1}
+                    >
+                      Previous
+                    </Link>
+                    <Link
+                      href={`/companies?range=${range}&page=${page + 1}${search ? `&search=${encodeURIComponent(search)}` : ''}`}
+                      className={`rounded-md border border-input bg-background px-3 py-2 text-sm font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground ${(page * pageSize) >= totalCompaniesCount[0]?.count ? 'pointer-events-none opacity-50' : ''}`}
+                      aria-disabled={(page * pageSize) >= totalCompaniesCount[0]?.count}
+                    >
+                      Next
+                    </Link>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

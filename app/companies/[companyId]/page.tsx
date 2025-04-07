@@ -57,7 +57,7 @@ export default async function CompanyDetailPage(
 
   const stats = statsResult.length > 0 ? statsResult[0] : { customerCount: 0, totalOrders: 0 }
 
-  // Query to get company orders with date range filter
+  // Query to get company orders without date filtering
   const companyOrdersPromise = db
     .select({
       orderNumber: orders.orderNumber,
@@ -72,14 +72,12 @@ export default async function CompanyDetailPage(
       sql`${orders.orderNumber} = ${companyOrderMapping.orderNumber}`
     )
     .where(
-      sql`${companyOrderMapping.companyId} = ${companyId} AND 
-          ${orders.orderDate} >= ${formattedStartDate} AND 
-          ${orders.orderDate} <= ${formattedEndDate}`
+      sql`${companyOrderMapping.companyId} = ${companyId}`
     )
     .orderBy(sql`${orders.orderDate} DESC`)
-    .limit(10)
+    .limit(20)
 
-  // Query to get total revenue for the company in the selected time frame
+  // Query to get total revenue for the company across all time
   const totalRevenuePromise = db
     .select({
       totalRevenue: sql<number>`COALESCE(SUM(${orders.totalAmount}), 0)`.as("total_revenue"),
@@ -91,9 +89,7 @@ export default async function CompanyDetailPage(
       sql`${orders.orderNumber} = ${companyOrderMapping.orderNumber}`
     )
     .where(
-      sql`${companyOrderMapping.companyId} = ${companyId} AND 
-          ${orders.orderDate} >= ${formattedStartDate} AND 
-          ${orders.orderDate} <= ${formattedEndDate}`
+      sql`${companyOrderMapping.companyId} = ${companyId}`
     )
 
   // Query to get customers associated with this company
@@ -109,7 +105,7 @@ export default async function CompanyDetailPage(
     .where(sql`${customers.companyId} = ${companyId}`)
     .limit(10)
 
-  // Query to get top products purchased by this company
+  // Query to get top products purchased by this company across all time
   const topProductsPromise = db
     .select({
       productCode: orderItems.productCode,
@@ -128,13 +124,11 @@ export default async function CompanyDetailPage(
       sql`${orders.orderNumber} = ${companyOrderMapping.orderNumber}`
     )
     .where(
-      sql`${companyOrderMapping.companyId} = ${companyId} AND 
-          ${orders.orderDate} >= ${formattedStartDate} AND 
-          ${orders.orderDate} <= ${formattedEndDate}`
+      sql`${companyOrderMapping.companyId} = ${companyId}`
     )
     .groupBy(orderItems.productCode, orderItems.productDescription)
     .orderBy(sql`total_revenue DESC`)
-    .limit(5)
+    .limit(10)
 
   // Wait for all data to be fetched in parallel
   const [companyOrders, totalRevenueResult, companyCustomers, topProducts] = await Promise.all([
@@ -190,7 +184,7 @@ export default async function CompanyDetailPage(
                   </Button>
                 </div>
                 <h2 className="text-lg font-medium">
-                  {dateRange.displayText}
+                  All Time Data
                 </h2>
               </div>
 
@@ -265,7 +259,7 @@ export default async function CompanyDetailPage(
                       {Number(totalRevenue.orderCount).toLocaleString()}
                     </div>
                     <p className="text-sm text-muted-foreground mt-1">
-                      In selected time period
+                      All time
                     </p>
                   </CardContent>
                 </Card>
@@ -281,7 +275,7 @@ export default async function CompanyDetailPage(
                       {formatCurrency(Number(totalRevenue.totalRevenue))}
                     </div>
                     <p className="text-sm text-muted-foreground mt-1">
-                      In selected time period
+                      All time
                     </p>
                   </CardContent>
                 </Card>
@@ -333,7 +327,7 @@ export default async function CompanyDetailPage(
                                 colSpan={4}
                                 className="py-6 text-center text-muted-foreground"
                               >
-                                No orders found for the selected date range
+                                No orders found for this company
                               </TableCell>
                             </TableRow>
                           )}
@@ -389,7 +383,7 @@ export default async function CompanyDetailPage(
                                 colSpan={3}
                                 className="py-6 text-center text-muted-foreground"
                               >
-                                No products found for the selected date range
+                                No products found for this company
                               </TableCell>
                             </TableRow>
                           )}
@@ -465,7 +459,7 @@ export default async function CompanyDetailPage(
                             {Number(totalRevenue.orderCount).toLocaleString()}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            {dateRange.displayText}
+                            All time
                           </p>
                         </div>
                       </div>

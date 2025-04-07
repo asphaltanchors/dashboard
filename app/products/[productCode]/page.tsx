@@ -1,6 +1,6 @@
 import { db } from "@/db"
 import { sql } from "drizzle-orm"
-import { orderItems, orders, products, companies, companyOrderMapping } from "@/db/schema"
+import { orderItems, orders, products, companies, companyOrderMapping, itemHistoryView } from "@/db/schema"
 import Link from "next/link"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
@@ -33,17 +33,30 @@ export default async function ProductDashboard(
   const dateRange = getDateRangeFromTimeFrame(range)
   const { formattedStartDate, formattedEndDate } = dateRange
 
-  // Query to get product family information from the products table
-  const productFamilyResult = await db
+  // Query to get product information from the products table
+  const productInfoResult = await db
     .select({
-      productFamily: products.productFamily
+      productFamily: products.productFamily,
+      itemQuantity: products.itemQuantity,
+      salesDescription: products.salesDescription,
+      materialType: products.materialType,
+      isKit: products.isKit
     })
     .from(products)
     .where(sql`${products.itemName} = ${productCode}`)
     .limit(1)
 
-  const productFamily = productFamilyResult.length > 0 && productFamilyResult[0].productFamily ? productFamilyResult[0].productFamily : null
+  const productInfo = productInfoResult[0] || {
+    productFamily: null,
+    itemQuantity: 0,
+    salesDescription: null,
+    materialType: null,
+    isKit: false
+  }
+  
+  const productFamily = productInfo.productFamily
   const productFamilyId = productFamily ? productFamily.toLowerCase() : null
+  const currentInventory = productInfo.itemQuantity || 0
 
   // Query to get product details with date range filter
   const productDetailsResult = await db
@@ -164,6 +177,24 @@ export default async function ProductDashboard(
   const concentrationPercentage = productDetails.totalRevenue > 0
     ? (totalRevenueFromTop5 / Number(productDetails.totalRevenue)) * 100
     : 0
+    
+  // Query to get inventory history for this product
+  const inventoryHistory = await db
+    .select({
+      columnName: itemHistoryView.columnName,
+      oldValue: itemHistoryView.oldValue,
+      newValue: itemHistoryView.newValue,
+      changedAt: itemHistoryView.changedAt,
+      numericChange: itemHistoryView.numericChange,
+      percentChange: itemHistoryView.percentChange
+    })
+    .from(itemHistoryView)
+    .where(
+      sql`${itemHistoryView.itemName} = ${productCode} AND 
+          ${itemHistoryView.columnName} = 'quantity_on_hand'`
+    )
+    .orderBy(sql`${itemHistoryView.changedAt} DESC`)
+    .limit(10)
 
   return (
     <SidebarProvider
@@ -283,7 +314,20 @@ export default async function ProductDashboard(
                 </Card>
               </div>
 
-              <div className="grid grid-cols-1 gap-6 px-6 md:grid-cols-4">
+              <div className="grid grid-cols-1 gap-6 px-6 md:grid-cols-3 lg:grid-cols-5">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">
+                      Current Inventory
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-primary">
+                      {Number(currentInventory).toLocaleString()}
+                    </div>
+                  </CardContent>
+                </Card>
+
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-medium">
@@ -448,6 +492,64 @@ export default async function ProductDashboard(
                             <TableRow>
                               <TableCell colSpan={4} className="text-center text-muted-foreground">
                                 No data available
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+              
+              <div className="px-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Inventory History</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead className="text-right">Previous Value</TableHead>
+                            <TableHead className="text-right">New Value</TableHead>
+                            <TableHead className="text-right">Change</TableHead>
+                            <TableHead className="text-right">% Change</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {inventoryHistory.map((record, index) => (
+                            <TableRow key={index}>
+                              <TableCell>
+                                {record.changedAt
+                                  ? new Date(record.changedAt).toLocaleDateString()
+                                  : "N/A"}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {Number(record.oldValue || 0).toLocaleString()}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {Number(record.newValue || 0).toLocaleString()}
+                              </TableCell>
+                              <TableCell className={`text-right ${Number(record.numericChange || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {Number(record.numericChange || 0) >= 0 ? '+' : ''}
+                                {Number(record.numericChange || 0).toLocaleString()}
+                              </TableCell>
+                              <TableCell className={`text-right ${Number(record.percentChange || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {Number(record.percentChange || 0) >= 0 ? '+' : ''}
+                                {Number(record.percentChange || 0).toFixed(2)}%
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                          {inventoryHistory.length === 0 && (
+                            <TableRow>
+                              <TableCell
+                                colSpan={5}
+                                className="py-4 text-center text-muted-foreground"
+                              >
+                                No inventory history available
                               </TableCell>
                             </TableRow>
                           )}
