@@ -14,33 +14,48 @@ import { type VariantProps } from "class-variance-authority" // Import VariantPr
 import SalesChannelTable, { SalesChannelMetric } from "@/app/components/SalesChannelTable"
 import { PaginatedOrdersTable } from "@/app/components/PaginatedOrdersTable"
 
-export default async function OrdersPage({
-  searchParams,
-}: {
-  searchParams?: { [key: string]: string | string[] | undefined }
-}) {
+export default async function OrdersPage(
+  props: {
+    searchParams?: Promise<{ [key: string]: string | string[] | undefined }>
+  }
+) {
+  const searchParams = await props.searchParams;
   // Handle search params safely
   const range = searchParams?.range
     ? Array.isArray(searchParams.range)
       ? searchParams.range[0]
       : searchParams.range
     : "last-12-months"
-    
+
   // Get pagination parameters
   const page = searchParams?.page 
     ? parseInt(Array.isArray(searchParams.page) ? searchParams.page[0] : searchParams.page) 
     : 1
   const pageSize = 25
   const offset = (page - 1) * pageSize
-  
+
   // Get search query
   const searchQuery = searchParams?.search
     ? Array.isArray(searchParams.search) ? searchParams.search[0] : searchParams.search
     : ""
-    
+
   // Get filter
   const filter = searchParams?.filter
     ? Array.isArray(searchParams.filter) ? searchParams.filter[0] : searchParams.filter
+    : ""
+
+  // Get product search
+  const productSearch = searchParams?.product
+    ? Array.isArray(searchParams.product) ? searchParams.product[0] : searchParams.product
+    : ""
+
+  // Get custom date range if provided
+  const startDateParam = searchParams?.startDate
+    ? Array.isArray(searchParams.startDate) ? searchParams.startDate[0] : searchParams.startDate
+    : ""
+
+  const endDateParam = searchParams?.endDate
+    ? Array.isArray(searchParams.endDate) ? searchParams.endDate[0] : searchParams.endDate
     : ""
 
   // Calculate date range based on the selected time frame
@@ -50,11 +65,11 @@ export default async function OrdersPage({
   // Calculate the previous date ranges for 3 additional periods
   const previousDateRange1 = getPreviousDateRange(startDate, endDate)
   const { formattedStartDate: prevFormattedStartDate1, formattedEndDate: prevFormattedEndDate1 } = previousDateRange1
-  
+
   // Calculate 2nd previous period
   const previousDateRange2 = getPreviousDateRange(previousDateRange1.startDate, previousDateRange1.endDate)
   const { formattedStartDate: prevFormattedStartDate2, formattedEndDate: prevFormattedEndDate2 } = previousDateRange2
-  
+
   // Calculate 3rd previous period
   const previousDateRange3 = getPreviousDateRange(previousDateRange2.startDate, previousDateRange2.endDate)
   const { formattedStartDate: prevFormattedStartDate3, formattedEndDate: prevFormattedEndDate3 } = previousDateRange3
@@ -75,7 +90,7 @@ export default async function OrdersPage({
       )
       // sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`
     )
-    
+
   // Query to get previous period's revenue for comparison
   const previousPeriodRevenuePromise = db
     .select({
@@ -90,7 +105,7 @@ export default async function OrdersPage({
     )
 
   // Removed orders by status and payment method queries
-    
+
   // Query to get accounts receivable (sum of non-paid invoices)
   const accountsReceivablePromise = db
     .select({
@@ -104,7 +119,7 @@ export default async function OrdersPage({
         sql`${orders.status} != 'Paid' AND ${orders.status} != 'Closed'` // Exclude both Paid and Closed orders
       )
     )
-    
+
   // Query to get previous period's accounts receivable for comparison
   const previousPeriodARPromise = db
     .select({
@@ -119,10 +134,14 @@ export default async function OrdersPage({
       )
     )
 
+  // Use custom date range if provided, otherwise use the calculated date range
+  const effectiveStartDate = startDateParam || formattedStartDate
+  const effectiveEndDate = endDateParam || formattedEndDate
+
   // Build the base filter conditions
   const baseConditions = [
-    gte(orderCompanyView.orderDate, formattedStartDate),
-    lte(orderCompanyView.orderDate, formattedEndDate),
+    gte(orderCompanyView.orderDate, effectiveStartDate),
+    lte(orderCompanyView.orderDate, effectiveEndDate),
     // Add search conditions if search query is provided
     searchQuery
       ? or(
@@ -131,7 +150,7 @@ export default async function OrdersPage({
         )
       : undefined
   ];
-  
+
   // Add filter-specific conditions
   if (filter === "ar") {
     // For Accounts Receivable, we want orders that are not Paid or Closed
@@ -144,7 +163,21 @@ export default async function OrdersPage({
       )`
     );
   }
-  
+
+  // Create a subquery for product filtering if a product search is provided
+  let productFilterSubquery = undefined
+  if (productSearch) {
+    productFilterSubquery = sql`EXISTS (
+      SELECT 1 FROM order_items oi 
+      WHERE oi.order_number = ${orderCompanyView.orderNumber}
+      AND (
+        oi.product_code ILIKE ${`%${productSearch}%`} OR 
+        oi.product_description ILIKE ${`%${productSearch}%`}
+      )
+    )`
+    baseConditions.push(productFilterSubquery)
+  }
+
   // Query to get total count of orders for pagination
   const totalOrdersCountPromise = db
     .select({
@@ -152,7 +185,7 @@ export default async function OrdersPage({
     })
     .from(orderCompanyView)
     .where(and(...baseConditions.filter(Boolean)))
-    
+
   // Query to get paginated orders list with company information
   const paginatedOrdersListPromise = db
     .select({
@@ -206,7 +239,7 @@ export default async function OrdersPage({
       )
     )
     .groupBy(orders.class)
-    
+
   // Query for 2nd previous period
   const previousSalesChannelMetricsPromise2 = db
     .select({
@@ -223,7 +256,7 @@ export default async function OrdersPage({
       )
     )
     .groupBy(orders.class)
-    
+
   // Query for 3rd previous period
   const previousSalesChannelMetricsPromise3 = db
     .select({
@@ -622,15 +655,18 @@ export default async function OrdersPage({
             <CardTitle>All Orders</CardTitle>
           </CardHeader>
           <CardContent>
-            <PaginatedOrdersTable
-              orders={ordersWithStatus}
-              totalOrders={totalOrdersCount[0]?.count || 0}
-              currentPage={page}
-              pageSize={pageSize}
-              searchQuery={searchQuery}
-              range={range}
-              filter={filter}
-            />
+              <PaginatedOrdersTable
+                orders={ordersWithStatus}
+                totalOrders={totalOrdersCount[0]?.count || 0}
+                currentPage={page}
+                pageSize={pageSize}
+                searchQuery={searchQuery}
+                productSearch={productSearch}
+                startDate={startDateParam}
+                endDate={endDateParam}
+                range={range}
+                filter={filter}
+              />
           </CardContent>
         </Card>
       </>

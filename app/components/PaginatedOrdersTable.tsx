@@ -15,7 +15,14 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
-import { ChevronLeft, ChevronRight, Search, Filter } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, Filter, Calendar } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 type Order = {
   orderNumber: string | null;
@@ -36,6 +43,9 @@ interface PaginatedOrdersTableProps {
   currentPage: number;
   pageSize: number;
   searchQuery: string;
+  productSearch?: string;
+  startDate?: string;
+  endDate?: string;
   range: string;
   filter: string;
 }
@@ -46,12 +56,18 @@ export function PaginatedOrdersTable({
   currentPage,
   pageSize,
   searchQuery,
+  productSearch = "",
+  startDate = "",
+  endDate = "",
   range,
   filter,
 }: PaginatedOrdersTableProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery);
+  const [localProductSearch, setLocalProductSearch] = useState(productSearch);
+  const [localStartDate, setLocalStartDate] = useState(startDate);
+  const [localEndDate, setLocalEndDate] = useState(endDate);
   
   // Define available filters
   const filters = [
@@ -102,6 +118,26 @@ export function PaginatedOrdersTable({
       params.delete("search");
     }
     
+    // Update or add product search parameter
+    if (localProductSearch) {
+      params.set("product", localProductSearch);
+    } else {
+      params.delete("product");
+    }
+    
+    // Update or add date range parameters
+    if (localStartDate) {
+      params.set("startDate", localStartDate);
+    } else {
+      params.delete("startDate");
+    }
+    
+    if (localEndDate) {
+      params.set("endDate", localEndDate);
+    } else {
+      params.delete("endDate");
+    }
+    
     // Reset to first page when searching
     params.set("page", "1");
     
@@ -126,6 +162,22 @@ export function PaginatedOrdersTable({
     // Navigate with updated params, with scroll: false to prevent scrolling to top
     router.push(`/orders?${params.toString()}`, { scroll: false });
   };
+  
+  const handleClearFilters = () => {
+    // Reset all local state
+    setLocalSearchQuery("");
+    setLocalProductSearch("");
+    setLocalStartDate("");
+    setLocalEndDate("");
+    
+    // Create new URLSearchParams with only the range parameter preserved
+    const params = new URLSearchParams();
+    params.set("range", range);
+    params.set("page", "1");
+    
+    // Navigate with minimal params, with scroll: false to prevent scrolling to top
+    router.push(`/orders?${params.toString()}`, { scroll: false });
+  };
 
   const handlePageChange = (newPage: number) => {
     if (newPage < 1 || newPage > totalPages) return;
@@ -142,35 +194,106 @@ export function PaginatedOrdersTable({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row gap-4 justify-between">
-        <form onSubmit={handleSearch} className="flex gap-2 max-w-md">
-          <Input
-            placeholder="Search by order # or customer name..."
-            value={localSearchQuery}
-            onChange={(e) => setLocalSearchQuery(e.target.value)}
-            className="flex-1"
-          />
-          <Button type="submit" size="icon">
-            <Search className="h-4 w-4" />
-          </Button>
-        </form>
-        
-        <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-muted-foreground" />
-          <div className="flex gap-2">
-            {filters.map((filterOption) => (
-              <Button
-                key={filterOption.id}
-                variant={filter === filterOption.id || (filterOption.id === "all" && !filter) ? "default" : "outline"}
-                size="sm"
-                onClick={() => handleFilterChange(filterOption.id)}
-              >
-                {filterOption.label}
-              </Button>
-            ))}
+      <form onSubmit={handleSearch} className="space-y-4">
+        <div className="flex flex-col lg:flex-row gap-4">
+          {/* First row: Search inputs and filter dropdown */}
+          <div className="flex flex-1 flex-col sm:flex-row gap-4">
+            <div className="flex gap-2 flex-1">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by order # or customer name..."
+                  value={localSearchQuery}
+                  onChange={(e) => setLocalSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            </div>
+            
+            <div className="flex gap-2 flex-1">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by product code or description..."
+                  value={localProductSearch}
+                  onChange={(e) => setLocalProductSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            </div>
+          </div>
+          
+          {/* Filter dropdown and Clear button */}
+          <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                  <Filter className="h-4 w-4" />
+                  <span>{filter === "ar" ? "Accounts Receivable" : "All Orders"}</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuRadioGroup 
+                  value={filter || "all"} 
+                  onValueChange={handleFilterChange}
+                >
+                  {filters.map((filterOption) => (
+                    <DropdownMenuRadioItem key={filterOption.id} value={filterOption.id}>
+                      {filterOption.label}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleClearFilters}
+              className="whitespace-nowrap"
+            >
+              Clear Filters
+            </Button>
           </div>
         </div>
-      </div>
+        
+        {/* Second row: Date inputs and search button */}
+        <div className="flex flex-col sm:flex-row gap-4 items-end">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm whitespace-nowrap">Start:</span>
+              <div className="relative w-auto">
+                <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="date"
+                  value={localStartDate}
+                  onChange={(e) => setLocalStartDate(e.target.value)}
+                  className="pl-9 w-auto"
+                  placeholder="Start Date"
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm whitespace-nowrap">End:</span>
+              <div className="relative w-auto">
+                <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="date"
+                  value={localEndDate}
+                  onChange={(e) => setLocalEndDate(e.target.value)}
+                  className="pl-9 w-auto"
+                  placeholder="End Date"
+                />
+              </div>
+            </div>
+          </div>
+          
+          <Button type="submit">
+            <Search className="h-4 w-4 mr-2" />
+            Search
+          </Button>
+        </div>
+      </form>
       
       <div className="text-sm text-muted-foreground">
         Showing {showingFrom} to {showingTo} of {totalOrders} orders

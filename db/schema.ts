@@ -56,8 +56,20 @@ export const orders = pgTable("orders", {
 	customerName: text("customer_name"),
 	billingAddressLine1: text("billing_address_line_1"),
 	billingAddressLine2: text("billing_address_line_2"),
+	billingAddressLine3: text("billing_address_line_3"),
+	billingAddressCity: text("billing_address_city"),
+	billingAddressState: text("billing_address_state"),
+	billingAddressPostalCode: text("billing_address_postal_code"),
+	billingAddressCountry: text("billing_address_country"),
 	shippingAddressLine1: text("shipping_address_line_1"),
 	shippingAddressLine2: text("shipping_address_line_2"),
+	shippingAddressLine3: text("shipping_address_line_3"),
+	shippingAddressCity: text("shipping_address_city"),
+	shippingAddressState: text("shipping_address_state"),
+	shippingAddressPostalCode: text("shipping_address_postal_code"),
+	shippingAddressCountry: text("shipping_address_country"),
+	industry: text(),
+	sourcechannel: text(),
 });
 
 export const itemHistory = pgTable("item_history", {
