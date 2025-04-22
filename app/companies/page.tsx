@@ -1,6 +1,6 @@
 import { db } from "@/db"
 import { sql } from "drizzle-orm"
-import { companies, companyOrderMapping, customers, orders } from "@/db/schema"
+import { companiesInAnalytics, companyOrderMappingInAnalytics, customersInAnalytics, ordersInAnalytics } from "@/db/schema"
 import Link from "next/link"
 import { getDateRangeFromTimeFrame } from "@/app/utils/dates"
 import { formatCurrency } from "@/lib/utils"
@@ -62,31 +62,31 @@ export default async function CompaniesPage(
     .select({
       count: sql<number>`count(*)`.as("count"),
     })
-    .from(companies)
-    .where(sql`${companies.isConsumerDomain} = false`)
+    .from(companiesInAnalytics)
+    .where(sql`${companiesInAnalytics.isConsumerDomain} = false`)
 
   // Query to get companies with customers
   const companiesWithCustomersPromise = db
     .select({
-      count: sql<number>`count(DISTINCT ${companies.companyId})`.as("count"),
+      count: sql<number>`count(DISTINCT ${companiesInAnalytics.companyId})`.as("count"),
     })
-    .from(companies)
-    .where(sql`${companies.isConsumerDomain} = false`)
+    .from(companiesInAnalytics)
+    .where(sql`${companiesInAnalytics.isConsumerDomain} = false`)
     .innerJoin(
-      customers,
-      sql`${companies.companyId} = ${customers.companyId}`
+      customersInAnalytics,
+      sql`${companiesInAnalytics.companyId} = ${customersInAnalytics.companyId}`
     )
 
   // Query to get companies with orders
   const companiesWithOrdersPromise = db
     .select({
-      count: sql<number>`count(DISTINCT ${companies.companyId})`.as("count"),
+      count: sql<number>`count(DISTINCT ${companiesInAnalytics.companyId})`.as("count"),
     })
-    .from(companies)
-    .where(sql`${companies.isConsumerDomain} = false`)
+    .from(companiesInAnalytics)
+    .where(sql`${companiesInAnalytics.isConsumerDomain} = false`)
     .innerJoin(
-      companyOrderMapping,
-      sql`${companies.companyId} = ${companyOrderMapping.companyId}`
+      companyOrderMappingInAnalytics,
+      sql`${companiesInAnalytics.companyId} = ${companyOrderMappingInAnalytics.companyId}`
     )
 
   // Query to get new companies in the selected time frame
@@ -94,72 +94,72 @@ export default async function CompaniesPage(
     .select({
       count: sql<number>`count(*)`.as("count"),
     })
-    .from(companies)
+    .from(companiesInAnalytics)
     .where(
-      sql`${companies.isConsumerDomain} = false AND created_at >= ${formattedStartDate} AND created_at <= ${formattedEndDate}`
+      sql`${companiesInAnalytics.isConsumerDomain} = false AND created_at >= ${formattedStartDate} AND created_at <= ${formattedEndDate}`
     )
 
   // Query to get top companies by revenue in the selected time frame
   const topCompaniesByRevenuePromise = db
     .select({
-      companyId: companies.companyId,
-      companyName: companies.companyName,
-      companyDomain: companies.companyDomain,
-      totalRevenue: sql<number>`COALESCE(SUM(${orders.totalAmount}), 0)`.as("total_revenue"),
-      orderCount: sql<number>`COUNT(DISTINCT ${orders.orderNumber})`.as("order_count"),
+      companyId: companiesInAnalytics.companyId,
+      companyName: companiesInAnalytics.companyName,
+      companyDomain: companiesInAnalytics.companyDomain,
+      totalRevenue: sql<number>`COALESCE(SUM(${ordersInAnalytics.totalAmount}), 0)`.as("total_revenue"),
+      orderCount: sql<number>`COUNT(DISTINCT ${ordersInAnalytics.orderNumber})`.as("order_count"),
     })
-    .from(companies)
-    .where(sql`${companies.isConsumerDomain} = false`)
+    .from(companiesInAnalytics)
+    .where(sql`${companiesInAnalytics.isConsumerDomain} = false`)
     .innerJoin(
-      companyOrderMapping,
-      sql`${companies.companyId} = ${companyOrderMapping.companyId}`
+      companyOrderMappingInAnalytics,
+      sql`${companiesInAnalytics.companyId} = ${companyOrderMappingInAnalytics.companyId}`
     )
     .innerJoin(
-      orders,
-      sql`${companyOrderMapping.orderNumber} = ${orders.orderNumber} 
-        AND ${orders.orderDate} >= ${formattedStartDate} 
-        AND ${orders.orderDate} <= ${formattedEndDate}`
+      ordersInAnalytics,
+      sql`${companyOrderMappingInAnalytics.orderNumber} = ${ordersInAnalytics.orderNumber} 
+        AND ${ordersInAnalytics.orderDate} >= ${formattedStartDate} 
+        AND ${ordersInAnalytics.orderDate} <= ${formattedEndDate}`
     )
-    .groupBy(companies.companyId, companies.companyName, companies.companyDomain)
+    .groupBy(companiesInAnalytics.companyId, companiesInAnalytics.companyName, companiesInAnalytics.companyDomain)
     .orderBy(sql`total_revenue DESC`)
     .limit(10)
 
   // Query to get top companies by customer count
   const topCompaniesByCustomersPromise = db
     .select({
-      companyId: companies.companyId,
-      companyName: companies.companyName,
-      companyDomain: companies.companyDomain,
-      customerCount: sql<number>`count(DISTINCT ${customers.quickbooksId})`.as(
+      companyId: companiesInAnalytics.companyId,
+      companyName: companiesInAnalytics.companyName,
+      companyDomain: companiesInAnalytics.companyDomain,
+      customerCount: sql<number>`count(DISTINCT ${customersInAnalytics.quickbooksId})`.as(
         "customer_count"
       ),
     })
-    .from(companies)
-    .where(sql`${companies.isConsumerDomain} = false`)
+    .from(companiesInAnalytics)
+    .where(sql`${companiesInAnalytics.isConsumerDomain} = false`)
     .leftJoin(
-      customers,
-      sql`${companies.companyId} = ${customers.companyId}`
+      customersInAnalytics,
+      sql`${companiesInAnalytics.companyId} = ${customersInAnalytics.companyId}`
     )
-    .groupBy(companies.companyId, companies.companyName, companies.companyDomain)
-    .having(sql`count(DISTINCT ${customers.quickbooksId}) > 0`)
+    .groupBy(companiesInAnalytics.companyId, companiesInAnalytics.companyName, companiesInAnalytics.companyDomain)
+    .having(sql`count(DISTINCT ${customersInAnalytics.quickbooksId}) > 0`)
     .orderBy(sql`customer_count DESC`)
     .limit(10)
 
   // Create search condition for companies
   const searchCondition = search 
-    ? sql`${companies.companyName} ILIKE ${'%' + search + '%'} OR ${companies.companyDomain} ILIKE ${'%' + search + '%'}`
+    ? sql`${companiesInAnalytics.companyName} ILIKE ${'%' + search + '%'} OR ${companiesInAnalytics.companyDomain} ILIKE ${'%' + search + '%'}`
     : sql`1=1`
 
   // Query to get all companies with pagination and search
   const allCompaniesPromise = db
     .select({
-      companyId: companies.companyId,
-      companyName: companies.companyName,
-      companyDomain: companies.companyDomain,
-      createdAt: companies.createdAt,
+      companyId: companiesInAnalytics.companyId,
+      companyName: companiesInAnalytics.companyName,
+      companyDomain: companiesInAnalytics.companyDomain,
+      createdAt: companiesInAnalytics.createdAt,
     })
-    .from(companies)
-    .where(sql`${companies.isConsumerDomain} = false AND (${searchCondition})`)
+    .from(companiesInAnalytics)
+    .where(sql`${companiesInAnalytics.isConsumerDomain} = false AND (${searchCondition})`)
     .orderBy(sql`created_at DESC`)
     .limit(pageSize)
     .offset(offset)
@@ -169,8 +169,8 @@ export default async function CompaniesPage(
     .select({
       count: sql<number>`count(*)`.as("count"),
     })
-    .from(companies)
-    .where(sql`${companies.isConsumerDomain} = false AND (${searchCondition})`)
+    .from(companiesInAnalytics)
+    .where(sql`${companiesInAnalytics.isConsumerDomain} = false AND (${searchCondition})`)
 
   // Helper function to join all data fetching promises and render UI
   async function CompaniesContent() {

@@ -1,6 +1,6 @@
 import { db } from "@/db"
 import { sql } from "drizzle-orm"
-import { orders, orderItems, orderCompanyView, customers } from "@/db/schema"
+import { ordersInAnalytics, orderItemsInAnalytics, orderCompanyViewInAnalytics, customersInAnalytics } from "@/db/schema"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { AppSidebar } from "@/components/app-sidebar"
@@ -39,8 +39,8 @@ export default async function OrderDetailPage(
   // Fetch the order details
   const orderDetails = await db
     .select()
-    .from(orders)
-    .where(sql`${orders.orderNumber} = ${orderNumber}`)
+    .from(ordersInAnalytics)
+    .where(sql`${ordersInAnalytics.orderNumber} = ${orderNumber}`)
     .limit(1)
 
   // If order not found, return 404
@@ -53,14 +53,14 @@ export default async function OrderDetailPage(
   // Fetch the order items
   const items = await db
     .select()
-    .from(orderItems)
-    .where(sql`${orderItems.orderNumber} = ${orderNumber}`)
+    .from(orderItemsInAnalytics)
+    .where(sql`${orderItemsInAnalytics.orderNumber} = ${orderNumber}`)
 
   // Fetch customer information
   const customerInfo = await db
     .select()
-    .from(customers)
-    .where(sql`${customers.customerName} = ${order.customerName}`)
+    .from(customersInAnalytics)
+    .where(sql`${customersInAnalytics.customerName} = ${order.customerName}`)
     .limit(1)
 
   const customer = customerInfo.length > 0 ? customerInfo[0] : null
@@ -68,8 +68,8 @@ export default async function OrderDetailPage(
   // Fetch company information if available
   const companyInfo = await db
     .select()
-    .from(orderCompanyView)
-    .where(sql`${orderCompanyView.orderNumber} = ${orderNumber}`)
+    .from(orderCompanyViewInAnalytics)
+    .where(sql`${orderCompanyViewInAnalytics.orderNumber} = ${orderNumber}`)
     .limit(1)
 
   // Calculate order summary

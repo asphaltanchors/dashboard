@@ -1,6 +1,6 @@
 import { db } from "@/db"
 import { sql } from "drizzle-orm"
-import { orderItems, orders, products, companies, companyOrderMapping, itemHistoryView } from "@/db/schema"
+import { orderItemsInAnalytics, ordersInAnalytics, productsInAnalytics, companiesInAnalytics, companyOrderMappingInAnalytics, itemHistoryViewInAnalytics } from "@/db/schema"
 import Link from "next/link"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
@@ -36,14 +36,14 @@ export default async function ProductDashboard(
   // Query to get product information from the products table
   const productInfoResult = await db
     .select({
-      productFamily: products.productFamily,
-      itemQuantity: products.itemQuantity,
-      salesDescription: products.salesDescription,
-      materialType: products.materialType,
-      isKit: products.isKit
+      productFamily: productsInAnalytics.productFamily,
+      itemQuantity: productsInAnalytics.itemQuantity,
+      salesDescription: productsInAnalytics.salesDescription,
+      materialType: productsInAnalytics.materialType,
+      isKit: productsInAnalytics.isKit
     })
-    .from(products)
-    .where(sql`${products.itemName} = ${productCode}`)
+    .from(productsInAnalytics)
+    .where(sql`${productsInAnalytics.itemName} = ${productCode}`)
     .limit(1)
 
   const productInfo = productInfoResult[0] || {
@@ -61,21 +61,21 @@ export default async function ProductDashboard(
   // Query to get product details with date range filter
   const productDetailsResult = await db
     .select({
-      productCode: orderItems.productCode,
-      productDescription: orderItems.productDescription,
-      totalQuantity: sql<number>`SUM(CAST(${orderItems.quantity} AS NUMERIC))`.as("total_quantity"),
-      totalRevenue: sql<number>`SUM(${orderItems.lineAmount})`.as("total_revenue"),
-      avgUnitPrice: sql<number>`AVG(${orderItems.unitPrice})`.as("avg_unit_price"),
-      orderCount: sql<number>`COUNT(DISTINCT ${orderItems.orderNumber})`.as("order_count"),
+      productCode: orderItemsInAnalytics.productCode,
+      productDescription: orderItemsInAnalytics.productDescription,
+      totalQuantity: sql<number>`SUM(CAST(${orderItemsInAnalytics.quantity} AS NUMERIC))`.as("total_quantity"),
+      totalRevenue: sql<number>`SUM(${orderItemsInAnalytics.lineAmount})`.as("total_revenue"),
+      avgUnitPrice: sql<number>`AVG(${orderItemsInAnalytics.unitPrice})`.as("avg_unit_price"),
+      orderCount: sql<number>`COUNT(DISTINCT ${orderItemsInAnalytics.orderNumber})`.as("order_count"),
     })
-    .from(orderItems)
-    .innerJoin(orders, sql`${orders.orderNumber} = ${orderItems.orderNumber}`)
+    .from(orderItemsInAnalytics)
+    .innerJoin(ordersInAnalytics, sql`${ordersInAnalytics.orderNumber} = ${orderItemsInAnalytics.orderNumber}`)
     .where(
-      sql`${orderItems.productCode} = ${productCode} AND 
-          ${orders.orderDate} >= ${formattedStartDate} AND 
-          ${orders.orderDate} <= ${formattedEndDate}`
+      sql`${orderItemsInAnalytics.productCode} = ${productCode} AND 
+          ${ordersInAnalytics.orderDate} >= ${formattedStartDate} AND 
+          ${ordersInAnalytics.orderDate} <= ${formattedEndDate}`
     )
-    .groupBy(orderItems.productCode, orderItems.productDescription)
+    .groupBy(orderItemsInAnalytics.productCode, orderItemsInAnalytics.productDescription)
 
   const productDetails = productDetailsResult[0] || {
     productCode,
@@ -93,8 +93,8 @@ export default async function ProductDashboard(
       SUM(CAST(oi.quantity AS NUMERIC)) as quantity,
       SUM(oi.line_amount) as revenue,
       COUNT(DISTINCT o.order_number) as order_count
-    FROM order_items oi
-    INNER JOIN orders o ON o.order_number = oi.order_number
+    FROM analytics.order_items oi
+    INNER JOIN analytics.orders o ON o.order_number = oi.order_number
     WHERE oi.product_code = ${productCode}
     GROUP BY TO_CHAR(o.order_date, 'YYYY-MM')
     ORDER BY month ASC
@@ -111,61 +111,61 @@ export default async function ProductDashboard(
   // Query to get recent orders for this product with date range filter
   const recentOrders = await db
     .select({
-      orderNumber: orderItems.orderNumber,
-      orderDate: orders.orderDate,
-      quantity: orderItems.quantity,
-      unitPrice: orderItems.unitPrice,
-      lineAmount: orderItems.lineAmount,
-      customerName: orders.customerName,
+      orderNumber: orderItemsInAnalytics.orderNumber,
+      orderDate: ordersInAnalytics.orderDate,
+      quantity: orderItemsInAnalytics.quantity,
+      unitPrice: orderItemsInAnalytics.unitPrice,
+      lineAmount: orderItemsInAnalytics.lineAmount,
+      customerName: ordersInAnalytics.customerName,
     })
-    .from(orderItems)
-    .innerJoin(orders, sql`${orders.orderNumber} = ${orderItems.orderNumber}`)
+    .from(orderItemsInAnalytics)
+    .innerJoin(ordersInAnalytics, sql`${ordersInAnalytics.orderNumber} = ${orderItemsInAnalytics.orderNumber}`)
     .where(
-      sql`${orderItems.productCode} = ${productCode} AND 
-          ${orders.orderDate} >= ${formattedStartDate} AND 
-          ${orders.orderDate} <= ${formattedEndDate}`
+      sql`${orderItemsInAnalytics.productCode} = ${productCode} AND 
+          ${ordersInAnalytics.orderDate} >= ${formattedStartDate} AND 
+          ${ordersInAnalytics.orderDate} <= ${formattedEndDate}`
     )
-    .orderBy(sql`${orders.orderDate} DESC`)
+    .orderBy(sql`${ordersInAnalytics.orderDate} DESC`)
     .limit(10)
 
   // Query to get orders by payment method for this product
   const ordersByPaymentMethod = await db
     .select({
-      paymentMethod: orders.paymentMethod,
+      paymentMethod: ordersInAnalytics.paymentMethod,
       count: sql<number>`count(*)`.as("count"),
-      totalAmount: sql<number>`SUM(${orderItems.lineAmount})`.as("total_amount"),
+      totalAmount: sql<number>`SUM(${orderItemsInAnalytics.lineAmount})`.as("total_amount"),
     })
-    .from(orderItems)
-    .innerJoin(orders, sql`${orders.orderNumber} = ${orderItems.orderNumber}`)
+    .from(orderItemsInAnalytics)
+    .innerJoin(ordersInAnalytics, sql`${ordersInAnalytics.orderNumber} = ${orderItemsInAnalytics.orderNumber}`)
     .where(
-      sql`${orderItems.productCode} = ${productCode} AND 
-          ${orders.orderDate} >= ${formattedStartDate} AND 
-          ${orders.orderDate} <= ${formattedEndDate}`
+      sql`${orderItemsInAnalytics.productCode} = ${productCode} AND 
+          ${ordersInAnalytics.orderDate} >= ${formattedStartDate} AND 
+          ${ordersInAnalytics.orderDate} <= ${formattedEndDate}`
     )
-    .groupBy(orders.paymentMethod)
+    .groupBy(ordersInAnalytics.paymentMethod)
     .orderBy(sql`count DESC`)
     
   // Query to get top companies for this product
   const topCompaniesForProduct = await db
     .select({
-      companyId: companies.companyId,
-      companyName: companies.companyName,
-      companyDomain: companies.companyDomain,
-      totalQuantity: sql<number>`SUM(CAST(${orderItems.quantity} AS NUMERIC))`.as("total_quantity"),
-      totalRevenue: sql<number>`SUM(${orderItems.lineAmount})`.as("total_revenue"),
-      orderCount: sql<number>`COUNT(DISTINCT ${orderItems.orderNumber})`.as("order_count"),
+      companyId: companiesInAnalytics.companyId,
+      companyName: companiesInAnalytics.companyName,
+      companyDomain: companiesInAnalytics.companyDomain,
+      totalQuantity: sql<number>`SUM(CAST(${orderItemsInAnalytics.quantity} AS NUMERIC))`.as("total_quantity"),
+      totalRevenue: sql<number>`SUM(${orderItemsInAnalytics.lineAmount})`.as("total_revenue"),
+      orderCount: sql<number>`COUNT(DISTINCT ${orderItemsInAnalytics.orderNumber})`.as("order_count"),
     })
-    .from(orderItems)
-    .innerJoin(orders, sql`${orders.orderNumber} = ${orderItems.orderNumber}`)
-    .innerJoin(companyOrderMapping, sql`${orders.orderNumber} = ${companyOrderMapping.orderNumber}`)
-    .innerJoin(companies, sql`${companyOrderMapping.companyId} = ${companies.companyId}`)
+    .from(orderItemsInAnalytics)
+    .innerJoin(ordersInAnalytics, sql`${ordersInAnalytics.orderNumber} = ${orderItemsInAnalytics.orderNumber}`)
+    .innerJoin(companyOrderMappingInAnalytics, sql`${ordersInAnalytics.orderNumber} = ${companyOrderMappingInAnalytics.orderNumber}`)
+    .innerJoin(companiesInAnalytics, sql`${companyOrderMappingInAnalytics.companyId} = ${companiesInAnalytics.companyId}`)
     .where(
-      sql`${orderItems.productCode} = ${productCode} AND 
-          ${orders.orderDate} >= ${formattedStartDate} AND 
-          ${orders.orderDate} <= ${formattedEndDate} AND
-          ${companies.isConsumerDomain} = false`
+      sql`${orderItemsInAnalytics.productCode} = ${productCode} AND 
+          ${ordersInAnalytics.orderDate} >= ${formattedStartDate} AND 
+          ${ordersInAnalytics.orderDate} <= ${formattedEndDate} AND
+          ${companiesInAnalytics.isConsumerDomain} = false`
     )
-    .groupBy(companies.companyId, companies.companyName, companies.companyDomain)
+    .groupBy(companiesInAnalytics.companyId, companiesInAnalytics.companyName, companiesInAnalytics.companyDomain)
     .orderBy(sql`total_revenue DESC`)
     .limit(5)
     
@@ -181,19 +181,19 @@ export default async function ProductDashboard(
   // Query to get inventory history for this product
   const inventoryHistory = await db
     .select({
-      columnName: itemHistoryView.columnName,
-      oldValue: itemHistoryView.oldValue,
-      newValue: itemHistoryView.newValue,
-      changedAt: itemHistoryView.changedAt,
-      numericChange: itemHistoryView.numericChange,
-      percentChange: itemHistoryView.percentChange
+      columnName: itemHistoryViewInAnalytics.columnName,
+      oldValue: itemHistoryViewInAnalytics.oldValue,
+      newValue: itemHistoryViewInAnalytics.newValue,
+      changedAt: itemHistoryViewInAnalytics.changedAt,
+      numericChange: itemHistoryViewInAnalytics.numericChange,
+      percentChange: itemHistoryViewInAnalytics.percentChange
     })
-    .from(itemHistoryView)
+    .from(itemHistoryViewInAnalytics)
     .where(
-      sql`${itemHistoryView.itemName} = ${productCode} AND 
-          ${itemHistoryView.columnName} = 'quantity_on_hand'`
+      sql`${itemHistoryViewInAnalytics.itemName} = ${productCode} AND 
+          ${itemHistoryViewInAnalytics.columnName} = 'quantity_on_hand'`
     )
-    .orderBy(sql`${itemHistoryView.changedAt} DESC`)
+    .orderBy(sql`${itemHistoryViewInAnalytics.changedAt} DESC`)
     .limit(10)
 
   return (

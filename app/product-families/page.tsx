@@ -78,7 +78,7 @@ export default async function ProductFamilies({
   // Get distinct product families from database
   const distinctFamiliesResult = await db.execute(sql`
     SELECT DISTINCT product_family 
-    FROM products 
+    FROM analytics.products 
     ORDER BY product_family
   `);
   
@@ -99,9 +99,9 @@ export default async function ProductFamilies({
           COUNT(DISTINCT REGEXP_REPLACE(oi.product_code, ' IN$', '')) as product_count,
           SUM(oi.line_amount) as total_sales,
           SUM(CAST(oi.quantity AS NUMERIC)) as total_quantity
-        FROM order_items oi
-        JOIN orders o ON oi.order_number = o.order_number
-        JOIN products p ON p.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
+        FROM analytics.order_items oi
+        JOIN analytics.orders o ON oi.order_number = o.order_number
+        JOIN analytics.products p ON p.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
         WHERE p.product_family = ${family.familyId}
         AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
       `);
@@ -120,9 +120,9 @@ export default async function ProductFamilies({
           REGEXP_REPLACE(oi.product_code, ' IN$', '') as product_code,
           oi.product_description,
           SUM(oi.line_amount) as total_sales
-        FROM order_items oi
-        JOIN orders o ON oi.order_number = o.order_number
-        JOIN products p ON p.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
+        FROM analytics.order_items oi
+        JOIN analytics.orders o ON oi.order_number = o.order_number
+        JOIN analytics.products p ON p.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
         WHERE p.product_family = ${family.familyId}
         AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
         GROUP BY REGEXP_REPLACE(oi.product_code, ' IN$', ''), oi.product_description
@@ -141,9 +141,9 @@ export default async function ProductFamilies({
           oi.product_description,
           SUM(oi.line_amount) as total_sales,
           SUM(CAST(oi.quantity AS NUMERIC)) as total_quantity
-        FROM order_items oi
-        JOIN orders o ON oi.order_number = o.order_number
-        JOIN products p ON p.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
+        FROM analytics.order_items oi
+        JOIN analytics.orders o ON oi.order_number = o.order_number
+        JOIN analytics.products p ON p.item_name = REGEXP_REPLACE(oi.product_code, ' IN$', '')
         WHERE p.product_family = ${family.familyId}
         AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}
         GROUP BY REGEXP_REPLACE(oi.product_code, ' IN$', ''), oi.product_description

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { db } from "../db";
 import { sql } from "drizzle-orm";
-import { orders, products, orderItems, customers, itemHistoryView, orderCompanyView } from "../db/schema";
+import { ordersInAnalytics, productsInAnalytics, orderItemsInAnalytics, customersInAnalytics, itemHistoryViewInAnalytics, orderCompanyViewInAnalytics } from "../db/schema";
 import { getDateRangeFromTimeFrame } from "./utils/dates";
 
 import { IconTrendingUp, IconTrendingDown } from "@tabler/icons-react";
@@ -64,7 +64,7 @@ export default async function Dashboard({
     totalRevenue: sql<number>`SUM(total_amount)`.as('total_revenue'),
     avgOrderValue: sql<number>`AVG(total_amount)`.as('avg_order_value')
   })
-  .from(orders)
+  .from(ordersInAnalytics)
   .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`);
   
   const totalOrders = orderSummaryResult[0]?.totalOrders || 0;
@@ -76,7 +76,7 @@ export default async function Dashboard({
     totalOrders: sql<number>`count(*)`.as('total_orders'),
     totalRevenue: sql<number>`SUM(total_amount)`.as('total_revenue')
   })
-  .from(orders)
+  .from(ordersInAnalytics)
   .where(sql`order_date >= ${formattedLast30DaysStr}`);
   
   const recentOrdersCount = recentOrdersResult[0]?.totalOrders || 0;
@@ -85,56 +85,56 @@ export default async function Dashboard({
   // Query to get total products
   const totalProductsResult = await db.select({
     count: sql<number>`count(*)`.as('count')
-  }).from(products);
+  }).from(productsInAnalytics);
   
   const totalProducts = totalProductsResult[0]?.count || 0;
 
   // Query to get products with missing descriptions
   const missingDescriptionsResult = await db.select({
     count: sql<number>`count(*)`.as('count')
-  }).from(products)
+  }).from(productsInAnalytics)
   .where(sql`sales_description = '' OR sales_description IS NULL`);
   
   const missingDescriptions = missingDescriptionsResult[0]?.count || 0;
 
   // Query to get top selling products within selected time frame
   const topSellingProducts = await db.select({
-    productCode: orderItems.productCode,
-    productDescription: orderItems.productDescription,
+    productCode: orderItemsInAnalytics.productCode,
+    productDescription: orderItemsInAnalytics.productDescription,
     totalQuantity: sql<number>`SUM(CAST(quantity AS NUMERIC))`.as('total_quantity'),
     totalRevenue: sql<number>`SUM(line_amount)`.as('total_revenue')
   })
-  .from(orderItems)
+  .from(orderItemsInAnalytics)
   .innerJoin(
-    sql`orders`,
-    sql`orders.order_number = ${orderItems.orderNumber}`
+    sql`analytics.orders`,
+    sql`analytics.orders.order_number = ${orderItemsInAnalytics.orderNumber}`
   )
-  .where(sql`quantity IS NOT NULL AND CAST(quantity AS NUMERIC) > 0 AND orders.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
-  .groupBy(orderItems.productCode, orderItems.productDescription)
+  .where(sql`quantity IS NOT NULL AND CAST(quantity AS NUMERIC) > 0 AND analytics.orders.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
+  .groupBy(orderItemsInAnalytics.productCode, orderItemsInAnalytics.productDescription)
   .orderBy(sql`total_quantity DESC`)
   .limit(5);
 
   // Query to get recent orders list within selected time frame
   const recentOrders = await db.select({
-    orderNumber: orders.orderNumber,
-    customerName: orders.customerName,
-    orderDate: orders.orderDate,
-    totalAmount: orders.totalAmount,
-    status: orders.status
+    orderNumber: ordersInAnalytics.orderNumber,
+    customerName: ordersInAnalytics.customerName,
+    orderDate: ordersInAnalytics.orderDate,
+    totalAmount: ordersInAnalytics.totalAmount,
+    status: ordersInAnalytics.status
   })
-  .from(orders)
+  .from(ordersInAnalytics)
   .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
   .orderBy(sql`order_date DESC`)
   .limit(5);
 
   // Query to get orders by status within selected time frame
   const ordersByStatus = await db.select({
-    status: orders.status,
+    status: ordersInAnalytics.status,
     count: sql<number>`count(*)`.as('count')
   })
-  .from(orders)
+  .from(ordersInAnalytics)
   .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
-  .groupBy(orders.status)
+  .groupBy(ordersInAnalytics.status)
   .orderBy(sql`count DESC`);
   
   // We don't need to query orders by month since we're using all-time orders for the chart
@@ -145,45 +145,45 @@ export default async function Dashboard({
     orderCount: sql<number>`count(*)`.as('order_count'),
     totalAmount: sql<number>`SUM(total_amount)`.as('total_amount')
   })
-  .from(orders)
+  .from(ordersInAnalytics)
   .groupBy(sql`month`)
   .orderBy(sql`month ASC`);
   
   // Query to get top companies by order count within selected time frame
   const topCompaniesByOrders = await db.select({
-    companyId: orderCompanyView.companyId,
-    companyName: orderCompanyView.companyName,
-    companyDomain: orderCompanyView.companyDomain,
+    companyId: orderCompanyViewInAnalytics.companyId,
+    companyName: orderCompanyViewInAnalytics.companyName,
+    companyDomain: orderCompanyViewInAnalytics.companyDomain,
     orderCount: sql<number>`count(*)`.as('order_count'),
     totalSpent: sql<number>`SUM(total_amount)`.as('total_spent')
   })
-  .from(orderCompanyView)
+  .from(orderCompanyViewInAnalytics)
   .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
-  .groupBy(orderCompanyView.companyId, orderCompanyView.companyName, orderCompanyView.companyDomain)
+  .groupBy(orderCompanyViewInAnalytics.companyId, orderCompanyViewInAnalytics.companyName, orderCompanyViewInAnalytics.companyDomain)
   .orderBy(sql`order_count DESC`)
   .limit(5);
   
   // Query to get recent product changes
   const recentProductChanges = await db.select({
-    itemName: itemHistoryView.itemName,
-    salesDescription: itemHistoryView.salesDescription,
-    columnName: itemHistoryView.columnName,
-    oldValue: itemHistoryView.oldValue,
-    newValue: itemHistoryView.newValue,
-    changedAt: itemHistoryView.changedAt,
-    percentChange: itemHistoryView.percentChange
+    itemName: itemHistoryViewInAnalytics.itemName,
+    salesDescription: itemHistoryViewInAnalytics.salesDescription,
+    columnName: itemHistoryViewInAnalytics.columnName,
+    oldValue: itemHistoryViewInAnalytics.oldValue,
+    newValue: itemHistoryViewInAnalytics.newValue,
+    changedAt: itemHistoryViewInAnalytics.changedAt,
+    percentChange: itemHistoryViewInAnalytics.percentChange
   })
-  .from(itemHistoryView)
+  .from(itemHistoryViewInAnalytics)
   .orderBy(sql`changed_at DESC`)
   .limit(5);
   
   // Query to get customer types distribution
   const customerTypeDistribution = await db.select({
-    customerType: customers.customerType,
+    customerType: customersInAnalytics.customerType,
     count: sql<number>`count(*)`.as('count')
   })
-  .from(customers)
-  .groupBy(customers.customerType)
+  .from(customersInAnalytics)
+  .groupBy(customersInAnalytics.customerType)
   .orderBy(sql`count DESC`);
   
   // We don't need to query company match distribution since it's not used in the UI

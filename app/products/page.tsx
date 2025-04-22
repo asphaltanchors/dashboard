@@ -1,6 +1,6 @@
 import { db } from "../../db";
 import { sql } from "drizzle-orm";
-import { products, orderItems } from "../../db/schema";
+import { productsInAnalytics, orderItemsInAnalytics } from "../../db/schema";
 import { getDateRangeFromTimeFrame } from "../utils/dates";
 
 import { SearchableProductsTable } from "../components/SearchableProductsTable";
@@ -51,22 +51,22 @@ export default async function ProductsAnalytics({
   // Query to get total number of products
   await db.select({
     count: sql<number>`count(*)`.as('count')
-  }).from(products);
+  }).from(productsInAnalytics);
 
   // Query to get top selling products by quantity
   const topSellingProducts = await db.select({
-    productCode: orderItems.productCode,
-    productDescription: orderItems.productDescription,
+    productCode: orderItemsInAnalytics.productCode,
+    productDescription: orderItemsInAnalytics.productDescription,
     totalQuantity: sql<number>`SUM(CAST(quantity AS NUMERIC))`.as('total_quantity'),
     totalRevenue: sql<number>`SUM(line_amount)`.as('total_revenue')
   })
-  .from(orderItems)
+  .from(orderItemsInAnalytics)
   .innerJoin(
-    sql`orders`,
-    sql`orders.order_number = ${orderItems.orderNumber}`
+    sql`analytics.orders`,
+    sql`analytics.orders.order_number = ${orderItemsInAnalytics.orderNumber}`
   )
-  .where(sql`quantity IS NOT NULL AND CAST(quantity AS NUMERIC) > 0 AND orders.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
-  .groupBy(orderItems.productCode, orderItems.productDescription)
+  .where(sql`quantity IS NOT NULL AND CAST(quantity AS NUMERIC) > 0 AND analytics.orders.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
+  .groupBy(orderItemsInAnalytics.productCode, orderItemsInAnalytics.productDescription)
   .orderBy(sql`total_quantity DESC`)
   .limit(10);
 
@@ -80,7 +80,7 @@ export default async function ProductsAnalytics({
     SELECT AVG(product_count) as avg_products
     FROM (
       SELECT order_id, COUNT(*) as product_count
-      FROM order_items
+      FROM analytics.order_items
       GROUP BY order_id
     ) as order_counts
   `);
@@ -93,9 +93,9 @@ export default async function ProductsAnalytics({
     SELECT 
       p.material_type,
       SUM(oi.line_amount) as total_revenue
-    FROM order_items oi
-    INNER JOIN orders o ON o.order_number = oi.order_number
-    INNER JOIN products p ON p.item_name = oi.product_code
+    FROM analytics.order_items oi
+    INNER JOIN analytics.orders o ON o.order_number = oi.order_number
+    INNER JOIN analytics.products p ON p.item_name = oi.product_code
     WHERE 
       p.material_type IS NOT NULL 
       AND p.material_type <> '' 
@@ -141,9 +141,9 @@ export default async function ProductsAnalytics({
       SELECT 
         COALESCE(p.product_family, 'Uncategorized') as product_line,
         SUM(oi.line_amount) as revenue
-      FROM order_items oi
-      INNER JOIN orders o ON o.order_number = oi.order_number
-      LEFT JOIN products p ON p.item_name = oi.product_code
+      FROM analytics.order_items oi
+      INNER JOIN analytics.orders o ON o.order_number = oi.order_number
+      LEFT JOIN analytics.products p ON p.item_name = oi.product_code
       CROSS JOIN date_ranges dr
       WHERE o.order_date BETWEEN dr.current_start AND dr.current_end
       GROUP BY COALESCE(p.product_family, 'Uncategorized')
@@ -152,9 +152,9 @@ export default async function ProductsAnalytics({
       SELECT 
         COALESCE(p.product_family, 'Uncategorized') as product_line,
         SUM(oi.line_amount) as revenue
-      FROM order_items oi
-      INNER JOIN orders o ON o.order_number = oi.order_number
-      LEFT JOIN products p ON p.item_name = oi.product_code
+      FROM analytics.order_items oi
+      INNER JOIN analytics.orders o ON o.order_number = oi.order_number
+      LEFT JOIN analytics.products p ON p.item_name = oi.product_code
       CROSS JOIN date_ranges dr
       WHERE o.order_date BETWEEN dr.prev_start AND dr.prev_end
       GROUP BY COALESCE(p.product_family, 'Uncategorized')
@@ -190,9 +190,9 @@ export default async function ProductsAnalytics({
       p.product_family as "productFamily",
       p.material_type as "materialType",
       COUNT(DISTINCT oi.order_number) as "orderCount"
-    FROM order_items oi
-    INNER JOIN orders o ON o.order_number = oi.order_number
-    LEFT JOIN products p ON p.item_name = oi.product_code
+    FROM analytics.order_items oi
+    INNER JOIN analytics.orders o ON o.order_number = oi.order_number
+    LEFT JOIN analytics.products p ON p.item_name = oi.product_code
     WHERE 
       oi.product_code IS NOT NULL 
       AND o.order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}

@@ -1,6 +1,6 @@
 import { db } from "@/db"
 import { sql } from "drizzle-orm"
-import { companies, companyOrderMapping, companyStats, customers, orders, orderItems } from "@/db/schema"
+import { companiesInAnalytics, companyOrderMappingInAnalytics, companyStatsInAnalytics, customersInAnalytics, ordersInAnalytics, orderItemsInAnalytics } from "@/db/schema"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { AppSidebar } from "@/components/app-sidebar"
@@ -37,8 +37,8 @@ export default async function CompanyDetailPage(
   // Fetch the company details
   const companyDetails = await db
     .select()
-    .from(companies)
-    .where(sql`${companies.companyId} = ${companyId}`)
+    .from(companiesInAnalytics)
+    .where(sql`${companiesInAnalytics.companyId} = ${companyId}`)
     .limit(1)
 
   // If company not found, return 404
@@ -51,8 +51,8 @@ export default async function CompanyDetailPage(
   // Fetch company stats
   const statsResult = await db
     .select()
-    .from(companyStats)
-    .where(sql`${companyStats.companyId} = ${companyId}`)
+    .from(companyStatsInAnalytics)
+    .where(sql`${companyStatsInAnalytics.companyId} = ${companyId}`)
     .limit(1)
 
   const stats = statsResult.length > 0 ? statsResult[0] : { customerCount: 0, totalOrders: 0 }
@@ -60,73 +60,73 @@ export default async function CompanyDetailPage(
   // Query to get company orders without date filtering
   const companyOrdersPromise = db
     .select({
-      orderNumber: orders.orderNumber,
-      orderDate: orders.orderDate,
-      customerName: orders.customerName,
-      totalAmount: orders.totalAmount,
-      status: orders.status,
+      orderNumber: ordersInAnalytics.orderNumber,
+      orderDate: ordersInAnalytics.orderDate,
+      customerName: ordersInAnalytics.customerName,
+      totalAmount: ordersInAnalytics.totalAmount,
+      status: ordersInAnalytics.status,
     })
-    .from(orders)
+    .from(ordersInAnalytics)
     .innerJoin(
-      companyOrderMapping,
-      sql`${orders.orderNumber} = ${companyOrderMapping.orderNumber}`
+      companyOrderMappingInAnalytics,
+      sql`${ordersInAnalytics.orderNumber} = ${companyOrderMappingInAnalytics.orderNumber}`
     )
     .where(
-      sql`${companyOrderMapping.companyId} = ${companyId}`
+      sql`${companyOrderMappingInAnalytics.companyId} = ${companyId}`
     )
-    .orderBy(sql`${orders.orderDate} DESC`)
+    .orderBy(sql`${ordersInAnalytics.orderDate} DESC`)
     .limit(20)
 
   // Query to get total revenue for the company across all time
   const totalRevenuePromise = db
     .select({
-      totalRevenue: sql<number>`COALESCE(SUM(${orders.totalAmount}), 0)`.as("total_revenue"),
-      orderCount: sql<number>`COUNT(DISTINCT ${orders.orderNumber})`.as("order_count"),
+      totalRevenue: sql<number>`COALESCE(SUM(${ordersInAnalytics.totalAmount}), 0)`.as("total_revenue"),
+      orderCount: sql<number>`COUNT(DISTINCT ${ordersInAnalytics.orderNumber})`.as("order_count"),
     })
-    .from(orders)
+    .from(ordersInAnalytics)
     .innerJoin(
-      companyOrderMapping,
-      sql`${orders.orderNumber} = ${companyOrderMapping.orderNumber}`
+      companyOrderMappingInAnalytics,
+      sql`${ordersInAnalytics.orderNumber} = ${companyOrderMappingInAnalytics.orderNumber}`
     )
     .where(
-      sql`${companyOrderMapping.companyId} = ${companyId}`
+      sql`${companyOrderMappingInAnalytics.companyId} = ${companyId}`
     )
 
   // Query to get customers associated with this company
   const companyCustomersPromise = db
     .select({
-      quickbooksId: customers.quickbooksId,
-      customerName: customers.customerName,
-      firstName: customers.firstName,
-      lastName: customers.lastName,
-      customerType: customers.customerType,
+      quickbooksId: customersInAnalytics.quickbooksId,
+      customerName: customersInAnalytics.customerName,
+      firstName: customersInAnalytics.firstName,
+      lastName: customersInAnalytics.lastName,
+      customerType: customersInAnalytics.customerType,
     })
-    .from(customers)
-    .where(sql`${customers.companyId} = ${companyId}`)
+    .from(customersInAnalytics)
+    .where(sql`${customersInAnalytics.companyId} = ${companyId}`)
     .limit(10)
 
   // Query to get top products purchased by this company across all time
   const topProductsPromise = db
     .select({
-      productCode: orderItems.productCode,
-      productDescription: orderItems.productDescription,
-      totalQuantity: sql<number>`SUM(CAST(${orderItems.quantity} AS NUMERIC))`.as("total_quantity"),
-      totalRevenue: sql<number>`SUM(${orderItems.lineAmount})`.as("total_revenue"),
-      orderCount: sql<number>`COUNT(DISTINCT ${orderItems.orderNumber})`.as("order_count"),
+      productCode: orderItemsInAnalytics.productCode,
+      productDescription: orderItemsInAnalytics.productDescription,
+      totalQuantity: sql<number>`SUM(CAST(${orderItemsInAnalytics.quantity} AS NUMERIC))`.as("total_quantity"),
+      totalRevenue: sql<number>`SUM(${orderItemsInAnalytics.lineAmount})`.as("total_revenue"),
+      orderCount: sql<number>`COUNT(DISTINCT ${orderItemsInAnalytics.orderNumber})`.as("order_count"),
     })
-    .from(orderItems)
+    .from(orderItemsInAnalytics)
     .innerJoin(
-      orders,
-      sql`${orderItems.orderNumber} = ${orders.orderNumber}`
+      ordersInAnalytics,
+      sql`${orderItemsInAnalytics.orderNumber} = ${ordersInAnalytics.orderNumber}`
     )
     .innerJoin(
-      companyOrderMapping,
-      sql`${orders.orderNumber} = ${companyOrderMapping.orderNumber}`
+      companyOrderMappingInAnalytics,
+      sql`${ordersInAnalytics.orderNumber} = ${companyOrderMappingInAnalytics.orderNumber}`
     )
     .where(
-      sql`${companyOrderMapping.companyId} = ${companyId}`
+      sql`${companyOrderMappingInAnalytics.companyId} = ${companyId}`
     )
-    .groupBy(orderItems.productCode, orderItems.productDescription)
+    .groupBy(orderItemsInAnalytics.productCode, orderItemsInAnalytics.productDescription)
     .orderBy(sql`total_revenue DESC`)
     .limit(10)
 

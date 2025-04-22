@@ -1,6 +1,6 @@
 import { db } from "@/db"
 import { sql } from "drizzle-orm"
-import { orders } from "@/db/schema"
+import { ordersInAnalytics } from "@/db/schema"
 import { and, gte, lte, count, or, ne } from "drizzle-orm"
 import { getDateRangeFromTimeFrame } from "@/app/utils/dates"
 import { formatCurrency } from "@/lib/utils"
@@ -70,17 +70,17 @@ export default async function InsightsPage({
   // Query to get all orders within the date range
   const ordersDataPromise = db
     .select({
-      industry: orders.industry,
-      sourceChannel: orders.sourcechannel,
+      industry: ordersInAnalytics.industry,
+      sourceChannel: ordersInAnalytics.sourcechannel,
     })
-    .from(orders)
+    .from(ordersInAnalytics)
     .where(
       and(
-        gte(orders.orderDate, formattedStartDate),
-        lte(orders.orderDate, formattedEndDate),
+        gte(ordersInAnalytics.orderDate, formattedStartDate),
+        lte(ordersInAnalytics.orderDate, formattedEndDate),
         or(
-          ne(orders.industry, ''),
-          ne(orders.sourcechannel, '')
+          ne(ordersInAnalytics.industry, ''),
+          ne(ordersInAnalytics.sourcechannel, '')
         )
       )
     );
@@ -90,11 +90,11 @@ export default async function InsightsPage({
     .select({
       count: sql<number>`count(*)`.as("count"),
     })
-    .from(orders)
+    .from(ordersInAnalytics)
     .where(
       and(
-        gte(orders.orderDate, formattedStartDate),
-        lte(orders.orderDate, formattedEndDate)
+        gte(ordersInAnalytics.orderDate, formattedStartDate),
+        lte(ordersInAnalytics.orderDate, formattedEndDate)
       )
     );
 

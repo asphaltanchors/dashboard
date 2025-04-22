@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { sql, desc, sum, count, eq, and, gte, lte } from "drizzle-orm";
-import { orders, orderItems, products, orderCompanyView } from "@/db/schema";
+import { ordersInAnalytics, orderItemsInAnalytics, productsInAnalytics, orderCompanyViewInAnalytics } from "@/db/schema";
 import Link from "next/link";
 import { getDateRangeFromTimeFrame, getPreviousDateRange } from "@/app/utils/dates";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -59,31 +59,31 @@ export default async function ChannelDetailPage(
   // 1. Summary Metrics (Current Period)
   const currentSummaryPromise = db
     .select({
-      totalOrders: count(orders.orderNumber).mapWith(Number),
-      totalRevenue: sum(orders.totalAmount).mapWith(Number),
+      totalOrders: count(ordersInAnalytics.orderNumber).mapWith(Number),
+      totalRevenue: sum(ordersInAnalytics.totalAmount).mapWith(Number),
       avgOrderValue: sql<number>`AVG(total_amount)`.mapWith(Number),
     })
-    .from(orders)
+    .from(ordersInAnalytics)
     .where(
       and(
-        eq(orders.class, channelName),
-        gte(orders.orderDate, formattedStartDate),
-        lte(orders.orderDate, formattedEndDate)
+        eq(ordersInAnalytics.class, channelName),
+        gte(ordersInAnalytics.orderDate, formattedStartDate),
+        lte(ordersInAnalytics.orderDate, formattedEndDate)
       )
     );
 
   // 2. Summary Metrics (Previous Period)
   const previousSummaryPromise = db
     .select({
-      totalOrders: count(orders.orderNumber).mapWith(Number),
-      totalRevenue: sum(orders.totalAmount).mapWith(Number),
+      totalOrders: count(ordersInAnalytics.orderNumber).mapWith(Number),
+      totalRevenue: sum(ordersInAnalytics.totalAmount).mapWith(Number),
     })
-    .from(orders)
+    .from(ordersInAnalytics)
     .where(
       and(
-        eq(orders.class, channelName),
-        gte(orders.orderDate, prevFormattedStartDate),
-        lte(orders.orderDate, prevFormattedEndDate)
+        eq(ordersInAnalytics.class, channelName),
+        gte(ordersInAnalytics.orderDate, prevFormattedStartDate),
+        lte(ordersInAnalytics.orderDate, prevFormattedEndDate)
       )
     );
 
@@ -91,13 +91,13 @@ export default async function ChannelDetailPage(
   const revenueByMonthPromise = db
     .select({
       month: sql<string>`TO_CHAR(order_date, 'YYYY-MM')`.as('month'),
-      revenue: sum(orders.totalAmount).mapWith(Number),
-      orderCount: count(orders.orderNumber).mapWith(Number),
+      revenue: sum(ordersInAnalytics.totalAmount).mapWith(Number),
+      orderCount: count(ordersInAnalytics.orderNumber).mapWith(Number),
     })
-    .from(orders)
+    .from(ordersInAnalytics)
     .where(
       // Remove date range filter to show all time for this chart
-      eq(orders.class, channelName) 
+      eq(ordersInAnalytics.class, channelName) 
     )
     .groupBy(sql`month`)
     .orderBy(sql`month ASC`);
@@ -105,87 +105,87 @@ export default async function ChannelDetailPage(
   // 4. Top Selling Products within Channel
   const topSellingProductsPromise = db
     .select({
-      productCode: orderItems.productCode,
-      productDescription: orderItems.productDescription,
+      productCode: orderItemsInAnalytics.productCode,
+      productDescription: orderItemsInAnalytics.productDescription,
       totalQuantity: sum(sql`CAST(quantity AS NUMERIC)`).mapWith(Number),
-      totalRevenue: sum(orderItems.lineAmount).mapWith(Number),
+      totalRevenue: sum(orderItemsInAnalytics.lineAmount).mapWith(Number),
     })
-    .from(orderItems)
-    .innerJoin(orders, eq(orders.orderNumber, orderItems.orderNumber))
+    .from(orderItemsInAnalytics)
+    .innerJoin(ordersInAnalytics, eq(ordersInAnalytics.orderNumber, orderItemsInAnalytics.orderNumber))
     .where(
       and(
-        eq(orders.class, channelName),
-        gte(orders.orderDate, formattedStartDate),
-        lte(orders.orderDate, formattedEndDate),
+        eq(ordersInAnalytics.class, channelName),
+        gte(ordersInAnalytics.orderDate, formattedStartDate),
+        lte(ordersInAnalytics.orderDate, formattedEndDate),
         sql`quantity IS NOT NULL AND CAST(quantity AS NUMERIC) > 0`
       )
     )
-    .groupBy(orderItems.productCode, orderItems.productDescription)
+    .groupBy(orderItemsInAnalytics.productCode, orderItemsInAnalytics.productDescription)
     .orderBy(desc(sql`SUM(line_amount)`))
     .limit(10);
 
   // 5. Recent Orders within Channel
   const recentOrdersPromise = db
     .select({
-      orderNumber: orders.orderNumber,
-      customerName: orders.customerName,
-      orderDate: orders.orderDate,
-      totalAmount: orders.totalAmount,
-      status: orders.status,
-      companyName: orderCompanyView.companyName, // Join with view for company name
+      orderNumber: ordersInAnalytics.orderNumber,
+      customerName: ordersInAnalytics.customerName,
+      orderDate: ordersInAnalytics.orderDate,
+      totalAmount: ordersInAnalytics.totalAmount,
+      status: ordersInAnalytics.status,
+      companyName: orderCompanyViewInAnalytics.companyName, // Join with view for company name
     })
-    .from(orders)
-    .leftJoin(orderCompanyView, eq(orders.quickbooksId, orderCompanyView.quickbooksId)) // Join based on quickbooksId
+    .from(ordersInAnalytics)
+    .leftJoin(orderCompanyViewInAnalytics, eq(ordersInAnalytics.quickbooksId, orderCompanyViewInAnalytics.quickbooksId)) // Join based on quickbooksId
     .where(
       and(
-        eq(orders.class, channelName),
-        gte(orders.orderDate, formattedStartDate),
-        lte(orders.orderDate, formattedEndDate)
+        eq(ordersInAnalytics.class, channelName),
+        gte(ordersInAnalytics.orderDate, formattedStartDate),
+        lte(ordersInAnalytics.orderDate, formattedEndDate)
       )
     )
-    .orderBy(desc(orders.orderDate))
+    .orderBy(desc(ordersInAnalytics.orderDate))
     .limit(10);
 
   // 6. Top Companies buying through Channel
   const topCompaniesPromise = db
     .select({
-      companyId: orderCompanyView.companyId,
-      companyName: orderCompanyView.companyName,
-      companyDomain: orderCompanyView.companyDomain,
-      orderCount: count(orderCompanyView.orderNumber).mapWith(Number),
-      totalSpent: sum(orderCompanyView.totalAmount).mapWith(Number),
+      companyId: orderCompanyViewInAnalytics.companyId,
+      companyName: orderCompanyViewInAnalytics.companyName,
+      companyDomain: orderCompanyViewInAnalytics.companyDomain,
+      orderCount: count(orderCompanyViewInAnalytics.orderNumber).mapWith(Number),
+      totalSpent: sum(orderCompanyViewInAnalytics.totalAmount).mapWith(Number),
     })
-    .from(orderCompanyView)
-    .innerJoin(orders, eq(orders.quickbooksId, orderCompanyView.quickbooksId)) // Join orders to filter by class
+    .from(orderCompanyViewInAnalytics)
+    .innerJoin(ordersInAnalytics, eq(ordersInAnalytics.quickbooksId, orderCompanyViewInAnalytics.quickbooksId)) // Join orders to filter by class
     .where(
       and(
-        eq(orders.class, channelName),
-        gte(orderCompanyView.orderDate, formattedStartDate),
-        lte(orderCompanyView.orderDate, formattedEndDate)
+        eq(ordersInAnalytics.class, channelName),
+        gte(orderCompanyViewInAnalytics.orderDate, formattedStartDate),
+        lte(orderCompanyViewInAnalytics.orderDate, formattedEndDate)
       )
     )
-    .groupBy(orderCompanyView.companyId, orderCompanyView.companyName, orderCompanyView.companyDomain)
+    .groupBy(orderCompanyViewInAnalytics.companyId, orderCompanyViewInAnalytics.companyName, orderCompanyViewInAnalytics.companyDomain)
     .orderBy(desc(sql`count(*)`))
     .limit(10);
 
   // 7. Revenue by Product Family within Channel
   const revenueByFamilyPromise = db
     .select({
-      family: products.productFamily,
-      revenue: sum(orderItems.lineAmount).mapWith(Number),
+      family: productsInAnalytics.productFamily,
+      revenue: sum(orderItemsInAnalytics.lineAmount).mapWith(Number),
     })
-    .from(orderItems)
-    .innerJoin(orders, eq(orders.orderNumber, orderItems.orderNumber))
-    .innerJoin(products, eq(products.itemName, orderItems.productCode)) // Assuming productCode matches itemName
+    .from(orderItemsInAnalytics)
+    .innerJoin(ordersInAnalytics, eq(ordersInAnalytics.orderNumber, orderItemsInAnalytics.orderNumber))
+    .innerJoin(productsInAnalytics, eq(productsInAnalytics.itemName, orderItemsInAnalytics.productCode)) // Assuming productCode matches itemName
     .where(
       and(
-        eq(orders.class, channelName),
-        gte(orders.orderDate, formattedStartDate),
-        lte(orders.orderDate, formattedEndDate),
-        sql`${products.productFamily} IS NOT NULL`
+        eq(ordersInAnalytics.class, channelName),
+        gte(ordersInAnalytics.orderDate, formattedStartDate),
+        lte(ordersInAnalytics.orderDate, formattedEndDate),
+        sql`${productsInAnalytics.productFamily} IS NOT NULL`
       )
     )
-    .groupBy(products.productFamily)
+    .groupBy(productsInAnalytics.productFamily)
     .orderBy(desc(sql`SUM(line_amount)`));
 
 

@@ -1,6 +1,6 @@
 import { db } from "@/db"
 import { sql } from "drizzle-orm"
-import { orders, orderCompanyView } from "@/db/schema"
+import { ordersInAnalytics, orderCompanyViewInAnalytics } from "@/db/schema"
 import { desc, sum, count, and, gte, lte, or, ilike } from "drizzle-orm" // Import necessary Drizzle functions
 import { getDateRangeFromTimeFrame, getPreviousDateRange } from "@/app/utils/dates" // Import getPreviousDateRange
 import { formatCurrency } from "@/lib/utils" // Import formatCurrency function
@@ -81,12 +81,12 @@ export default async function OrdersPage(
       totalRevenue: sql<number>`SUM(total_amount)`.as("total_revenue"),
       avgOrderValue: sql<number>`AVG(total_amount)`.as("avg_order_value"),
     })
-    .from(orders)
+    .from(ordersInAnalytics)
     .where(
       // Use Drizzle's 'and', 'gte', 'lte' for type safety if possible, or stick to sql``
       and(
-        gte(orders.orderDate, formattedStartDate),
-        lte(orders.orderDate, formattedEndDate)
+        gte(ordersInAnalytics.orderDate, formattedStartDate),
+        lte(ordersInAnalytics.orderDate, formattedEndDate)
       )
       // sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`
     )
@@ -96,11 +96,11 @@ export default async function OrdersPage(
     .select({
       totalRevenue: sql<number>`SUM(total_amount)`.as("total_revenue"),
     })
-    .from(orders)
+    .from(ordersInAnalytics)
     .where(
       and(
-        gte(orders.orderDate, prevFormattedStartDate1),
-        lte(orders.orderDate, prevFormattedEndDate1)
+        gte(ordersInAnalytics.orderDate, prevFormattedStartDate1),
+        lte(ordersInAnalytics.orderDate, prevFormattedEndDate1)
       )
     )
 
@@ -111,12 +111,12 @@ export default async function OrdersPage(
     .select({
       totalUnpaid: sql<number>`SUM(total_amount)`.as("total_unpaid"),
     })
-    .from(orders)
+    .from(ordersInAnalytics)
     .where(
       and(
-        gte(orders.orderDate, formattedStartDate),
-        lte(orders.orderDate, formattedEndDate),
-        sql`${orders.status} != 'Paid' AND ${orders.status} != 'Closed'` // Exclude both Paid and Closed orders
+        gte(ordersInAnalytics.orderDate, formattedStartDate),
+        lte(ordersInAnalytics.orderDate, formattedEndDate),
+        sql`${ordersInAnalytics.status} != 'Paid' AND ${ordersInAnalytics.status} != 'Closed'` // Exclude both Paid and Closed orders
       )
     )
 
@@ -125,12 +125,12 @@ export default async function OrdersPage(
     .select({
       totalUnpaid: sql<number>`SUM(total_amount)`.as("total_unpaid"),
     })
-    .from(orders)
+    .from(ordersInAnalytics)
     .where(
       and(
-        gte(orders.orderDate, prevFormattedStartDate1),
-        lte(orders.orderDate, prevFormattedEndDate1),
-        sql`${orders.status} != 'Paid' AND ${orders.status} != 'Closed'` // Exclude both Paid and Closed orders
+        gte(ordersInAnalytics.orderDate, prevFormattedStartDate1),
+        lte(ordersInAnalytics.orderDate, prevFormattedEndDate1),
+        sql`${ordersInAnalytics.status} != 'Paid' AND ${ordersInAnalytics.status} != 'Closed'` // Exclude both Paid and Closed orders
       )
     )
 
@@ -140,13 +140,13 @@ export default async function OrdersPage(
 
   // Build the base filter conditions
   const baseConditions = [
-    gte(orderCompanyView.orderDate, effectiveStartDate),
-    lte(orderCompanyView.orderDate, effectiveEndDate),
+    gte(orderCompanyViewInAnalytics.orderDate, effectiveStartDate),
+    lte(orderCompanyViewInAnalytics.orderDate, effectiveEndDate),
     // Add search conditions if search query is provided
     searchQuery
       ? or(
-          ilike(orderCompanyView.orderNumber, `%${searchQuery}%`),
-          ilike(orderCompanyView.customerName, `%${searchQuery}%`)
+          ilike(orderCompanyViewInAnalytics.orderNumber, `%${searchQuery}%`),
+          ilike(orderCompanyViewInAnalytics.customerName, `%${searchQuery}%`)
         )
       : undefined
   ];
@@ -156,8 +156,8 @@ export default async function OrdersPage(
     // For Accounts Receivable, we want orders that are not Paid or Closed
     baseConditions.push(
       sql`EXISTS (
-        SELECT 1 FROM orders o 
-        WHERE o.order_number = ${orderCompanyView.orderNumber} 
+        SELECT 1 FROM analytics.orders o 
+        WHERE o.order_number = ${orderCompanyViewInAnalytics.orderNumber} 
         AND o.status != 'Paid' 
         AND o.status != 'Closed'
       )`
@@ -168,8 +168,8 @@ export default async function OrdersPage(
   let productFilterSubquery = undefined
   if (productSearch) {
     productFilterSubquery = sql`EXISTS (
-      SELECT 1 FROM order_items oi 
-      WHERE oi.order_number = ${orderCompanyView.orderNumber}
+      SELECT 1 FROM analytics.order_items oi 
+      WHERE oi.order_number = ${orderCompanyViewInAnalytics.orderNumber}
       AND (
         oi.product_code ILIKE ${`%${productSearch}%`} OR 
         oi.product_description ILIKE ${`%${productSearch}%`}
@@ -183,96 +183,96 @@ export default async function OrdersPage(
     .select({
       count: sql<number>`count(*)`.as("count"),
     })
-    .from(orderCompanyView)
+    .from(orderCompanyViewInAnalytics)
     .where(and(...baseConditions.filter(Boolean)))
 
   // Query to get paginated orders list with company information
   const paginatedOrdersListPromise = db
     .select({
-      orderNumber: orderCompanyView.orderNumber,
-      customerName: orderCompanyView.customerName,
-      orderDate: orderCompanyView.orderDate,
-      totalAmount: orderCompanyView.totalAmount,
-      companyName: orderCompanyView.companyName,
-      companyDomain: orderCompanyView.companyDomain,
-      companyId: orderCompanyView.companyId,
-      matchType: orderCompanyView.matchType,
-      confidence: orderCompanyView.confidence,
+      orderNumber: orderCompanyViewInAnalytics.orderNumber,
+      customerName: orderCompanyViewInAnalytics.customerName,
+      orderDate: orderCompanyViewInAnalytics.orderDate,
+      totalAmount: orderCompanyViewInAnalytics.totalAmount,
+      companyName: orderCompanyViewInAnalytics.companyName,
+      companyDomain: orderCompanyViewInAnalytics.companyDomain,
+      companyId: orderCompanyViewInAnalytics.companyId,
+      matchType: orderCompanyViewInAnalytics.matchType,
+      confidence: orderCompanyViewInAnalytics.confidence,
     })
-    .from(orderCompanyView)
+    .from(orderCompanyViewInAnalytics)
     .where(and(...baseConditions.filter(Boolean)))
-    .orderBy(desc(orderCompanyView.orderDate))
+    .orderBy(desc(orderCompanyViewInAnalytics.orderDate))
     .limit(pageSize)
     .offset(offset)
 
   // --- NEW: Query for Sales Channel Metrics (Current Period) ---
   const currentSalesChannelMetricsPromise = db
     .select({
-      sales_channel: orders.class, // 'class' column likely holds the channel
-      total_revenue: sum(orders.totalAmount).mapWith(String), // Ensure string type
-      order_count: count(orders.orderNumber).mapWith(String), // Ensure string type
+      sales_channel: ordersInAnalytics.class, // 'class' column likely holds the channel
+      total_revenue: sum(ordersInAnalytics.totalAmount).mapWith(String), // Ensure string type
+      order_count: count(ordersInAnalytics.orderNumber).mapWith(String), // Ensure string type
     })
-    .from(orders)
+    .from(ordersInAnalytics)
     .where(
       and(
-        gte(orders.orderDate, formattedStartDate),
-        lte(orders.orderDate, formattedEndDate),
+        gte(ordersInAnalytics.orderDate, formattedStartDate),
+        lte(ordersInAnalytics.orderDate, formattedEndDate),
         // Optional: Add other filters if needed, e.g., filter out null channels
-        sql`${orders.class} IS NOT NULL`
+        sql`${ordersInAnalytics.class} IS NOT NULL`
       )
     )
-    .groupBy(orders.class)
+    .groupBy(ordersInAnalytics.class)
 
   // --- Query for Sales Channel Metrics (Previous Periods) ---
   const previousSalesChannelMetricsPromise1 = db
     .select({
-      sales_channel: orders.class,
-      total_revenue: sum(orders.totalAmount).mapWith(String),
-      order_count: count(orders.orderNumber).mapWith(String),
+      sales_channel: ordersInAnalytics.class,
+      total_revenue: sum(ordersInAnalytics.totalAmount).mapWith(String),
+      order_count: count(ordersInAnalytics.orderNumber).mapWith(String),
     })
-    .from(orders)
+    .from(ordersInAnalytics)
     .where(
       and(
-        gte(orders.orderDate, prevFormattedStartDate1),
-        lte(orders.orderDate, prevFormattedEndDate1),
-        sql`${orders.class} IS NOT NULL`
+        gte(ordersInAnalytics.orderDate, prevFormattedStartDate1),
+        lte(ordersInAnalytics.orderDate, prevFormattedEndDate1),
+        sql`${ordersInAnalytics.class} IS NOT NULL`
       )
     )
-    .groupBy(orders.class)
+    .groupBy(ordersInAnalytics.class)
 
   // Query for 2nd previous period
   const previousSalesChannelMetricsPromise2 = db
     .select({
-      sales_channel: orders.class,
-      total_revenue: sum(orders.totalAmount).mapWith(String),
-      order_count: count(orders.orderNumber).mapWith(String),
+      sales_channel: ordersInAnalytics.class,
+      total_revenue: sum(ordersInAnalytics.totalAmount).mapWith(String),
+      order_count: count(ordersInAnalytics.orderNumber).mapWith(String),
     })
-    .from(orders)
+    .from(ordersInAnalytics)
     .where(
       and(
-        gte(orders.orderDate, prevFormattedStartDate2),
-        lte(orders.orderDate, prevFormattedEndDate2),
-        sql`${orders.class} IS NOT NULL`
+        gte(ordersInAnalytics.orderDate, prevFormattedStartDate2),
+        lte(ordersInAnalytics.orderDate, prevFormattedEndDate2),
+        sql`${ordersInAnalytics.class} IS NOT NULL`
       )
     )
-    .groupBy(orders.class)
+    .groupBy(ordersInAnalytics.class)
 
   // Query for 3rd previous period
   const previousSalesChannelMetricsPromise3 = db
     .select({
-      sales_channel: orders.class,
-      total_revenue: sum(orders.totalAmount).mapWith(String),
-      order_count: count(orders.orderNumber).mapWith(String),
+      sales_channel: ordersInAnalytics.class,
+      total_revenue: sum(ordersInAnalytics.totalAmount).mapWith(String),
+      order_count: count(ordersInAnalytics.orderNumber).mapWith(String),
     })
-    .from(orders)
+    .from(ordersInAnalytics)
     .where(
       and(
-        gte(orders.orderDate, prevFormattedStartDate3),
-        lte(orders.orderDate, prevFormattedEndDate3),
-        sql`${orders.class} IS NOT NULL`
+        gte(ordersInAnalytics.orderDate, prevFormattedStartDate3),
+        lte(ordersInAnalytics.orderDate, prevFormattedEndDate3),
+        sql`${ordersInAnalytics.class} IS NOT NULL`
       )
     )
-    .groupBy(orders.class)
+    .groupBy(ordersInAnalytics.class)
 
 
   // Helper function to join all data fetching promises and render UI
@@ -509,9 +509,9 @@ export default async function OrdersPage(
 
     // Fetch status information directly from orders table for each order
     const orderStatusPromises = paginatedOrdersList.map(order =>
-      db.select({ status: orders.status })
-        .from(orders)
-        .where(sql`${orders.orderNumber} = ${order.orderNumber}`)
+      db.select({ status: ordersInAnalytics.status })
+        .from(ordersInAnalytics)
+        .where(sql`${ordersInAnalytics.orderNumber} = ${order.orderNumber}`)
         .limit(1)
     )
 
