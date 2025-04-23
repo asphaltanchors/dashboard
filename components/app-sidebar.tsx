@@ -9,6 +9,7 @@ import {
   IconInnerShadowTop,
   IconUsers,
   IconChartPie,
+  IconUserCircle,
 } from "@tabler/icons-react"
 import Link from "next/link"
 
@@ -53,6 +54,11 @@ const data = {
       title: "Insights",
       url: "/insights",
       icon: IconChartPie,
+    },
+    {
+      title: "People",
+      url: "/people",
+      icon: IconUserCircle,
     },
   ],
   documents: [
