@@ -33,71 +33,8 @@ export default async function PeopleCustomerTypePage(
   const dateRange = getDateRangeFromTimeFrame(range);
   const { formattedStartDate, formattedEndDate, displayText } = dateRange;
 
-  // Query to get people of this customer type
+  // Query to get people of this customer type (no date filter)
   const peoplePromise = db
-    .select({
-      firstName: customersInAnalytics.firstName,
-      lastName: customersInAnalytics.lastName,
-      email: sql<string>`COALESCE(
-        (SELECT email_address FROM analytics.customer_emails 
-         WHERE customer_name = ${customersInAnalytics.customerName} 
-         AND is_primary_email = true 
-         LIMIT 1),
-        ${customersInAnalytics.email}
-      )`.mapWith(String),
-      customerName: customersInAnalytics.customerName,
-      orderCount: sql<string>`COUNT(${ordersInAnalytics.orderNumber})`.mapWith(String),
-      totalSpent: sql<string>`SUM(${ordersInAnalytics.totalAmount})`.mapWith(String),
-      lastOrderDate: sql<string>`MAX(${ordersInAnalytics.orderDate})`.mapWith(String),
-      channel: sql<string>`string_agg(DISTINCT ${ordersInAnalytics.class}, ', ')`.mapWith(String),
-      emailCount: sql<number>`(
-        SELECT COUNT(*) FROM analytics.customer_emails 
-        WHERE customer_name = ${customersInAnalytics.customerName}
-      )`.mapWith(Number),
-    })
-    .from(customersInAnalytics)
-    .leftJoin(
-      ordersInAnalytics,
-      and(
-        eq(customersInAnalytics.customerName, ordersInAnalytics.customerName),
-        gte(ordersInAnalytics.orderDate, formattedStartDate),
-        lte(ordersInAnalytics.orderDate, formattedEndDate)
-      )
-    )
-    .where(
-      eq(customersInAnalytics.customerType, customerType)
-    )
-    .groupBy(
-      customersInAnalytics.firstName,
-      customersInAnalytics.lastName,
-      customersInAnalytics.email,
-      customersInAnalytics.customerName
-    )
-    .orderBy(desc(sql`SUM(${ordersInAnalytics.totalAmount})`));
-
-  // Query to get summary metrics for this customer type
-  const customerTypeSummaryPromise = db
-    .select({
-      totalPeople: sql<number>`COUNT(DISTINCT ${customersInAnalytics.customerName})`,
-      totalOrders: sql<number>`COUNT(${ordersInAnalytics.orderNumber})`,
-      totalRevenue: sql<number>`SUM(${ordersInAnalytics.totalAmount})`,
-      avgOrderValue: sql<number>`AVG(${ordersInAnalytics.totalAmount})`,
-    })
-    .from(customersInAnalytics)
-    .leftJoin(
-      ordersInAnalytics,
-      and(
-        eq(customersInAnalytics.customerName, ordersInAnalytics.customerName),
-        gte(ordersInAnalytics.orderDate, formattedStartDate),
-        lte(ordersInAnalytics.orderDate, formattedEndDate)
-      )
-    )
-    .where(
-      eq(customersInAnalytics.customerType, customerType)
-    );
-
-  // Query to get ALL people of this customer type (without date filter for export)
-  const allPeoplePromise = db
     .select({
       firstName: customersInAnalytics.firstName,
       lastName: customersInAnalytics.lastName,
@@ -134,11 +71,27 @@ export default async function PeopleCustomerTypePage(
     )
     .orderBy(desc(sql`SUM(${ordersInAnalytics.totalAmount})`));
 
+  // Query to get summary metrics for this customer type (no date filter)
+  const customerTypeSummaryPromise = db
+    .select({
+      totalPeople: sql<number>`COUNT(DISTINCT ${customersInAnalytics.customerName})`,
+      totalOrders: sql<number>`COUNT(${ordersInAnalytics.orderNumber})`,
+      totalRevenue: sql<number>`SUM(${ordersInAnalytics.totalAmount})`,
+      avgOrderValue: sql<number>`AVG(${ordersInAnalytics.totalAmount})`,
+    })
+    .from(customersInAnalytics)
+    .leftJoin(
+      ordersInAnalytics,
+      eq(customersInAnalytics.customerName, ordersInAnalytics.customerName)
+    )
+    .where(
+      eq(customersInAnalytics.customerType, customerType)
+    );
+
   // Wait for all promises
-  const [people, customerTypeSummary, allPeople] = await Promise.all([
+  const [people, customerTypeSummary] = await Promise.all([
     peoplePromise,
     customerTypeSummaryPromise,
-    allPeoplePromise,
   ]);
 
   // Format dates
@@ -252,7 +205,7 @@ export default async function PeopleCustomerTypePage(
                       </CardDescription>
                     </div>
                     <ExportCSVButton
-                      data={allPeople.map(person => ({
+                      data={people.map(person => ({
                         email: person.email || '',
                         firstName: person.firstName || '',
                         lastName: person.lastName || '',

@@ -32,7 +32,7 @@ export default async function PeopleChannelPage(
   const dateRange = getDateRangeFromTimeFrame(range);
   const { formattedStartDate, formattedEndDate, displayText } = dateRange;
 
-  // Query to get people who have placed orders through this channel
+  // Query to get people who have placed orders through this channel (no date filter)
   const peoplePromise = db
     .select({
       firstName: customersInAnalytics.firstName,
@@ -56,11 +56,7 @@ export default async function PeopleChannelPage(
       eq(customersInAnalytics.customerName, ordersInAnalytics.customerName)
     )
     .where(
-      and(
-        eq(ordersInAnalytics.class, channelName),
-        gte(ordersInAnalytics.orderDate, formattedStartDate),
-        lte(ordersInAnalytics.orderDate, formattedEndDate)
-      )
+      eq(ordersInAnalytics.class, channelName)
     )
     .groupBy(
       customersInAnalytics.firstName,
@@ -71,7 +67,7 @@ export default async function PeopleChannelPage(
     )
     .orderBy(desc(sql`SUM(${ordersInAnalytics.totalAmount})`));
 
-  // Query to get summary metrics for this channel
+  // Query to get summary metrics for this channel (no date filter)
   const channelSummaryPromise = db
     .select({
       totalPeople: sql<number>`COUNT(DISTINCT ${customersInAnalytics.customerName})`,
@@ -85,11 +81,7 @@ export default async function PeopleChannelPage(
       eq(ordersInAnalytics.customerName, customersInAnalytics.customerName)
     )
     .where(
-      and(
-        eq(ordersInAnalytics.class, channelName),
-        gte(ordersInAnalytics.orderDate, formattedStartDate),
-        lte(ordersInAnalytics.orderDate, formattedEndDate)
-      )
+      eq(ordersInAnalytics.class, channelName)
     );
 
   // Wait for all promises

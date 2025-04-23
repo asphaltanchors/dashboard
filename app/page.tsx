@@ -3,8 +3,21 @@ import { db } from "../db";
 import { sql } from "drizzle-orm";
 import { ordersInAnalytics, productsInAnalytics, orderItemsInAnalytics, customersInAnalytics, itemHistoryViewInAnalytics, orderCompanyViewInAnalytics } from "../db/schema";
 import { getDateRangeFromTimeFrame } from "./utils/dates";
+import { formatCurrency } from "@/lib/utils";
 
-import { IconTrendingUp, IconTrendingDown } from "@tabler/icons-react";
+import { 
+  IconTrendingUp, 
+  IconTrendingDown, 
+  IconShoppingCart, 
+  IconCurrencyDollar, 
+  IconCalculator,
+  IconChartBar,
+  IconBuildingStore,
+  IconPackage,
+  IconClipboardList,
+  IconUsers,
+  IconStatusChange
+} from "@tabler/icons-react";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ChartAreaInteractive } from "@/components/chart-area-interactive";
 import { SiteHeader } from "@/components/site-header";
@@ -53,6 +66,25 @@ export default async function Dashboard({
     displayText
   } = getDateRangeFromTimeFrame(range, startDateParam, endDateParam);
   
+  // Calculate previous period dates of equal length
+  const startDate = new Date(formattedStartDate);
+  const currentPeriodEndDate = new Date(formattedEndDate);
+  
+  // Calculate the length of the current period in milliseconds
+  const periodLength = currentPeriodEndDate.getTime() - startDate.getTime();
+  
+  // Calculate previous period end date (day before current period starts)
+  const previousPeriodEndDate = new Date(startDate);
+  previousPeriodEndDate.setDate(previousPeriodEndDate.getDate() - 1);
+  
+  // Calculate previous period start date (same length as current period)
+  const previousPeriodStartDate = new Date(previousPeriodEndDate);
+  previousPeriodStartDate.setTime(previousPeriodEndDate.getTime() - periodLength);
+  
+  // Format dates for SQL queries
+  const formattedPreviousPeriodStartDate = previousPeriodStartDate.toISOString().split('T')[0];
+  const formattedPreviousPeriodEndDate = previousPeriodEndDate.toISOString().split('T')[0];
+  
   // For backward compatibility with existing queries
   const formattedLast30Days = new Date(endDate);
   formattedLast30Days.setDate(endDate.getDate() - 30);
@@ -70,6 +102,45 @@ export default async function Dashboard({
   const totalOrders = orderSummaryResult[0]?.totalOrders || 0;
   const totalRevenue = orderSummaryResult[0]?.totalRevenue || 0;
   const avgOrderValue = orderSummaryResult[0]?.avgOrderValue || 0;
+  
+  // Query to get orders, revenue and avg order value for the previous period
+  const previousPeriodResult = await db.select({
+    totalOrders: sql<number>`count(*)`.as('total_orders'),
+    totalRevenue: sql<number>`SUM(total_amount)`.as('total_revenue'),
+    avgOrderValue: sql<number>`AVG(total_amount)`.as('avg_order_value')
+  })
+  .from(ordersInAnalytics)
+  .where(sql`order_date BETWEEN ${formattedPreviousPeriodStartDate} AND ${formattedPreviousPeriodEndDate}`);
+  
+  const previousPeriodOrders = previousPeriodResult[0]?.totalOrders || 0;
+  const previousPeriodRevenue = previousPeriodResult[0]?.totalRevenue || 0;
+  const previousPeriodAvgOrderValue = previousPeriodResult[0]?.avgOrderValue || 0;
+  
+  // Calculate percentage change for orders
+  const ordersChange = totalOrders - previousPeriodOrders;
+  const ordersChangePercentage = previousPeriodOrders !== 0 
+    ? (ordersChange / previousPeriodOrders) * 100 
+    : 0;
+  
+  // Calculate percentage change for revenue
+  const revenueChange = totalRevenue - previousPeriodRevenue;
+  const revenueChangePercentage = previousPeriodRevenue !== 0 
+    ? (revenueChange / previousPeriodRevenue) * 100 
+    : 0;
+  
+  // Calculate percentage change for average order value
+  const avgOrderValueChange = avgOrderValue - previousPeriodAvgOrderValue;
+  const avgOrderValueChangePercentage = previousPeriodAvgOrderValue !== 0 
+    ? (avgOrderValueChange / previousPeriodAvgOrderValue) * 100 
+    : 0;
+  
+  // Format the percentage changes for display
+  const formattedOrdersChangePercentage = ordersChangePercentage.toFixed(1);
+  const formattedRevenueChangePercentage = revenueChangePercentage.toFixed(1);
+  const formattedAvgOrderValueChangePercentage = avgOrderValueChangePercentage.toFixed(1);
+  const isPositiveOrdersChange = ordersChange >= 0;
+  const isPositiveRevenueChange = revenueChange >= 0;
+  const isPositiveAvgOrderValueChange = avgOrderValueChange >= 0;
 
   // Query to get recent orders (last 30 days from the end date of selected range)
   const recentOrdersResult = await db.select({
@@ -213,97 +284,62 @@ export default async function Dashboard({
           <div className="@container/main flex flex-1 flex-col gap-2">
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
               {/* Custom Metric Cards */}
-              <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
+              <div className="dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
                 <Card className="@container/card">
                   <CardHeader>
-                    <CardDescription>Total Orders</CardDescription>
+                    <CardDescription className="flex items-center gap-1">
+                      <IconShoppingCart className="size-4" />
+                      Total Orders
+                    </CardDescription>
                     <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
                       {totalOrders.toLocaleString()}
                     </CardTitle>
                     <CardAction>
-                      <Badge variant="outline">
-                        <IconTrendingUp />
-                        +{recentOrdersCount}
+                      <Badge variant={isPositiveOrdersChange ? "outline" : "destructive"}>
+                        {isPositiveOrdersChange ? <IconTrendingUp /> : <IconTrendingDown />}
+                        {isPositiveOrdersChange ? '+' : ''}{formattedOrdersChangePercentage}%
                       </Badge>
                     </CardAction>
                   </CardHeader>
-                  <CardFooter className="flex-col items-start gap-1.5 text-sm">
-                    <div className="line-clamp-1 flex gap-2 font-medium">
-                      New in last 30 days <IconTrendingUp className="size-4" />
-                    </div>
-                    <div className="text-muted-foreground">
-                      {dateRangeText}
-                    </div>
-                  </CardFooter>
+                  {/* Card footer removed */}
                 </Card>
                 
                 <Card className="@container/card">
                   <CardHeader>
-                    <CardDescription>Total Revenue</CardDescription>
+                    <CardDescription className="flex items-center gap-1">
+                      <IconCurrencyDollar className="size-4" />
+                      Total Revenue
+                    </CardDescription>
                     <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-                      ${Number(totalRevenue).toLocaleString()}
+                      {formatCurrency(Number(totalRevenue))}
                     </CardTitle>
                     <CardAction>
-                      <Badge variant="outline">
-                        <IconTrendingUp />
-                        +${Number(recentRevenue).toLocaleString()}
+                      <Badge variant={isPositiveRevenueChange ? "outline" : "destructive"}>
+                        {isPositiveRevenueChange ? <IconTrendingUp /> : <IconTrendingDown />}
+                        {isPositiveRevenueChange ? '+' : ''}{formattedRevenueChangePercentage}%
                       </Badge>
                     </CardAction>
                   </CardHeader>
-                  <CardFooter className="flex-col items-start gap-1.5 text-sm">
-                    <div className="line-clamp-1 flex gap-2 font-medium">
-                      New in last 30 days <IconTrendingUp className="size-4" />
-                    </div>
-                    <div className="text-muted-foreground">
-                      {dateRangeText}
-                    </div>
-                  </CardFooter>
+                  {/* Card footer removed */}
                 </Card>
                 
                 <Card className="@container/card">
                   <CardHeader>
-                    <CardDescription>Total Products</CardDescription>
+                    <CardDescription className="flex items-center gap-1">
+                      <IconCalculator className="size-4" />
+                      Avg Order Value
+                    </CardDescription>
                     <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-                      {totalProducts.toLocaleString()}
+                      {formatCurrency(Number(avgOrderValue))}
                     </CardTitle>
                     <CardAction>
-                      <Badge variant="outline">
-                        <IconTrendingDown />
-                        {missingDescriptions} missing
+                      <Badge variant={isPositiveAvgOrderValueChange ? "outline" : "destructive"}>
+                        {isPositiveAvgOrderValueChange ? <IconTrendingUp /> : <IconTrendingDown />}
+                        {isPositiveAvgOrderValueChange ? '+' : ''}{formattedAvgOrderValueChangePercentage}%
                       </Badge>
                     </CardAction>
                   </CardHeader>
-                  <CardFooter className="flex-col items-start gap-1.5 text-sm">
-                    <div className="line-clamp-1 flex gap-2 font-medium">
-                      {missingDescriptions} products need descriptions
-                    </div>
-                    <div className="text-muted-foreground">
-                      Improve product catalog
-                    </div>
-                  </CardFooter>
-                </Card>
-                
-                <Card className="@container/card">
-                  <CardHeader>
-                    <CardDescription>Avg Order Value</CardDescription>
-                    <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-                      ${Number(avgOrderValue).toLocaleString()}
-                    </CardTitle>
-                    <CardAction>
-                      <Badge variant="outline">
-                        <IconTrendingUp />
-                        +4.5%
-                      </Badge>
-                    </CardAction>
-                  </CardHeader>
-                  <CardFooter className="flex-col items-start gap-1.5 text-sm">
-                    <div className="line-clamp-1 flex gap-2 font-medium">
-                      Trending up this month <IconTrendingUp className="size-4" />
-                    </div>
-                    <div className="text-muted-foreground">
-                      {dateRangeText}
-                    </div>
-                  </CardFooter>
+                  {/* Card footer removed */}
                 </Card>
               </div>
               
@@ -311,7 +347,10 @@ export default async function Dashboard({
               <div className="px-4 lg:px-6">
                 <Card className="@container/card">
                   <CardHeader>
-                    <CardTitle>Revenue Over Time</CardTitle>
+                    <CardTitle className="flex items-center gap-1">
+                      <IconChartBar className="size-5" />
+                      Revenue Over Time
+                    </CardTitle>
                     <CardDescription>
                       <span>All-time monthly revenue trends</span>
                     </CardDescription>
@@ -327,7 +366,10 @@ export default async function Dashboard({
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between">
                     <div>
-                      <CardTitle>Recent Orders</CardTitle>
+                      <CardTitle className="flex items-center gap-1">
+                        <IconClipboardList className="size-5" />
+                        Recent Orders
+                      </CardTitle>
                       <CardDescription>Recent customer orders</CardDescription>
                     </div>
                     <Button variant="outline" size="sm" asChild>
@@ -371,7 +413,7 @@ export default async function Dashboard({
                                   {order.status || 'Unknown'}
                                 </Badge>
                               </TableCell>
-                              <TableCell className="text-right">${Number(order.totalAmount).toLocaleString()}</TableCell>
+                              <TableCell className="text-right">{formatCurrency(Number(order.totalAmount))}</TableCell>
                             </TableRow>
                           );
                         })}
@@ -383,7 +425,10 @@ export default async function Dashboard({
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between">
                     <div>
-                      <CardTitle>Top Selling Products</CardTitle>
+                      <CardTitle className="flex items-center gap-1">
+                        <IconPackage className="size-5" />
+                        Top Selling Products
+                      </CardTitle>
                       <CardDescription>Products with highest sales</CardDescription>
                     </div>
                     <div className="flex gap-2">
@@ -417,7 +462,7 @@ export default async function Dashboard({
                               <div className="text-sm text-muted-foreground">{product.productDescription}</div>
                             </TableCell>
                             <TableCell className="text-right">{Number(product.totalQuantity).toLocaleString()}</TableCell>
-                            <TableCell className="text-right">${Number(product.totalRevenue).toLocaleString()}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(Number(product.totalRevenue))}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -430,7 +475,10 @@ export default async function Dashboard({
               <div className="grid grid-cols-1 gap-4 px-4 lg:grid-cols-2 lg:px-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Top Companies</CardTitle>
+                    <CardTitle className="flex items-center gap-1">
+                      <IconBuildingStore className="size-5" />
+                      Top Companies
+                    </CardTitle>
                     <CardDescription>Companies with highest order volume</CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -449,7 +497,7 @@ export default async function Dashboard({
                             <TableCell className="font-medium">{company.companyName}</TableCell>
                             <TableCell className="text-muted-foreground">{company.companyDomain || '-'}</TableCell>
                             <TableCell className="text-right">{company.orderCount.toLocaleString()}</TableCell>
-                            <TableCell className="text-right">${Number(company.totalSpent).toLocaleString()}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(Number(company.totalSpent))}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>

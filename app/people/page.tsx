@@ -1,7 +1,7 @@
 import { db } from "@/db"
 import { sql } from "drizzle-orm"
 import { ordersInAnalytics, customersInAnalytics, customerEmailsInAnalytics } from "@/db/schema"
-import { count, and, gte, lte } from "drizzle-orm"
+import { count, and, gte, lte, eq } from "drizzle-orm"
 import { getDateRangeFromTimeFrame } from "@/app/utils/dates"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
@@ -27,7 +27,7 @@ export default async function PeoplePage(
   const dateRange = getDateRangeFromTimeFrame(range)
   const { formattedStartDate, formattedEndDate } = dateRange
 
-  // Query for Sales Channels with customer counts
+  // Query for Sales Channels with customer counts (no date filter)
   const channelsPromise = db
     .select({
       channel: ordersInAnalytics.class,
@@ -36,11 +36,7 @@ export default async function PeoplePage(
     })
     .from(ordersInAnalytics)
     .where(
-      and(
-        gte(ordersInAnalytics.orderDate, formattedStartDate),
-        lte(ordersInAnalytics.orderDate, formattedEndDate),
-        sql`${ordersInAnalytics.class} IS NOT NULL`
-      )
+      sql`${ordersInAnalytics.class} IS NOT NULL`
     )
     .groupBy(ordersInAnalytics.class)
     .orderBy(sql`COUNT(DISTINCT ${ordersInAnalytics.customerName}) DESC`);
@@ -49,22 +45,19 @@ export default async function PeoplePage(
   const customerTypesPromise = db
     .select({
       customerType: customersInAnalytics.customerType,
-      customerCount: count(customersInAnalytics.customerName),
-      emailCount: sql<number>`(
-        SELECT COUNT(*) FROM analytics.customer_emails
-        WHERE EXISTS (
-          SELECT 1 FROM analytics.customers c
-          WHERE c.customer_name = analytics.customer_emails.customer_name
-          AND c.customer_type = ${customersInAnalytics.customerType}
-        )
-      )`.mapWith(Number),
+      customerCount: count(sql`DISTINCT ${customersInAnalytics.customerName}`),
+      emailCount: count(sql`DISTINCT ${customerEmailsInAnalytics.emailAddress}`),
     })
     .from(customersInAnalytics)
+    .leftJoin(
+      customerEmailsInAnalytics,
+      eq(customersInAnalytics.customerName, customerEmailsInAnalytics.customerName)
+    )
     .where(
       sql`${customersInAnalytics.customerType} IS NOT NULL AND ${customersInAnalytics.customerType} != ''`
     )
     .groupBy(customersInAnalytics.customerType)
-    .orderBy(sql`COUNT(${customersInAnalytics.customerName}) DESC`);
+    .orderBy(sql`COUNT(DISTINCT ${customersInAnalytics.customerName}) DESC`);
 
   // Helper function to join all data fetching promises and render UI
   async function PeoplePageContent() {
