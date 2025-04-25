@@ -24,6 +24,11 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
 
+  maestral:
+    image: maestraldbx/maestral
+    volumes:
+      - maestral_data:/dropbox
+
 networks:
   dash:
   shared_net:
@@ -31,3 +36,4 @@ networks:
 
 volumes:
   postgres-data:
+  maestral_data:
