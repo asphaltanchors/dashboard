@@ -20,7 +20,7 @@ import {
 import { Separator } from "@/components/ui/separator"
 
 // Helper function to safely format numbers
-const safeFormatNumber = (value: any, options?: Intl.NumberFormatOptions) => {
+const safeFormatNumber = (value: string | number | null | undefined, options?: Intl.NumberFormatOptions) => {
   if (value === null || value === undefined) return "-";
   return Number(value).toLocaleString(undefined, options);
 };

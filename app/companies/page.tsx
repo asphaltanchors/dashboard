@@ -157,6 +157,7 @@ export default async function CompaniesPage(
       companyName: companiesInAnalytics.companyName,
       companyDomain: companiesInAnalytics.companyDomain,
       createdAt: companiesInAnalytics.createdAt,
+      class: companiesInAnalytics.class,
     })
     .from(companiesInAnalytics)
     .where(sql`${companiesInAnalytics.isConsumerDomain} = false AND (${searchCondition})`)
@@ -384,6 +385,7 @@ export default async function CompaniesPage(
                     <TableRow>
                       <TableHead>Company</TableHead>
                       <TableHead>Domain</TableHead>
+                      <TableHead>Class</TableHead>
                       <TableHead className="text-right">Created Date</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -401,6 +403,9 @@ export default async function CompaniesPage(
                         <TableCell className="text-muted-foreground">
                           {company.companyDomain}
                         </TableCell>
+                        <TableCell>
+                          {company.class || 'N/A'}
+                        </TableCell>
                         <TableCell className="text-right">
                           {company.createdAt ? new Date(company.createdAt).toLocaleDateString() : 'N/A'}
                         </TableCell>
@@ -409,7 +414,7 @@ export default async function CompaniesPage(
                     {allCompanies.length === 0 && (
                       <TableRow>
                         <TableCell
-                          colSpan={3}
+                          colSpan={4}
                           className="py-6 text-center text-muted-foreground"
                         >
                           {search ? 'No companies found matching your search' : 'No data available'}

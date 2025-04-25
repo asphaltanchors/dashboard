@@ -1,6 +1,6 @@
 import { db } from "@/db";
-import { sql, and, eq, gte, lte, desc } from "drizzle-orm";
-import { ordersInAnalytics, customersInAnalytics, customerEmailsInAnalytics } from "@/db/schema";
+import { sql, eq, desc } from "drizzle-orm";
+import { ordersInAnalytics, customersInAnalytics } from "@/db/schema";
 import { getDateRangeFromTimeFrame } from "@/app/utils/dates";
 import { formatCurrency } from "@/lib/utils";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -31,7 +31,7 @@ export default async function PeopleCustomerTypePage(
 
   // Calculate date ranges
   const dateRange = getDateRangeFromTimeFrame(range);
-  const { formattedStartDate, formattedEndDate, displayText } = dateRange;
+  const { displayText } = dateRange;
 
   // Query to get people of this customer type (no date filter)
   const peoplePromise = db
@@ -131,7 +131,7 @@ export default async function PeopleCustomerTypePage(
                 <div>
                   <h1 className="text-2xl font-bold">People: {customerType || 'Uncategorized'}</h1>
                   <p className="text-muted-foreground">
-                    Customers categorized as "{customerType || 'Uncategorized'}"
+                    Customers categorized as &quot;{customerType || 'Uncategorized'}&quot;
                   </p>
                 </div>
                 <div className="flex items-center gap-4">
@@ -201,7 +201,7 @@ export default async function PeopleCustomerTypePage(
                     <div>
                       <CardTitle>People</CardTitle>
                       <CardDescription>
-                        Customers categorized as "{customerType || 'Uncategorized'}"
+                        Customers categorized as &quot;{customerType || 'Uncategorized'}&quot;
                       </CardDescription>
                     </div>
                     <ExportCSVButton

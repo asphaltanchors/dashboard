@@ -1,8 +1,8 @@
 "use client"
 
 import { useEffect, useRef } from 'react'
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts'
-import { TrendingUp } from "lucide-react"
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Legend } from 'recharts'
+import { createRoot } from 'react-dom/client'
 
 import {
   ChartConfig,
@@ -22,10 +22,6 @@ type SourceChannelData = {
   sourceChannel: string
   count: number
   percentage: number
-}
-
-type RelationshipData = {
-  [key: string]: any
 }
 
 // Define color palette for charts
@@ -107,7 +103,6 @@ export function IndustryChart() {
 
     chartRef.current.innerHTML = ''
     
-    const { createRoot } = require('react-dom/client')
     const reactRoot = createRoot(chartRef.current)
     reactRoot.render(
       <ChartContainer config={config} className="mx-auto aspect-square h-full">
@@ -124,7 +119,7 @@ export function IndustryChart() {
             outerRadius={110}
             paddingAngle={2}
           >
-            {formattedData.map((entry: any, index: number) => (
+            {formattedData.map((entry: { fill: string, name: string, count: number }, index: number) => (
               <Cell key={`cell-${index}`} fill={entry.fill} />
             ))}
           </Pie>
@@ -159,7 +154,6 @@ export function SourceChannelChart() {
 
     chartRef.current.innerHTML = ''
     
-    const { createRoot } = require('react-dom/client')
     const reactRoot = createRoot(chartRef.current)
     reactRoot.render(
       <ChartContainer config={config} className="mx-auto aspect-square h-full">
@@ -176,7 +170,7 @@ export function SourceChannelChart() {
             outerRadius={110}
             paddingAngle={2}
           >
-            {formattedData.map((entry: any, index: number) => (
+            {formattedData.map((entry: { fill: string, name: string, count: number }, index: number) => (
               <Cell key={`cell-${index}`} fill={entry.fill} />
             ))}
           </Pie>
@@ -206,7 +200,6 @@ export function RelationshipChart() {
 
     chartRef.current.innerHTML = ''
     
-    const { createRoot } = require('react-dom/client')
     const reactRoot = createRoot(chartRef.current)
     reactRoot.render(
       <ChartContainer config={config} className="h-full w-full">

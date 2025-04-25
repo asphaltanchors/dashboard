@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { db } from "../db";
 import { sql } from "drizzle-orm";
-import { ordersInAnalytics, productsInAnalytics, orderItemsInAnalytics, customersInAnalytics, itemHistoryViewInAnalytics, orderCompanyViewInAnalytics } from "../db/schema";
+import { ordersInAnalytics, orderItemsInAnalytics, customersInAnalytics, itemHistoryViewInAnalytics, orderCompanyViewInAnalytics } from "../db/schema";
 import { getDateRangeFromTimeFrame } from "./utils/dates";
 import { formatCurrency } from "@/lib/utils";
 
@@ -14,9 +14,7 @@ import {
   IconChartBar,
   IconBuildingStore,
   IconPackage,
-  IconClipboardList,
-  IconUsers,
-  IconStatusChange
+  IconClipboardList
 } from "@tabler/icons-react";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ChartAreaInteractive } from "@/components/chart-area-interactive";
@@ -32,7 +30,6 @@ import {
   CardTitle,
   CardDescription,
   CardContent,
-  CardFooter,
   CardAction,
 } from "@/components/ui/card";
 import {
@@ -62,8 +59,7 @@ export default async function Dashboard({
   const {
     endDate,
     formattedStartDate,
-    formattedEndDate,
-    displayText
+    formattedEndDate
   } = getDateRangeFromTimeFrame(range, startDateParam, endDateParam);
   
   // Calculate previous period dates of equal length
@@ -88,7 +84,6 @@ export default async function Dashboard({
   // For backward compatibility with existing queries
   const formattedLast30Days = new Date(endDate);
   formattedLast30Days.setDate(endDate.getDate() - 30);
-  const formattedLast30DaysStr = formattedLast30Days.toISOString().split('T')[0];
 
   // Query to get total orders and revenue within selected time frame
   const orderSummaryResult = await db.select({
@@ -143,30 +138,7 @@ export default async function Dashboard({
   const isPositiveAvgOrderValueChange = avgOrderValueChange >= 0;
 
   // Query to get recent orders (last 30 days from the end date of selected range)
-  const recentOrdersResult = await db.select({
-    totalOrders: sql<number>`count(*)`.as('total_orders'),
-    totalRevenue: sql<number>`SUM(total_amount)`.as('total_revenue')
-  })
-  .from(ordersInAnalytics)
-  .where(sql`order_date >= ${formattedLast30DaysStr}`);
-  
-  const recentOrdersCount = recentOrdersResult[0]?.totalOrders || 0;
-  const recentRevenue = recentOrdersResult[0]?.totalRevenue || 0;
-
-  // Query to get total products
-  const totalProductsResult = await db.select({
-    count: sql<number>`count(*)`.as('count')
-  }).from(productsInAnalytics);
-  
-  const totalProducts = totalProductsResult[0]?.count || 0;
-
-  // Query to get products with missing descriptions
-  const missingDescriptionsResult = await db.select({
-    count: sql<number>`count(*)`.as('count')
-  }).from(productsInAnalytics)
-  .where(sql`sales_description = '' OR sales_description IS NULL`);
-  
-  const missingDescriptions = missingDescriptionsResult[0]?.count || 0;
+  // Not used in the UI, but kept for reference
 
   // Query to get top selling products within selected time frame
   const topSellingProducts = await db.select({
@@ -259,7 +231,6 @@ export default async function Dashboard({
   
   // We don't need to query company match distribution since it's not used in the UI
 
-  const dateRangeText = displayText;
 
   // Convert all-time orders data for the chart
   const chartData = allTimeOrdersByMonth.map((item) => ({

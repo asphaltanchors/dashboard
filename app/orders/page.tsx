@@ -8,8 +8,6 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { badgeVariants } from "@/components/ui/badge" // Import badgeVariants
-import { type VariantProps } from "class-variance-authority" // Import VariantProps
 // Import the new components and their types
 import SalesChannelTable, { SalesChannelMetric } from "@/app/components/SalesChannelTable"
 import { PaginatedOrdersTable } from "@/app/components/PaginatedOrdersTable"
@@ -492,20 +490,6 @@ export default async function OrdersPage(
     const totalOrders = orderSummaryResult[0]?.totalOrders || 0
     const totalRevenue = orderSummaryResult[0]?.totalRevenue || 0
     const avgOrderValue = orderSummaryResult[0]?.avgOrderValue || 0
-
-    // Match type badge variant mapping
-    const getMatchTypeVariant = (matchType: string | null): VariantProps<typeof badgeVariants>["variant"] => {
-      switch (matchType) {
-        case "exact":
-          return "default" // Changed from "success"
-        case "fuzzy":
-          return "secondary" // Changed from "warning"
-        case "manual":
-          return "outline" // Changed from "info"
-        default:
-          return "secondary" // Kept as secondary
-      }
-    }
 
     // Fetch status information directly from orders table for each order
     const orderStatusPromises = paginatedOrdersList.map(order =>

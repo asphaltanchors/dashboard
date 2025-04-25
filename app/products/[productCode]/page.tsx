@@ -101,12 +101,15 @@ export default async function ProductDashboard(
   `)
 
   // Process the sales data for the chart with proper number formatting
-  const allTimeSalesData = (allTimeSalesByMonthResult as any[]).map(item => ({
-    month: item.month,
-    quantity: parseFloat(item.quantity || 0),
-    revenue: parseFloat(item.revenue || 0),
-    order_count: parseInt(item.order_count || 0)
-  }))
+  const allTimeSalesData = (allTimeSalesByMonthResult as unknown[]).map(item => {
+    const typedItem = item as Record<string, unknown>;
+    return {
+      month: String(typedItem.month || ''),
+      quantity: parseFloat(String(typedItem.quantity || '0')),
+      revenue: parseFloat(String(typedItem.revenue || '0')),
+      order_count: parseInt(String(typedItem.order_count || '0'))
+    };
+  })
 
   // Query to get recent orders for this product with date range filter
   const recentOrders = await db

@@ -176,7 +176,7 @@ export default async function ProductFamilyDetail({
                       <CardDescription>The requested product family could not be found</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <p>We couldn't find a product family with the ID: {familyId}</p>
+                      <p>We couldn&apost find a product family with the ID: {familyId}</p>
                       <Button className="mt-4" asChild>
                         <Link href="/product-families">Back to Product Families</Link>
                       </Button>
@@ -360,7 +360,7 @@ export default async function ProductFamilyDetail({
                       <h3 className="text-lg font-medium mb-2">Key Features</h3>
                       <ul className="ml-5 space-y-1 list-disc text-muted-foreground">
                         {family.features.map((feature: string, index: number) => (
-                          <li key={index}>{feature}</li>
+                          <li key={index}>{feature.replace(/'/g, "&apos;")}</li>
                         ))}
                       </ul>
                     </div>

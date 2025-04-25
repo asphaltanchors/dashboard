@@ -1,6 +1,6 @@
 import { db } from "@/db"
-import { sql } from "drizzle-orm"
-import { companiesInAnalytics, companyOrderMappingInAnalytics, companyStatsInAnalytics, customersInAnalytics, ordersInAnalytics, orderItemsInAnalytics } from "@/db/schema"
+import { sql, eq } from "drizzle-orm"
+import { companiesInAnalytics, companyOrderMappingInAnalytics, customersInAnalytics, ordersInAnalytics, orderItemsInAnalytics } from "@/db/schema"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { AppSidebar } from "@/components/app-sidebar"
@@ -16,7 +16,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { getDateRangeFromTimeFrame } from "@/app/utils/dates"
 import { formatCurrency } from "@/lib/utils"
 
 export default async function CompanyDetailPage(
@@ -29,10 +28,6 @@ export default async function CompanyDetailPage(
   const params = await props.params;
   const { companyId } = params
   const range = searchParams.range || "last-12-months"
-
-  // Get date range based on the range parameter
-  const dateRange = getDateRangeFromTimeFrame(range)
-  const { formattedStartDate, formattedEndDate } = dateRange
 
   // Fetch the company details
   const companyDetails = await db
@@ -48,14 +43,15 @@ export default async function CompanyDetailPage(
 
   const company = companyDetails[0]
 
-  // Fetch company stats
-  const statsResult = await db
-    .select()
-    .from(companyStatsInAnalytics)
-    .where(sql`${companyStatsInAnalytics.companyId} = ${companyId}`)
-    .limit(1)
+  // Fetch customer count
+  const customerCountResult = await db
+    .select({
+      customerCount: sql<number>`COUNT(DISTINCT ${customersInAnalytics.quickbooksId})`,
+    })
+    .from(customersInAnalytics)
+    .where(sql`${customersInAnalytics.companyId} = ${companyId}`)
 
-  const stats = statsResult.length > 0 ? statsResult[0] : { customerCount: 0, totalOrders: 0 }
+  const customerCount = customerCountResult.length > 0 ? customerCountResult[0].customerCount : 0
 
   // Query to get company orders without date filtering
   const companyOrdersPromise = db
@@ -100,8 +96,13 @@ export default async function CompanyDetailPage(
       firstName: customersInAnalytics.firstName,
       lastName: customersInAnalytics.lastName,
       customerType: customersInAnalytics.customerType,
+      class: sql<string>`${companiesInAnalytics.class}`.mapWith(String),
     })
     .from(customersInAnalytics)
+    .innerJoin(
+      companiesInAnalytics,
+      eq(customersInAnalytics.companyId, companiesInAnalytics.companyId)
+    )
     .where(sql`${customersInAnalytics.companyId} = ${companyId}`)
     .limit(10)
 
@@ -229,6 +230,14 @@ export default async function CompanyDetailPage(
                             : "N/A"}
                         </p>
                       </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">
+                          Class
+                        </p>
+                        <p className="text-lg font-medium">
+                          {company.class || "N/A"}
+                        </p>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -243,7 +252,7 @@ export default async function CompanyDetailPage(
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold text-primary">
-                      {Number(stats.customerCount).toLocaleString()}
+                      {Number(customerCount).toLocaleString()}
                     </div>
                   </CardContent>
                 </Card>
@@ -404,10 +413,11 @@ export default async function CompanyDetailPage(
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead>Customer Name</TableHead>
-                            <TableHead>First Name</TableHead>
-                            <TableHead>Last Name</TableHead>
-                            <TableHead>Type</TableHead>
+              <TableHead>Customer Name</TableHead>
+              <TableHead>First Name</TableHead>
+              <TableHead>Last Name</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Channel</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -419,12 +429,13 @@ export default async function CompanyDetailPage(
                               <TableCell>{customer.firstName || "N/A"}</TableCell>
                               <TableCell>{customer.lastName || "N/A"}</TableCell>
                               <TableCell>{customer.customerType || "N/A"}</TableCell>
+                <TableCell>{customer.class || "N/A"}</TableCell>
                             </TableRow>
                           ))}
                           {companyCustomers.length === 0 && (
                             <TableRow>
                               <TableCell
-                                colSpan={4}
+                                colSpan={5}
                                 className="py-6 text-center text-muted-foreground"
                               >
                                 No customers found for this company

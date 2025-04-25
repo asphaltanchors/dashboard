@@ -1,6 +1,6 @@
 import { db } from "@/db";
-import { sql, and, eq, gte, lte, desc } from "drizzle-orm";
-import { ordersInAnalytics, customersInAnalytics, customerEmailsInAnalytics } from "@/db/schema";
+import { sql, eq, desc } from "drizzle-orm";
+import { ordersInAnalytics, customersInAnalytics } from "@/db/schema";
 import { getDateRangeFromTimeFrame } from "@/app/utils/dates";
 import { formatCurrency } from "@/lib/utils";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -30,7 +30,7 @@ export default async function PeopleChannelPage(
 
   // Calculate date ranges
   const dateRange = getDateRangeFromTimeFrame(range);
-  const { formattedStartDate, formattedEndDate, displayText } = dateRange;
+  const { displayText } = dateRange;
 
   // Query to get people who have placed orders through this channel (no date filter)
   const peoplePromise = db

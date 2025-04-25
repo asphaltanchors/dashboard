@@ -91,20 +91,6 @@ export function PaginatedOrdersTable({
     }
   };
 
-  // Match type badge variant mapping
-  const getMatchTypeVariant = (matchType: string | null) => {
-    switch (matchType) {
-      case "exact":
-        return "default";
-      case "fuzzy":
-        return "secondary";
-      case "manual":
-        return "outline";
-      default:
-        return "secondary";
-    }
-  };
-
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     

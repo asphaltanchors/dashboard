@@ -1,7 +1,7 @@
 import { db } from "@/db"
 import { sql } from "drizzle-orm"
 import { ordersInAnalytics, customersInAnalytics, customerEmailsInAnalytics } from "@/db/schema"
-import { count, and, gte, lte, eq } from "drizzle-orm"
+import { count, eq } from "drizzle-orm"
 import { getDateRangeFromTimeFrame } from "@/app/utils/dates"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
@@ -25,7 +25,6 @@ export default async function PeoplePage(
 
   // Calculate date range based on the selected time frame
   const dateRange = getDateRangeFromTimeFrame(range)
-  const { formattedStartDate, formattedEndDate } = dateRange
 
   // Query for Sales Channels with customer counts (no date filter)
   const channelsPromise = db

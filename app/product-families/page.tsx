@@ -84,11 +84,14 @@ export default async function ProductFamilies({
   
   // Process the result to get array of families, filtering out null values
   const distinctFamilies = distinctFamiliesResult
-    .filter((row: any) => row.product_family !== null)
-    .map((row: any) => ({
-      id: row.product_family.toLowerCase(),
-      familyId: row.product_family
-    }));
+    .filter((row) => row && typeof row === 'object' && 'product_family' in row && row.product_family !== null)
+    .map((row) => {
+      const productFamily = row.product_family as string;
+      return {
+        id: productFamily.toLowerCase(),
+        familyId: productFamily
+      };
+    });
 
   // For each family, get the count of products and total sales
   const familyStats = await Promise.all(

@@ -1,14 +1,12 @@
 import { db } from "@/db"
 import { sql } from "drizzle-orm"
 import { ordersInAnalytics } from "@/db/schema"
-import { and, gte, lte, count, or, ne } from "drizzle-orm"
+import { and, gte, lte, or, ne } from "drizzle-orm"
 import { getDateRangeFromTimeFrame } from "@/app/utils/dates"
-import { formatCurrency } from "@/lib/utils"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { IndustryChart, SourceChannelChart, RelationshipChart } from "@/app/components/InsightsCharts"
 
 // Define types for our data
@@ -45,7 +43,7 @@ export default async function InsightsPage({
   
   // Calculate date range based on the selected range
   const dateRange = getDateRangeFromTimeFrame(range, startDateParam, endDateParam);
-  const { formattedStartDate, formattedEndDate, startDate, endDate, displayText } = dateRange;
+  const { formattedStartDate, formattedEndDate, displayText } = dateRange;
 
   // Helper function to normalize industry
   const normalizeIndustry = (industry: string): string => {
@@ -101,12 +99,13 @@ export default async function InsightsPage({
   // Helper function to join all data fetching promises and render UI
   async function InsightsPageContent() {
     // Wait for all data to be fetched in parallel
-    const [ordersData, totalOrdersResult] = await Promise.all([
+    const [ordersData] = await Promise.all([
       ordersDataPromise,
       totalOrdersPromise
     ]);
 
-    const totalOrders = totalOrdersResult[0]?.count || 0;
+    // Get total orders count for reference (not used in UI)
+    // const totalOrdersCount = totalOrdersResult[0]?.count || 0;
     
     // Process industry data
     const industryMap = new Map<string, number>();
@@ -188,7 +187,7 @@ export default async function InsightsPage({
     const sourceChannels = Array.from(new Set(industrySourceData.map(item => item.sourceChannel)));
     
     const stackedBarData = topIndustries.map(industry => {
-      const result: any = { industry };
+      const result: Record<string, string | number> = { industry };
       sourceChannels.forEach(channel => {
         const match = industrySourceData.find(item => 
           item.industry === industry && item.sourceChannel === channel
