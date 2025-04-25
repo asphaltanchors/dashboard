@@ -42,13 +42,18 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 
-export default async function Dashboard({
-  searchParams,
-}: {
-  searchParams?: { [key: string]: string | string[] | undefined };
-}) {
-  // Wait for searchParams to be available
-  const params = await searchParams || {};
+export default async function Dashboard(
+  props: {
+    searchParams: Promise<{ 
+      range?: string | string[];
+      start?: string | string[];
+      end?: string | string[];
+    }>
+  }
+) {
+  const searchParams = await props.searchParams;
+  // Get params from searchParams
+  const params = searchParams || {};
   
   // Get range from URL params or default to last-12-months
   const range = (params.range as string) || 'last-12-months';

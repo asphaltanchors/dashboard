@@ -32,13 +32,17 @@ type Product = {
   orderCount?: number;
 };
 
-export default async function ProductsAnalytics({
-  searchParams,
-}: {
-  searchParams?: { [key: string]: string | string[] | undefined };
-}) {
+export default async function ProductsAnalytics(
+  props: {
+    searchParams: Promise<{ 
+      range?: string | string[];
+      family?: string | string[];
+    }>
+  }
+) {
   // Get the selected range from URL params or default to last-12-months
-  const params = await searchParams || {};
+  const searchParams = await props.searchParams;
+  const params = searchParams || {};
   const range = (params.range as string) || 'last-12-months';
   
   // Calculate date range based on the selected range

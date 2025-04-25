@@ -122,19 +122,21 @@ const familyDetails = {
   }
 };
 
-export default async function ProductFamilyDetail({
-  params,
-  searchParams,
-}: {
-  params: { familyId: string };
-  searchParams?: { [key: string]: string | string[] | undefined };
-}) {
+export default async function ProductFamilyDetail(
+  props: {
+    params: Promise<{ familyId: string }>;
+    searchParams: Promise<{ 
+      range?: string | string[];
+    }>
+  }
+) {
   // Get the familyId from params
-  const familyParams = await params;
-  const familyId = familyParams.familyId;
+  const params = await props.params;
+  const familyId = params.familyId;
   
   // Get the selected range from URL params or default to last-12-months
-  const queryParams = await searchParams || {};
+  const searchParams = await props.searchParams;
+  const queryParams = searchParams || {};
   const range = (queryParams.range as string) || 'last-12-months';
   
   // Calculate date range based on the selected range

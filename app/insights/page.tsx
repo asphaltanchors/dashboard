@@ -28,13 +28,18 @@ type IndustrySourceData = {
   count: number;
 }
 
-export default async function InsightsPage({
-  searchParams,
-}: {
-  searchParams?: { [key: string]: string | string[] | undefined };
-}) {
-  // Wait for searchParams to be available
-  const params = await searchParams || {};
+export default async function InsightsPage(
+  props: {
+    searchParams: Promise<{ 
+      range?: string | string[];
+      start?: string | string[];
+      end?: string | string[];
+    }>
+  }
+) {
+  const searchParams = await props.searchParams;
+  // Get params from searchParams
+  const params = searchParams || {};
   
   // Get range from URL params or default to last-12-months
   const range = (params.range as string) || 'last-12-months';
