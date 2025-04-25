@@ -1,5 +1,5 @@
 #!/bin/bash
-cd /opt/dash || exit
+cd /opt/apps/dash || exit
 git pull origin main
 docker compose build
 docker compose up -d
