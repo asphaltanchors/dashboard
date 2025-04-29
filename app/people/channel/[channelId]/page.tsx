@@ -45,7 +45,6 @@ export default async function PeopleChannelPage(
         ${customersInAnalytics.email}
       )`.mapWith(String),
       customerName: customersInAnalytics.customerName,
-      customerType: customersInAnalytics.customerType,
       orderCount: sql<string>`COUNT(${ordersInAnalytics.orderNumber})`.mapWith(String),
       totalSpent: sql<string>`SUM(${ordersInAnalytics.totalAmount})`.mapWith(String),
       lastOrderDate: sql<string>`MAX(${ordersInAnalytics.orderDate})`.mapWith(String),
@@ -62,8 +61,7 @@ export default async function PeopleChannelPage(
       customersInAnalytics.firstName,
       customersInAnalytics.lastName,
       customersInAnalytics.email,
-      customersInAnalytics.customerName,
-      customersInAnalytics.customerType
+      customersInAnalytics.customerName
     )
     .orderBy(desc(sql`SUM(${ordersInAnalytics.totalAmount})`));
 
@@ -209,7 +207,6 @@ export default async function PeopleChannelPage(
                           <TableHead>Name</TableHead>
                           <TableHead>Email</TableHead>
                           <TableHead>Customer/Company</TableHead>
-                          <TableHead>Type</TableHead>
                           <TableHead className="text-right">Orders</TableHead>
                           <TableHead className="text-right">Total Spent</TableHead>
                           <TableHead className="text-right">Last Order</TableHead>
@@ -230,9 +227,6 @@ export default async function PeopleChannelPage(
                             </TableCell>
                             <TableCell>
                               {person.customerName || 'N/A'}
-                            </TableCell>
-                            <TableCell>
-                              {person.customerType || 'N/A'}
                             </TableCell>
                             <TableCell className="text-right">
                               {person.orderCount || '0'}

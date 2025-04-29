@@ -1,6 +1,6 @@
 import { db } from "@/db"
 import { sql } from "drizzle-orm"
-import { ordersInAnalytics, customersInAnalytics, customerEmailsInAnalytics } from "@/db/schema"
+import { ordersInAnalytics, customersInAnalytics, customerEmailsInAnalytics, companiesInAnalytics } from "@/db/schema"
 import { count, eq } from "drizzle-orm"
 import { getDateRangeFromTimeFrame } from "@/app/utils/dates"
 import { AppSidebar } from "@/components/app-sidebar"
@@ -40,30 +40,34 @@ export default async function PeoplePage(
     .groupBy(ordersInAnalytics.class)
     .orderBy(sql`COUNT(DISTINCT ${ordersInAnalytics.customerName}) DESC`);
 
-  // Query for Customer Types with counts
-  const customerTypesPromise = db
+  // Query for Company Classes with customer counts
+  const companyClassesPromise = db
     .select({
-      customerType: customersInAnalytics.customerType,
+      companyClass: companiesInAnalytics.class,
       customerCount: count(sql`DISTINCT ${customersInAnalytics.customerName}`),
       emailCount: count(sql`DISTINCT ${customerEmailsInAnalytics.emailAddress}`),
     })
     .from(customersInAnalytics)
+    .innerJoin(
+      companiesInAnalytics,
+      eq(customersInAnalytics.companyId, companiesInAnalytics.companyId)
+    )
     .leftJoin(
       customerEmailsInAnalytics,
       eq(customersInAnalytics.customerName, customerEmailsInAnalytics.customerName)
     )
     .where(
-      sql`${customersInAnalytics.customerType} IS NOT NULL AND ${customersInAnalytics.customerType} != ''`
+      sql`${companiesInAnalytics.class} IS NOT NULL AND ${companiesInAnalytics.class} != ''`
     )
-    .groupBy(customersInAnalytics.customerType)
+    .groupBy(companiesInAnalytics.class)
     .orderBy(sql`COUNT(DISTINCT ${customersInAnalytics.customerName}) DESC`);
 
   // Helper function to join all data fetching promises and render UI
   async function PeoplePageContent() {
     // Wait for data to be fetched
-    const [channels, customerTypes] = await Promise.all([
+    const [channels, companyClasses] = await Promise.all([
       channelsPromise,
-      customerTypesPromise
+      companyClassesPromise
     ]);
 
     // Helper function to format numbers
@@ -128,42 +132,42 @@ export default async function PeoplePage(
             </CardContent>
           </Card>
 
-          {/* Customer Type Selector */}
+          {/* Company Class Selector */}
           <Card>
             <CardHeader>
-              <CardTitle>Select by Customer Type</CardTitle>
+              <CardTitle>Select by Company Class</CardTitle>
               <CardDescription>
-                View people categorized by their customer type
+                View people categorized by their company class
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Customer Type</TableHead>
+                    <TableHead>Company Class</TableHead>
                     <TableHead className="text-right">People</TableHead>
                     <TableHead className="text-right">Emails</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {customerTypes.map((type) => (
-                    <TableRow key={type.customerType}>
+                  {companyClasses.map((classItem) => (
+                    <TableRow key={classItem.companyClass}>
                       <TableCell>
                         <Link 
-                          href={`/people/customer-type/${encodeURIComponent(type.customerType || '')}?range=${range}`}
+                          href={`/people/company-class/${encodeURIComponent(classItem.companyClass || '')}?range=${range}`}
                           className="font-medium text-primary hover:underline"
                         >
-                          {type.customerType || 'Uncategorized'}
+                          {classItem.companyClass || 'Uncategorized'}
                         </Link>
                       </TableCell>
-                      <TableCell className="text-right">{formatNumber(type.customerCount)}</TableCell>
-                      <TableCell className="text-right">{formatNumber(type.emailCount)}</TableCell>
+                      <TableCell className="text-right">{formatNumber(classItem.customerCount)}</TableCell>
+                      <TableCell className="text-right">{formatNumber(classItem.emailCount)}</TableCell>
                     </TableRow>
                   ))}
-                  {customerTypes.length === 0 && (
+                  {companyClasses.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={3} className="text-center text-muted-foreground">
-                        No customer types found
+                        No company classes found
                       </TableCell>
                     </TableRow>
                   )}

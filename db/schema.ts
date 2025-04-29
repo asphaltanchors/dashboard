@@ -1,8 +1,16 @@
-import { pgTable, pgSchema, text, boolean, integer, numeric, bigint, date, primaryKey, varchar, doublePrecision, timestamp } from "drizzle-orm/pg-core"
+import { pgTable, pgSchema, text, date, boolean, integer, bigint, numeric, primaryKey, varchar, doublePrecision, timestamp } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 export const analytics = pgSchema("analytics");
 
+
+export const itemHistoryInAnalytics = analytics.table("item_history", {
+	itemName: text("item_name"),
+	columnName: text("column_name"),
+	oldValue: text("old_value"),
+	newValue: text("new_value"),
+	changedAt: date("changed_at"),
+});
 
 export const productsInAnalytics = analytics.table("products", {
 	itemName: text("item_name"),
@@ -11,20 +19,6 @@ export const productsInAnalytics = analytics.table("products", {
 	materialType: text("material_type"),
 	isKit: boolean("is_kit"),
 	itemQuantity: integer("item_quantity"),
-});
-
-export const orderItemsInAnalytics = analytics.table("order_items", {
-	orderId: text("order_id"),
-	orderNumber: text("order_number"),
-	orderType: text("order_type"),
-	productCode: text("product_code"),
-	productDescription: text("product_description"),
-	quantity: numeric(),
-	unitPrice: numeric("unit_price"),
-	lineAmount: numeric("line_amount"),
-	productClass: text("product_class"),
-	serviceDate: text("service_date"),
-	salesTaxCode: text("sales_tax_code"),
 });
 
 export const customerEmailsInAnalytics = analytics.table("customer_emails", {
@@ -46,6 +40,20 @@ export const companiesInAnalytics = analytics.table("companies", {
 	isConsumerDomain: boolean("is_consumer_domain"),
 	class: text(),
 	createdAt: date("created_at"),
+});
+
+export const orderItemsInAnalytics = analytics.table("order_items", {
+	orderId: text("order_id"),
+	orderNumber: text("order_number"),
+	orderType: text("order_type"),
+	productCode: text("product_code"),
+	productDescription: text("product_description"),
+	quantity: numeric(),
+	unitPrice: numeric("unit_price"),
+	lineAmount: numeric("line_amount"),
+	productClass: text("product_class"),
+	serviceDate: text("service_date"),
+	salesTaxCode: text("sales_tax_code"),
 });
 
 export const ordersInAnalytics = analytics.table("orders", {
@@ -83,7 +91,6 @@ export const customersInAnalytics = analytics.table("customers", {
 	customerName: text("customer_name"),
 	firstName: text("first_name"),
 	lastName: text("last_name"),
-	customerType: text("customer_type"),
 	billingCity: text("billing_city"),
 	billingState: text("billing_state"),
 	billingZip: text("billing_zip"),
@@ -92,14 +99,6 @@ export const customersInAnalytics = analytics.table("customers", {
 	shippingZip: text("shipping_zip"),
 	email: text(),
 	companyId: text("company_id"),
-});
-
-export const itemHistoryInAnalytics = analytics.table("item_history", {
-	itemName: text("item_name"),
-	columnName: text("column_name"),
-	oldValue: text("old_value"),
-	newValue: text("new_value"),
-	changedAt: date("changed_at"),
 });
 
 export const companyOrderMappingInAnalytics = analytics.table("company_order_mapping", {
@@ -116,6 +115,12 @@ export const companyOrderMappingInAnalytics = analytics.table("company_order_map
 }, (table) => [
 	primaryKey({ columns: [table.quickbooksId, table.companyId], name: "company_order_mapping_pkey"}),
 ]);
+export const companyStatsInAnalytics = analytics.view("company_stats", {	companyId: text("company_id"),
+	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
+	customerCount: bigint("customer_count", { mode: "number" }),
+	totalOrders: integer("total_orders"),
+}).as(sql`SELECT c.company_id, count(DISTINCT cust.quickbooks_id) AS customer_count, 0 AS total_orders FROM analytics.companies c LEFT JOIN analytics.customers cust ON cust.company_id = c.company_id GROUP BY c.company_id`);
+
 export const itemHistoryViewInAnalytics = analytics.view("item_history_view", {	itemName: text("item_name"),
 	salesDescription: text("sales_description"),
 	columnName: text("column_name"),

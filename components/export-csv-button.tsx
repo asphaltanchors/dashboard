@@ -12,6 +12,7 @@ interface CustomerData {
   totalSpent: string;
   lastOrderDate: string;
   channel: string;
+  extras?: string; // Optional JSON string for compact encoding
 }
 
 interface ExportCSVButtonProps {
@@ -32,19 +33,24 @@ export function ExportCSVButton({
     }
 
     // Transform data to the required format
-    const transformedData = data.map(person => ({
-      email: person.email,
-      name: person.firstName && person.lastName 
-        ? `${person.firstName} ${person.lastName}`
-        : person.customerName,
-      attributes: JSON.stringify({
+    const transformedData = data.map(person => {
+      // If extras is provided, use it directly, otherwise generate from other fields
+      const extras = person.extras || JSON.stringify({
         customerName: person.customerName,
         orderCount: person.orderCount,
         totalSpent: person.totalSpent,
         lastOrderDate: person.lastOrderDate,
         channel: person.channel
-      })
-    }));
+      });
+      
+      return {
+        email: person.email,
+        name: person.firstName && person.lastName 
+          ? `${person.firstName} ${person.lastName}`
+          : person.customerName,
+        extras: extras
+      };
+    });
     
     // Get headers from the first row
     const headers = Object.keys(transformedData[0]);
