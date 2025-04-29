@@ -57,62 +57,152 @@ export default async function PeopleCompanyClassPage(
   const dateRange = getDateRangeFromTimeFrame(range);
   const { displayText } = dateRange;
 
-  // Query to get distinct email addresses from people who belong to companies with this class (no date filter)
-  const peoplePromise = db
-    .select({
-      email: sql<string>`COALESCE(
-        (SELECT email_address FROM analytics.customer_emails 
-         WHERE customer_name = ${customersInAnalytics.customerName} 
-         AND is_primary_email = true 
-         LIMIT 1),
-        ${customersInAnalytics.email}
-      )`.mapWith(String),
-      displayName: sql<string>`CASE 
-        WHEN ${customersInAnalytics.firstName} IS NOT NULL AND ${customersInAnalytics.lastName} IS NOT NULL 
-        THEN CONCAT(${customersInAnalytics.firstName}, ' ', ${customersInAnalytics.lastName})
-        ELSE ${customersInAnalytics.customerName}
-      END`.mapWith(String),
-      companyName: companiesInAnalytics.companyName,
-      companyId: customersInAnalytics.companyId, // Add company_id for product purchase lookup
-      orderCount: sql<string>`COUNT(DISTINCT ${ordersInAnalytics.orderNumber})`.mapWith(String),
-      totalSpent: sql<string>`SUM(${ordersInAnalytics.totalAmount})`.mapWith(String),
-      lastOrderDate: sql<string>`MAX(${ordersInAnalytics.orderDate})`.mapWith(String),
-    })
-    .from(customersInAnalytics)
-    .innerJoin(
-      companiesInAnalytics,
-      eq(customersInAnalytics.companyId, companiesInAnalytics.companyId)
-    )
-    .leftJoin(
-      ordersInAnalytics,
-      eq(customersInAnalytics.customerName, ordersInAnalytics.customerName)
-    )
-    .where(
-      sql`${companiesInAnalytics.class} = ${companyClassName} AND COALESCE(
-        (SELECT email_address FROM analytics.customer_emails 
-         WHERE customer_name = ${customersInAnalytics.customerName} 
-         AND is_primary_email = true 
-         LIMIT 1),
-        ${customersInAnalytics.email}
-      ) IS NOT NULL`
-    )
-    .groupBy(
-      sql`COALESCE(
-        (SELECT email_address FROM analytics.customer_emails 
-         WHERE customer_name = ${customersInAnalytics.customerName} 
-         AND is_primary_email = true 
-         LIMIT 1),
-        ${customersInAnalytics.email}
-      )`,
-      sql`CASE 
-        WHEN ${customersInAnalytics.firstName} IS NOT NULL AND ${customersInAnalytics.lastName} IS NOT NULL 
-        THEN CONCAT(${customersInAnalytics.firstName}, ' ', ${customersInAnalytics.lastName})
-        ELSE ${customersInAnalytics.customerName}
-      END`,
-      companiesInAnalytics.companyName,
-      customersInAnalytics.companyId
-    )
-    .orderBy(desc(sql`SUM(${ordersInAnalytics.totalAmount})`));
+  // Determine which query to use based on company class
+  let peoplePromise;
+  
+  if (companyClassName === "consumer") {
+    // Special case for consumer class
+    // 1. Skip users with amazon.com in their email addresses
+    // 2. Match products only on that specific user's orders
+    peoplePromise = db
+      .select({
+        email: sql<string>`COALESCE(
+          (SELECT email_address FROM analytics.customer_emails 
+           WHERE customer_name = ${customersInAnalytics.customerName} 
+           AND is_primary_email = true 
+           LIMIT 1),
+          ${customersInAnalytics.email}
+        )`.mapWith(String),
+        displayName: sql<string>`CASE 
+          WHEN ${customersInAnalytics.firstName} IS NOT NULL AND ${customersInAnalytics.lastName} IS NOT NULL 
+          THEN CONCAT(${customersInAnalytics.firstName}, ' ', ${customersInAnalytics.lastName})
+          ELSE ${customersInAnalytics.customerName}
+        END`.mapWith(String),
+        companyName: companiesInAnalytics.companyName,
+        companyId: customersInAnalytics.companyId,
+        customerName: customersInAnalytics.customerName, // Add customer_name for individual product lookup
+        orderCount: sql<string>`COUNT(DISTINCT ${ordersInAnalytics.orderNumber})`.mapWith(String),
+        totalSpent: sql<string>`SUM(${ordersInAnalytics.totalAmount})`.mapWith(String),
+        lastOrderDate: sql<string>`MAX(${ordersInAnalytics.orderDate})`.mapWith(String),
+      })
+      .from(customersInAnalytics)
+      .innerJoin(
+        companiesInAnalytics,
+        eq(customersInAnalytics.companyId, companiesInAnalytics.companyId)
+      )
+      .leftJoin(
+        ordersInAnalytics,
+        eq(customersInAnalytics.customerName, ordersInAnalytics.customerName)
+      )
+      .where(
+        sql`${companiesInAnalytics.class} = ${companyClassName} 
+        AND COALESCE(
+          (SELECT email_address FROM analytics.customer_emails 
+           WHERE customer_name = ${customersInAnalytics.customerName} 
+           AND is_primary_email = true 
+           LIMIT 1),
+          ${customersInAnalytics.email}
+        ) IS NOT NULL
+        AND COALESCE(
+          (SELECT email_address FROM analytics.customer_emails 
+           WHERE customer_name = ${customersInAnalytics.customerName} 
+           AND is_primary_email = true 
+           LIMIT 1),
+          ${customersInAnalytics.email}
+        ) NOT LIKE '%@amazon.com%'
+        AND COALESCE(
+          (SELECT email_address FROM analytics.customer_emails 
+           WHERE customer_name = ${customersInAnalytics.customerName} 
+           AND is_primary_email = true 
+           LIMIT 1),
+          ${customersInAnalytics.email}
+        ) NOT LIKE '%@marketplace.amazon.com%'
+        AND COALESCE(
+          (SELECT email_address FROM analytics.customer_emails 
+           WHERE customer_name = ${customersInAnalytics.customerName} 
+           AND is_primary_email = true 
+           LIMIT 1),
+          ${customersInAnalytics.email}
+        ) NOT LIKE '%@%amazon.com%'`
+      )
+      .groupBy(
+        sql`COALESCE(
+          (SELECT email_address FROM analytics.customer_emails 
+           WHERE customer_name = ${customersInAnalytics.customerName} 
+           AND is_primary_email = true 
+           LIMIT 1),
+          ${customersInAnalytics.email}
+        )`,
+        sql`CASE 
+          WHEN ${customersInAnalytics.firstName} IS NOT NULL AND ${customersInAnalytics.lastName} IS NOT NULL 
+          THEN CONCAT(${customersInAnalytics.firstName}, ' ', ${customersInAnalytics.lastName})
+          ELSE ${customersInAnalytics.customerName}
+        END`,
+        companiesInAnalytics.companyName,
+        customersInAnalytics.companyId,
+        customersInAnalytics.customerName
+      )
+      .orderBy(desc(sql`SUM(${ordersInAnalytics.totalAmount})`));
+  } else {
+    // Standard query for all other company classes
+    peoplePromise = db
+      .select({
+        email: sql<string>`COALESCE(
+          (SELECT email_address FROM analytics.customer_emails 
+           WHERE customer_name = ${customersInAnalytics.customerName} 
+           AND is_primary_email = true 
+           LIMIT 1),
+          ${customersInAnalytics.email}
+        )`.mapWith(String),
+        displayName: sql<string>`CASE 
+          WHEN ${customersInAnalytics.firstName} IS NOT NULL AND ${customersInAnalytics.lastName} IS NOT NULL 
+          THEN CONCAT(${customersInAnalytics.firstName}, ' ', ${customersInAnalytics.lastName})
+          ELSE ${customersInAnalytics.customerName}
+        END`.mapWith(String),
+        companyName: companiesInAnalytics.companyName,
+        companyId: customersInAnalytics.companyId, // Add company_id for product purchase lookup
+        customerName: customersInAnalytics.customerName, // Add customer_name for consistency with consumer query
+        orderCount: sql<string>`COUNT(DISTINCT ${ordersInAnalytics.orderNumber})`.mapWith(String),
+        totalSpent: sql<string>`SUM(${ordersInAnalytics.totalAmount})`.mapWith(String),
+        lastOrderDate: sql<string>`MAX(${ordersInAnalytics.orderDate})`.mapWith(String),
+      })
+      .from(customersInAnalytics)
+      .innerJoin(
+        companiesInAnalytics,
+        eq(customersInAnalytics.companyId, companiesInAnalytics.companyId)
+      )
+      .leftJoin(
+        ordersInAnalytics,
+        eq(customersInAnalytics.customerName, ordersInAnalytics.customerName)
+      )
+      .where(
+        sql`${companiesInAnalytics.class} = ${companyClassName} AND COALESCE(
+          (SELECT email_address FROM analytics.customer_emails 
+           WHERE customer_name = ${customersInAnalytics.customerName} 
+           AND is_primary_email = true 
+           LIMIT 1),
+          ${customersInAnalytics.email}
+        ) IS NOT NULL`
+      )
+      .groupBy(
+        sql`COALESCE(
+          (SELECT email_address FROM analytics.customer_emails 
+           WHERE customer_name = ${customersInAnalytics.customerName} 
+           AND is_primary_email = true 
+           LIMIT 1),
+          ${customersInAnalytics.email}
+        )`,
+        sql`CASE 
+          WHEN ${customersInAnalytics.firstName} IS NOT NULL AND ${customersInAnalytics.lastName} IS NOT NULL 
+          THEN CONCAT(${customersInAnalytics.firstName}, ' ', ${customersInAnalytics.lastName})
+          ELSE ${customersInAnalytics.customerName}
+        END`,
+        companiesInAnalytics.companyName,
+        customersInAnalytics.companyId,
+        customersInAnalytics.customerName
+      )
+      .orderBy(desc(sql`SUM(${ordersInAnalytics.totalAmount})`));
+  }
 
   // Query to get summary metrics for this company class (no date filter)
   const companySummaryPromise = db
@@ -135,27 +225,57 @@ export default async function PeopleCompanyClassPage(
       eq(companiesInAnalytics.class, companyClassName)
     );
 
-  // Query to get product purchase data for companies in this company class
-  const productPurchasePromise = db.execute(sql`
-    SELECT 
-      c.company_id,
-      BOOL_OR(p.product_family = 'AM625') as bought_am625,
-      BOOL_OR(p.product_family = 'SP10') as bought_sp10,
-      BOOL_OR(p.product_family = 'SP12') as bought_sp12,
-      BOOL_OR(p.product_family = 'SP18') as bought_sp18,
-      BOOL_OR(p.product_family = 'SP58') as bought_sp58
-    FROM 
-      analytics.customers c
-      JOIN analytics.orders o ON c.customer_name = o.customer_name
-      JOIN analytics.order_items oi ON o.order_number = oi.order_number
-      JOIN analytics.products p ON REGEXP_REPLACE(oi.product_code, ' IN$', '') = p.item_name
-      JOIN analytics.companies comp ON c.company_id = comp.company_id
-    WHERE 
-      comp.class = ${companyClassName}
-      AND p.product_family IN ('AM625', 'SP10', 'SP12', 'SP18', 'SP58')
-    GROUP BY 
-      c.company_id
-  `);
+  // Query to get product purchase data - different for consumer vs other company classes
+  let productPurchasePromise;
+  
+  if (companyClassName === "consumer") {
+    // For consumer class, match products based on individual customer orders
+    productPurchasePromise = db.execute(sql`
+      SELECT 
+        c.customer_name,
+        BOOL_OR(p.product_family = 'AM625') as bought_am625,
+        BOOL_OR(p.product_family = 'SP10') as bought_sp10,
+        BOOL_OR(p.product_family = 'SP12') as bought_sp12,
+        BOOL_OR(p.product_family = 'SP18') as bought_sp18,
+        BOOL_OR(p.product_family = 'SP58') as bought_sp58
+      FROM 
+        analytics.customers c
+        JOIN analytics.orders o ON c.customer_name = o.customer_name
+        JOIN analytics.order_items oi ON o.order_number = oi.order_number
+        JOIN analytics.products p ON REGEXP_REPLACE(oi.product_code, ' IN$', '') = p.item_name
+        JOIN analytics.companies comp ON c.company_id = comp.company_id
+      WHERE 
+        comp.class = ${companyClassName}
+        AND p.product_family IN ('AM625', 'SP10', 'SP12', 'SP18', 'SP58')
+        AND c.email NOT LIKE '%@amazon.com%'
+        AND c.email NOT LIKE '%@marketplace.amazon.com%'
+        AND c.email NOT LIKE '%@%amazon.com%'
+      GROUP BY 
+        c.customer_name
+    `);
+  } else {
+    // For other company classes, match products based on company-wide orders
+    productPurchasePromise = db.execute(sql`
+      SELECT 
+        c.company_id,
+        BOOL_OR(p.product_family = 'AM625') as bought_am625,
+        BOOL_OR(p.product_family = 'SP10') as bought_sp10,
+        BOOL_OR(p.product_family = 'SP12') as bought_sp12,
+        BOOL_OR(p.product_family = 'SP18') as bought_sp18,
+        BOOL_OR(p.product_family = 'SP58') as bought_sp58
+      FROM 
+        analytics.customers c
+        JOIN analytics.orders o ON c.customer_name = o.customer_name
+        JOIN analytics.order_items oi ON o.order_number = oi.order_number
+        JOIN analytics.products p ON REGEXP_REPLACE(oi.product_code, ' IN$', '') = p.item_name
+        JOIN analytics.companies comp ON c.company_id = comp.company_id
+      WHERE 
+        comp.class = ${companyClassName}
+        AND p.product_family IN ('AM625', 'SP10', 'SP12', 'SP18', 'SP58')
+      GROUP BY 
+        c.company_id
+    `);
+  }
 
   // Wait for all promises
   const [people, companySummary, productPurchases] = await Promise.all([
@@ -164,25 +284,42 @@ export default async function PeopleCompanyClassPage(
     productPurchasePromise,
   ]);
 
-  // Create a map of company_id to product purchases for easy lookup
-  const companyProductMap = new Map();
-  productPurchases.forEach((purchase: any) => {
-    companyProductMap.set(purchase.company_id, {
-      bought_am625: purchase.bought_am625 === true,
-      bought_sp10: purchase.bought_sp10 === true,
-      bought_sp12: purchase.bought_sp12 === true,
-      bought_sp18: purchase.bought_sp18 === true,
-      bought_sp58: purchase.bought_sp58 === true
+  // Create a map of product purchases for easy lookup - different for consumer vs other company classes
+  const productMap = new Map();
+  
+  if (companyClassName === "consumer") {
+    // For consumer class, map by customer_name
+    productPurchases.forEach((purchase: any) => {
+      productMap.set(purchase.customer_name, {
+        bought_am625: purchase.bought_am625 === true,
+        bought_sp10: purchase.bought_sp10 === true,
+        bought_sp12: purchase.bought_sp12 === true,
+        bought_sp18: purchase.bought_sp18 === true,
+        bought_sp58: purchase.bought_sp58 === true
+      });
     });
-  });
+  } else {
+    // For other company classes, map by company_id
+    productPurchases.forEach((purchase: any) => {
+      productMap.set(purchase.company_id, {
+        bought_am625: purchase.bought_am625 === true,
+        bought_sp10: purchase.bought_sp10 === true,
+        bought_sp12: purchase.bought_sp12 === true,
+        bought_sp18: purchase.bought_sp18 === true,
+        bought_sp58: purchase.bought_sp58 === true
+      });
+    });
+  }
 
   // Format data for CSV export
   const exportData = people.map(person => {
-    // Get the company_id from the person object
-    const companyId = person.companyId;
+    // Get the lookup key based on company class
+    const lookupKey = companyClassName === "consumer" 
+      ? person.customerName 
+      : person.companyId;
     
-    // Get product purchase data for this company
-    const productData = companyProductMap.get(companyId) || {
+    // Get product purchase data
+    const productData = productMap.get(lookupKey) || {
       bought_am625: false,
       bought_sp10: false,
       bought_sp12: false,
@@ -370,19 +507,29 @@ export default async function PeopleCompanyClassPage(
                             </TableCell>
                             {/* Product purchase indicators */}
                             <TableCell className="text-center">
-                              {companyProductMap.get(person.companyId)?.bought_am625 ? '✓' : ''}
+                              {companyClassName === "consumer" 
+                                ? productMap.get(person.customerName)?.bought_am625 ? '✓' : ''
+                                : productMap.get(person.companyId)?.bought_am625 ? '✓' : ''}
                             </TableCell>
                             <TableCell className="text-center">
-                              {companyProductMap.get(person.companyId)?.bought_sp10 ? '✓' : ''}
+                              {companyClassName === "consumer"
+                                ? productMap.get(person.customerName)?.bought_sp10 ? '✓' : ''
+                                : productMap.get(person.companyId)?.bought_sp10 ? '✓' : ''}
                             </TableCell>
                             <TableCell className="text-center">
-                              {companyProductMap.get(person.companyId)?.bought_sp12 ? '✓' : ''}
+                              {companyClassName === "consumer"
+                                ? productMap.get(person.customerName)?.bought_sp12 ? '✓' : ''
+                                : productMap.get(person.companyId)?.bought_sp12 ? '✓' : ''}
                             </TableCell>
                             <TableCell className="text-center">
-                              {companyProductMap.get(person.companyId)?.bought_sp18 ? '✓' : ''}
+                              {companyClassName === "consumer"
+                                ? productMap.get(person.customerName)?.bought_sp18 ? '✓' : ''
+                                : productMap.get(person.companyId)?.bought_sp18 ? '✓' : ''}
                             </TableCell>
                             <TableCell className="text-center">
-                              {companyProductMap.get(person.companyId)?.bought_sp58 ? '✓' : ''}
+                              {companyClassName === "consumer"
+                                ? productMap.get(person.customerName)?.bought_sp58 ? '✓' : ''
+                                : productMap.get(person.companyId)?.bought_sp58 ? '✓' : ''}
                             </TableCell>
                             <TableCell className="text-right">
                               {person.orderCount || '0'}
