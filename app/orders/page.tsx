@@ -1,6 +1,6 @@
 import { db } from "@/db"
 import { sql } from "drizzle-orm"
-import { ordersInAnalytics, orderCompanyViewInAnalytics } from "@/db/schema"
+import { ordersInAnalytics, orderCompanyViewInAnalytics, companiesInAnalytics, companyOrderMappingInAnalytics, orderItemsInAnalytics } from "@/db/schema"
 import { desc, sum, count, and, gte, lte, or, ilike } from "drizzle-orm" // Import necessary Drizzle functions
 import { getDateRangeFromTimeFrame, getPreviousDateRange } from "@/app/utils/dates" // Import getPreviousDateRange
 import { formatCurrency } from "@/lib/utils" // Import formatCurrency function
@@ -204,18 +204,19 @@ export default async function OrdersPage(
     .offset(offset)
 
   // --- NEW: Query for Sales Channel Metrics (Current Period) ---
+  // Using class from ordersInAnalytics as the sales channel
   const currentSalesChannelMetricsPromise = db
     .select({
-      sales_channel: ordersInAnalytics.class, // 'class' column likely holds the channel
-      total_revenue: sum(ordersInAnalytics.totalAmount).mapWith(String), // Ensure string type
-      order_count: count(ordersInAnalytics.orderNumber).mapWith(String), // Ensure string type
+      sales_channel: ordersInAnalytics.class, // Using class as the channel
+      total_revenue: sum(ordersInAnalytics.totalAmount).mapWith(String), // Use total_amount for revenue
+      order_count: count(ordersInAnalytics.orderNumber).mapWith(String), // Count orders
     })
     .from(ordersInAnalytics)
     .where(
       and(
         gte(ordersInAnalytics.orderDate, formattedStartDate),
         lte(ordersInAnalytics.orderDate, formattedEndDate),
-        // Optional: Add other filters if needed, e.g., filter out null channels
+        // Filter out null class values
         sql`${ordersInAnalytics.class} IS NOT NULL`
       )
     )

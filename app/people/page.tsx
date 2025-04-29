@@ -29,15 +29,15 @@ export default async function PeoplePage(
   // Query for Sales Channels with customer counts (no date filter)
   const channelsPromise = db
     .select({
-      channel: ordersInAnalytics.class,
+      channel: ordersInAnalytics.sourcechannel,
       customerCount: count(sql`DISTINCT ${ordersInAnalytics.customerName}`),
       orderCount: count(ordersInAnalytics.orderNumber),
     })
     .from(ordersInAnalytics)
     .where(
-      sql`${ordersInAnalytics.class} IS NOT NULL`
+      sql`${ordersInAnalytics.sourcechannel} IS NOT NULL`
     )
-    .groupBy(ordersInAnalytics.class)
+    .groupBy(ordersInAnalytics.sourcechannel)
     .orderBy(sql`COUNT(DISTINCT ${ordersInAnalytics.customerName}) DESC`);
 
   // Query for Company Classes with customer counts
@@ -45,7 +45,7 @@ export default async function PeoplePage(
     .select({
       companyClass: companiesInAnalytics.class,
       customerCount: count(sql`DISTINCT ${customersInAnalytics.customerName}`),
-      emailCount: count(sql`DISTINCT ${customerEmailsInAnalytics.emailAddress}`),
+      orderCount: count(sql`DISTINCT ${ordersInAnalytics.orderNumber}`),
     })
     .from(customersInAnalytics)
     .innerJoin(
@@ -53,8 +53,8 @@ export default async function PeoplePage(
       eq(customersInAnalytics.companyId, companiesInAnalytics.companyId)
     )
     .leftJoin(
-      customerEmailsInAnalytics,
-      eq(customersInAnalytics.customerName, customerEmailsInAnalytics.customerName)
+      ordersInAnalytics,
+      eq(customersInAnalytics.customerName, ordersInAnalytics.customerName)
     )
     .where(
       sql`${companiesInAnalytics.class} IS NOT NULL AND ${companiesInAnalytics.class} != ''`
@@ -146,7 +146,7 @@ export default async function PeoplePage(
                   <TableRow>
                     <TableHead>Company Class</TableHead>
                     <TableHead className="text-right">People</TableHead>
-                    <TableHead className="text-right">Emails</TableHead>
+                    <TableHead className="text-right">Orders</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -161,7 +161,7 @@ export default async function PeoplePage(
                         </Link>
                       </TableCell>
                       <TableCell className="text-right">{formatNumber(classItem.customerCount)}</TableCell>
-                      <TableCell className="text-right">{formatNumber(classItem.emailCount)}</TableCell>
+                      <TableCell className="text-right">{formatNumber(classItem.orderCount)}</TableCell>
                     </TableRow>
                   ))}
                   {companyClasses.length === 0 && (

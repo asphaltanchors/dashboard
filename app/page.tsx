@@ -198,18 +198,31 @@ export default async function Dashboard(
   .orderBy(sql`month ASC`);
   
   // Query to get top companies by order count within selected time frame
-  const topCompaniesByOrders = await db.select({
-    companyId: orderCompanyViewInAnalytics.companyId,
-    companyName: orderCompanyViewInAnalytics.companyName,
-    companyDomain: orderCompanyViewInAnalytics.companyDomain,
-    orderCount: sql<number>`count(*)`.as('order_count'),
-    totalSpent: sql<number>`SUM(total_amount)`.as('total_spent')
-  })
-  .from(orderCompanyViewInAnalytics)
-  .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
-  .groupBy(orderCompanyViewInAnalytics.companyId, orderCompanyViewInAnalytics.companyName, orderCompanyViewInAnalytics.companyDomain)
-  .orderBy(sql`order_count DESC`)
-  .limit(5);
+  let topCompaniesByOrders: { 
+    companyId: string | null; 
+    companyName: string | null; 
+    companyDomain: string | null; 
+    orderCount: number; 
+    totalSpent: number | null;
+  }[] = [];
+  try {
+    console.log("Fetching top companies by orders...");
+    topCompaniesByOrders = await db.select({
+      companyId: orderCompanyViewInAnalytics.companyId,
+      companyName: orderCompanyViewInAnalytics.companyName,
+      companyDomain: orderCompanyViewInAnalytics.companyDomain,
+      orderCount: sql<number>`count(*)`.as('order_count'),
+      totalSpent: sql<number>`SUM(total_amount)`.as('total_spent')
+    })
+    .from(orderCompanyViewInAnalytics)
+    .where(sql`order_date BETWEEN ${formattedStartDate} AND ${formattedEndDate}`)
+    .groupBy(orderCompanyViewInAnalytics.companyId, orderCompanyViewInAnalytics.companyName, orderCompanyViewInAnalytics.companyDomain)
+    .orderBy(sql`order_count DESC`)
+    .limit(5);
+  } catch (error) {
+    console.error("Error fetching top companies:", error);
+    topCompaniesByOrders = [];
+  }
   
   // Query to get recent product changes
   const recentProductChanges = await db.select({
@@ -225,14 +238,15 @@ export default async function Dashboard(
   .orderBy(sql`changed_at DESC`)
   .limit(5);
   
-  // Query to get customer types distribution
-  const customerTypeDistribution = await db.select({
-    customerType: customersInAnalytics.customerType,
+  // Query to get customer distribution by state
+  const customerDistribution = await db.select({
+    state: sql<string>`COALESCE(billing_state, 'Unknown')`.as('state'),
     count: sql<number>`count(*)`.as('count')
   })
   .from(customersInAnalytics)
-  .groupBy(customersInAnalytics.customerType)
-  .orderBy(sql`count DESC`);
+  .groupBy(sql`COALESCE(billing_state, 'Unknown')`)
+  .orderBy(sql`count DESC`)
+  .limit(6); // Limit to top 6 states
   
   // We don't need to query company match distribution since it's not used in the UI
 
@@ -536,21 +550,21 @@ export default async function Dashboard(
                 </Card>
               </div>
               
-              {/* Customer Types and Order Status */}
+              {/* Customer States and Order Status */}
               <div className="grid grid-cols-1 gap-4 px-4 lg:grid-cols-3 lg:px-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Customer Types</CardTitle>
-                    <CardDescription>Distribution of customer types</CardDescription>
+                    <CardTitle>Customer Locations</CardTitle>
+                    <CardDescription>Distribution of customers by state</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                      {customerTypeDistribution.map((type, index) => (
+                      {customerDistribution.map((item, index) => (
                         <div key={index} className="border rounded-lg p-4 text-center">
                           <div className="text-2xl font-bold">
-                            {type.count}
+                            {item.count}
                           </div>
-                          <div className="text-sm text-muted-foreground mt-1">{type.customerType || 'Unknown'}</div>
+                          <div className="text-sm text-muted-foreground mt-1">{item.state || 'Unknown'}</div>
                         </div>
                       ))}
                     </div>

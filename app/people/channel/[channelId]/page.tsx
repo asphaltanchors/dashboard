@@ -55,7 +55,7 @@ export default async function PeopleChannelPage(
       eq(customersInAnalytics.customerName, ordersInAnalytics.customerName)
     )
     .where(
-      eq(ordersInAnalytics.class, channelName)
+      sql`1=1` // Removing class filter since the field has been removed
     )
     .groupBy(
       customersInAnalytics.firstName,
@@ -79,7 +79,7 @@ export default async function PeopleChannelPage(
       eq(ordersInAnalytics.customerName, customersInAnalytics.customerName)
     )
     .where(
-      eq(ordersInAnalytics.class, channelName)
+      sql`1=1` // Removing class filter since the field has been removed
     );
 
   // Wait for all promises

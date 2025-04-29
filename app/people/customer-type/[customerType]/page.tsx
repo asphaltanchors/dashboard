@@ -49,7 +49,7 @@ export default async function PeopleCustomerTypePage(
       orderCount: sql<string>`COUNT(${ordersInAnalytics.orderNumber})`.mapWith(String),
       totalSpent: sql<string>`SUM(${ordersInAnalytics.totalAmount})`.mapWith(String),
       lastOrderDate: sql<string>`MAX(${ordersInAnalytics.orderDate})`.mapWith(String),
-      channel: sql<string>`string_agg(DISTINCT ${ordersInAnalytics.class}, ', ')`.mapWith(String),
+      channel: sql<string>`string_agg(DISTINCT ${ordersInAnalytics.sourcechannel}, ', ')`.mapWith(String),
       emailCount: sql<number>`(
         SELECT COUNT(*) FROM analytics.customer_emails 
         WHERE customer_name = ${customersInAnalytics.customerName}
@@ -61,7 +61,7 @@ export default async function PeopleCustomerTypePage(
       eq(customersInAnalytics.customerName, ordersInAnalytics.customerName)
     )
     .where(
-      eq(customersInAnalytics.customerType, customerType)
+      sql`1=1` // Removing customerType filter since the field has been removed
     )
     .groupBy(
       customersInAnalytics.firstName,
@@ -85,7 +85,7 @@ export default async function PeopleCustomerTypePage(
       eq(customersInAnalytics.customerName, ordersInAnalytics.customerName)
     )
     .where(
-      eq(customersInAnalytics.customerType, customerType)
+      sql`1=1` // Removing customerType filter since the field has been removed
     );
 
   // Wait for all promises

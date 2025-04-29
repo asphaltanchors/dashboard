@@ -95,8 +95,7 @@ export default async function CompanyDetailPage(
       customerName: customersInAnalytics.customerName,
       firstName: customersInAnalytics.firstName,
       lastName: customersInAnalytics.lastName,
-      customerType: customersInAnalytics.customerType,
-      class: sql<string>`${companiesInAnalytics.class}`.mapWith(String),
+      email: customersInAnalytics.email,
     })
     .from(customersInAnalytics)
     .innerJoin(
@@ -230,14 +229,7 @@ export default async function CompanyDetailPage(
                             : "N/A"}
                         </p>
                       </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">
-                          Class
-                        </p>
-                        <p className="text-lg font-medium">
-                          {company.class || "N/A"}
-                        </p>
-                      </div>
+                      {/* Class field removed */}
                     </div>
                   </CardContent>
                 </Card>
@@ -416,8 +408,7 @@ export default async function CompanyDetailPage(
               <TableHead>Customer Name</TableHead>
               <TableHead>First Name</TableHead>
               <TableHead>Last Name</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Channel</TableHead>
+              <TableHead>Email</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -428,8 +419,7 @@ export default async function CompanyDetailPage(
                               </TableCell>
                               <TableCell>{customer.firstName || "N/A"}</TableCell>
                               <TableCell>{customer.lastName || "N/A"}</TableCell>
-                              <TableCell>{customer.customerType || "N/A"}</TableCell>
-                <TableCell>{customer.class || "N/A"}</TableCell>
+                              <TableCell>{customer.email || "N/A"}</TableCell>
                             </TableRow>
                           ))}
                           {companyCustomers.length === 0 && (
