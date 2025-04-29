@@ -34,21 +34,39 @@ export function ExportCSVButton({
 
     // Transform data to the required format
     const transformedData = data.map(person => {
-      // If extras is provided, use it directly, otherwise generate from other fields
-      const extras = person.extras || JSON.stringify({
-        customerName: person.customerName,
-        orderCount: person.orderCount,
-        totalSpent: person.totalSpent,
-        lastOrderDate: person.lastOrderDate,
-        channel: person.channel
-      });
+      // If extras is provided, parse it first (if it's a string) to avoid double-escaping
+      let attributesObj;
+      if (person.extras) {
+        try {
+          // If extras is already a JSON string, parse it
+          attributesObj = typeof person.extras === 'string' ? JSON.parse(person.extras) : person.extras;
+        } catch (e) {
+          // If parsing fails, use the string directly
+          attributesObj = person.extras;
+        }
+      } else {
+        // Generate default attributes
+        attributesObj = {
+          customerName: person.customerName,
+          orderCount: person.orderCount,
+          totalSpent: person.totalSpent,
+          lastOrderDate: person.lastOrderDate,
+          channel: person.channel
+        };
+      }
+      
+      // Convert to JSON string
+      const jsonString = JSON.stringify(attributesObj);
+      
+      // Double-escape the JSON for CSV format
+      const doubleEscapedJson = jsonString.replace(/"/g, '""');
       
       return {
         email: person.email,
         name: person.firstName && person.lastName 
           ? `${person.firstName} ${person.lastName}`
           : person.customerName,
-        extras: extras
+        attributes: doubleEscapedJson
       };
     });
     
@@ -62,8 +80,14 @@ export function ExportCSVButton({
       // Data rows
       ...transformedData.map(row => 
         headers.map(header => {
-          // Escape quotes and wrap in quotes if contains comma or quotes
           const value = row[header as keyof typeof row] || "";
+          
+          // Special handling for attributes column which is already double-escaped
+          if (header === 'attributes') {
+            return `"${value}"`;
+          }
+          
+          // For other columns, escape quotes and wrap in quotes if contains comma or quotes
           const escaped = value.replace(/"/g, '""');
           return value.includes(",") || value.includes('"') 
             ? `"${escaped}"` 

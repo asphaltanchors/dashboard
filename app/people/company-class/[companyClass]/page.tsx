@@ -190,17 +190,17 @@ export default async function PeopleCompanyClassPage(
       bought_sp58: false
     };
     
-    // Create compact JSON extras
-    const extras: CompactExtras = {
+    // Create compact JSON attributes
+    const attributes: CompactExtras = {
       c: companyClassToCode[companyClassName] || 'h', // Default to 'Unknown' if class not found
     };
     
     // Add product purchase flags (only if true)
-    if (productData.bought_am625) extras.a = true;
-    if (productData.bought_sp10) extras.b = true;
-    if (productData.bought_sp12) extras.s = true; // Changed from c to s
-    if (productData.bought_sp18) extras.d = true;
-    if (productData.bought_sp58) extras.e = true;
+    if (productData.bought_am625) attributes.a = true;
+    if (productData.bought_sp10) attributes.b = true;
+    if (productData.bought_sp12) attributes.s = true; // Changed from c to s
+    if (productData.bought_sp18) attributes.d = true;
+    if (productData.bought_sp58) attributes.e = true;
     
     return {
       email: person.email,
@@ -210,7 +210,7 @@ export default async function PeopleCompanyClassPage(
       orderCount: person.orderCount,
       totalSpent: person.totalSpent,
       lastOrderDate: person.lastOrderDate,
-      extras: JSON.stringify(extras)
+      extras: JSON.stringify(attributes) // Field name is 'extras' in our data model, but will be mapped to 'attributes' in CSV
     };
   });
 
@@ -265,7 +265,7 @@ export default async function PeopleCompanyClassPage(
                       totalSpent: person.totalSpent,
                       lastOrderDate: person.lastOrderDate,
                       channel: companyClassName,
-                      extras: person.extras // Pass the compact encoded extras
+                      extras: person.extras // Pass the compact encoded attributes for CSV export
                     }))}
                     filename={`${companyClassName.toLowerCase().replace(/\s+/g, '-')}-customers.csv`}
                   />

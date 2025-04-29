@@ -10,12 +10,14 @@ Each exported CSV file contains three columns:
 
 1. **email**: The customer's email address
 2. **name**: The customer's display name (first and last name, or customer name if those aren't available)
-3. **extras**: A JSON string containing encoded information about company class and product purchases
+3. **attributes**: A JSON string containing encoded information about company class and product purchases
 
 Example CSV row:
 ```
-"john@example.com","John Doe","{\"c\":\"d\",\"a\":true,\"b\":true,\"s\":true}"
+"john@example.com","John Doe","{""c"":""d"",""a"":true,""b"":true,""s"":true}"
 ```
+
+Note: The JSON in the attributes column is double-escaped (quotes are represented as `""` instead of `\"`) to conform with CSV standards.
 
 ## Encoding Scheme
 
@@ -54,24 +56,42 @@ Note: We use `s` for SP12 instead of `c` to avoid a naming conflict with the com
 
 ### Example 1: Distributor who purchased AM625 and SP10
 
+In the JSON:
 ```json
 {"c":"d","a":true,"b":true}
+```
+
+In the CSV:
+```
+"john@example.com","John Doe","{""c"":""d"",""a"":true,""b"":true}"
 ```
 
 This represents a customer from a Distributor company who has purchased products from the AM625 and SP10 families.
 
 ### Example 2: OEM who purchased SP12, SP18, and SP58
 
+In the JSON:
 ```json
 {"c":"g","s":true,"d":true,"e":true}
+```
+
+In the CSV:
+```
+"jane@example.com","Jane Smith","{""c"":""g"",""s"":true,""d"":true,""e"":true}"
 ```
 
 This represents a customer from an OEM company who has purchased products from the SP12, SP18, and SP58 families.
 
 ### Example 3: Consumer with no product purchases
 
+In the JSON:
 ```json
 {"c":"i"}
+```
+
+In the CSV:
+```
+"bob@example.com","Bob Johnson","{""c"":""i""}"
 ```
 
 This represents a customer from a consumer company who hasn't purchased any products from the tracked product families.
