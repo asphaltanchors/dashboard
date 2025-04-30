@@ -21,6 +21,17 @@ interface CompactExtras {
   e?: boolean; // SP58
 }
 
+// Define interface for the new export format
+interface ExportExtras {
+  minimized: string;
+  class: string;
+  AM625?: boolean;
+  SP10?: boolean;
+  SP12?: boolean;
+  SP18?: boolean;
+  SP58?: boolean;
+}
+
 // Map company classes to single letter codes for compact encoding
 const companyClassToCode: Record<string, string> = {
   "AAG -- do not use": "a",
@@ -311,6 +322,29 @@ export default async function PeopleCompanyClassPage(
     });
   }
 
+    // Helper function to convert compact attributes to URL-encoded string
+  const compactToUrlEncoded = (attributes: CompactExtras): string => {
+    const params: string[] = [];
+    
+    // Add company class code
+    params.push(`c=${attributes.c}`);
+    
+    // Add product purchase flags (only if true)
+    if (attributes.a) params.push('a=1');
+    if (attributes.b) params.push('b=1');
+    if (attributes.s) params.push('s=1');
+    if (attributes.d) params.push('d=1');
+    if (attributes.e) params.push('e=1');
+    
+    return params.join('&');
+  };
+  
+  // Create a reverse mapping from code to company class name
+  const codeToCompanyClass: Record<string, string> = {};
+  Object.entries(companyClassToCode).forEach(([className, code]) => {
+    codeToCompanyClass[code] = className;
+  });
+
   // Format data for CSV export
   const exportData = people.map(person => {
     // Get the lookup key based on company class
@@ -328,16 +362,29 @@ export default async function PeopleCompanyClassPage(
     };
     
     // Create compact JSON attributes
-    const attributes: CompactExtras = {
+    const compactAttributes: CompactExtras = {
       c: companyClassToCode[companyClassName] || 'h', // Default to 'Unknown' if class not found
     };
     
     // Add product purchase flags (only if true)
-    if (productData.bought_am625) attributes.a = true;
-    if (productData.bought_sp10) attributes.b = true;
-    if (productData.bought_sp12) attributes.s = true; // Changed from c to s
-    if (productData.bought_sp18) attributes.d = true;
-    if (productData.bought_sp58) attributes.e = true;
+    if (productData.bought_am625) compactAttributes.a = true;
+    if (productData.bought_sp10) compactAttributes.b = true;
+    if (productData.bought_sp12) compactAttributes.s = true; // Changed from c to s
+    if (productData.bought_sp18) compactAttributes.d = true;
+    if (productData.bought_sp58) compactAttributes.e = true;
+    
+    // Create the new export format with minimized URL-encoded string and full text fields
+    const exportExtras: ExportExtras = {
+      minimized: compactToUrlEncoded(compactAttributes),
+      class: companyClassName,
+    };
+    
+    // Add product purchase flags with full names (only if true)
+    if (productData.bought_am625) exportExtras.AM625 = true;
+    if (productData.bought_sp10) exportExtras.SP10 = true;
+    if (productData.bought_sp12) exportExtras.SP12 = true;
+    if (productData.bought_sp18) exportExtras.SP18 = true;
+    if (productData.bought_sp58) exportExtras.SP58 = true;
     
     return {
       email: person.email,
@@ -347,7 +394,7 @@ export default async function PeopleCompanyClassPage(
       orderCount: person.orderCount,
       totalSpent: person.totalSpent,
       lastOrderDate: person.lastOrderDate,
-      extras: JSON.stringify(attributes) // Field name is 'extras' in our data model, but will be mapped to 'attributes' in CSV
+      extras: JSON.stringify(exportExtras) // Field name is 'extras' in our data model, but will be mapped to 'attributes' in CSV
     };
   });
 
