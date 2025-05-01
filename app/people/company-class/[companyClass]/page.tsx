@@ -1,6 +1,25 @@
 import { db } from "@/db";
 import { sql, eq, desc } from "drizzle-orm";
 import { ordersInAnalytics, customersInAnalytics, companiesInAnalytics } from "@/db/schema";
+
+// Define interfaces for product purchase data
+interface CustomerProductPurchase {
+  customer_name: string;
+  bought_am625: boolean;
+  bought_sp10: boolean;
+  bought_sp12: boolean;
+  bought_sp18: boolean;
+  bought_sp58: boolean;
+}
+
+interface CompanyProductPurchase {
+  company_id: string;
+  bought_am625: boolean;
+  bought_sp10: boolean;
+  bought_sp12: boolean;
+  bought_sp18: boolean;
+  bought_sp58: boolean;
+}
 import { getDateRangeFromTimeFrame } from "@/app/utils/dates";
 import { formatCurrency } from "@/lib/utils";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -305,24 +324,26 @@ export default async function PeopleCompanyClassPage(
   
   if (companyClassName === "consumer") {
     // For consumer class, map by customer_name
-    productPurchases.forEach((purchase: any) => {
-      productMap.set(purchase.customer_name, {
-        bought_am625: purchase.bought_am625 === true,
-        bought_sp10: purchase.bought_sp10 === true,
-        bought_sp12: purchase.bought_sp12 === true,
-        bought_sp18: purchase.bought_sp18 === true,
-        bought_sp58: purchase.bought_sp58 === true
+    productPurchases.forEach((purchase) => {
+      const typedPurchase = purchase as unknown as CustomerProductPurchase;
+      productMap.set(typedPurchase.customer_name, {
+        bought_am625: typedPurchase.bought_am625 === true,
+        bought_sp10: typedPurchase.bought_sp10 === true,
+        bought_sp12: typedPurchase.bought_sp12 === true,
+        bought_sp18: typedPurchase.bought_sp18 === true,
+        bought_sp58: typedPurchase.bought_sp58 === true
       });
     });
   } else {
     // For other company classes, map by company_id
-    productPurchases.forEach((purchase: any) => {
-      productMap.set(purchase.company_id, {
-        bought_am625: purchase.bought_am625 === true,
-        bought_sp10: purchase.bought_sp10 === true,
-        bought_sp12: purchase.bought_sp12 === true,
-        bought_sp18: purchase.bought_sp18 === true,
-        bought_sp58: purchase.bought_sp58 === true
+    productPurchases.forEach((purchase) => {
+      const typedPurchase = purchase as unknown as CompanyProductPurchase;
+      productMap.set(typedPurchase.company_id, {
+        bought_am625: typedPurchase.bought_am625 === true,
+        bought_sp10: typedPurchase.bought_sp10 === true,
+        bought_sp12: typedPurchase.bought_sp12 === true,
+        bought_sp18: typedPurchase.bought_sp18 === true,
+        bought_sp58: typedPurchase.bought_sp58 === true
       });
     });
   }

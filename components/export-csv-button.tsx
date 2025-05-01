@@ -40,7 +40,7 @@ export function ExportCSVButton({
         try {
           // If extras is already a JSON string, parse it
           attributesObj = typeof person.extras === 'string' ? JSON.parse(person.extras) : person.extras;
-        } catch (e) {
+        } catch {
           // If parsing fails, use the string directly
           attributesObj = person.extras;
         }

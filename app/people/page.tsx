@@ -1,6 +1,6 @@
 import { db } from "@/db"
 import { sql } from "drizzle-orm"
-import { ordersInAnalytics, customersInAnalytics, customerEmailsInAnalytics, companiesInAnalytics } from "@/db/schema"
+import { ordersInAnalytics, customersInAnalytics, companiesInAnalytics } from "@/db/schema"
 import { count, eq } from "drizzle-orm"
 import { getDateRangeFromTimeFrame } from "@/app/utils/dates"
 import { AppSidebar } from "@/components/app-sidebar"

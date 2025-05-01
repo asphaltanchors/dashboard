@@ -1,6 +1,6 @@
 import { db } from "@/db"
 import { sql } from "drizzle-orm"
-import { ordersInAnalytics, orderCompanyViewInAnalytics, companiesInAnalytics, companyOrderMappingInAnalytics, orderItemsInAnalytics } from "@/db/schema"
+import { ordersInAnalytics, orderCompanyViewInAnalytics } from "@/db/schema"
 import { desc, sum, count, and, gte, lte, or, ilike } from "drizzle-orm" // Import necessary Drizzle functions
 import { getDateRangeFromTimeFrame, getPreviousDateRange } from "@/app/utils/dates" // Import getPreviousDateRange
 import { formatCurrency } from "@/lib/utils" // Import formatCurrency function

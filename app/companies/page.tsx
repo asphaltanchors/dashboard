@@ -510,3 +510,5 @@ export default async function CompaniesPage(
         </div>
       </SidebarInset>
     </SidebarProvider>
+  )
+}
