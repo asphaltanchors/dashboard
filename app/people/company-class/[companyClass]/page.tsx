@@ -23,8 +23,13 @@ interface CompactExtras {
 
 // Define interface for the new export format
 interface ExportExtras {
-  minimized: string;
   class: string;
+  c: string;
+  a: number;
+  b: number;
+  s: number;
+  d: number;
+  e: number;
   AM625?: boolean;
   SP10?: boolean;
   SP12?: boolean;
@@ -322,22 +327,6 @@ export default async function PeopleCompanyClassPage(
     });
   }
 
-    // Helper function to convert compact attributes to URL-encoded string
-  const compactToUrlEncoded = (attributes: CompactExtras): string => {
-    const params: string[] = [];
-    
-    // Add company class code
-    params.push(`c=${attributes.c}`);
-    
-    // Add product purchase flags (only if true)
-    if (attributes.a) params.push('a=1');
-    if (attributes.b) params.push('b=1');
-    if (attributes.s) params.push('s=1');
-    if (attributes.d) params.push('d=1');
-    if (attributes.e) params.push('e=1');
-    
-    return params.join('&');
-  };
   
   // Create a reverse mapping from code to company class name
   const codeToCompanyClass: Record<string, string> = {};
@@ -373,18 +362,21 @@ export default async function PeopleCompanyClassPage(
     if (productData.bought_sp18) compactAttributes.d = true;
     if (productData.bought_sp58) compactAttributes.e = true;
     
-    // Create the new export format with minimized URL-encoded string and full text fields
+    // Create the new export format with individual pairs and full text fields
     const exportExtras: ExportExtras = {
-      minimized: compactToUrlEncoded(compactAttributes),
       class: companyClassName,
+      c: compactAttributes.c,
+      a: productData.bought_am625 ? 1 : 0,
+      b: productData.bought_sp10 ? 1 : 0,
+      s: productData.bought_sp12 ? 1 : 0,
+      d: productData.bought_sp18 ? 1 : 0,
+      e: productData.bought_sp58 ? 1 : 0,
+      AM625: productData.bought_am625,
+      SP10: productData.bought_sp10,
+      SP12: productData.bought_sp12,
+      SP18: productData.bought_sp18,
+      SP58: productData.bought_sp58
     };
-    
-    // Add product purchase flags with full names (only if true)
-    if (productData.bought_am625) exportExtras.AM625 = true;
-    if (productData.bought_sp10) exportExtras.SP10 = true;
-    if (productData.bought_sp12) exportExtras.SP12 = true;
-    if (productData.bought_sp18) exportExtras.SP18 = true;
-    if (productData.bought_sp58) exportExtras.SP58 = true;
     
     return {
       email: person.email,
@@ -516,9 +508,10 @@ export default async function PeopleCompanyClassPage(
               <div className="px-4 lg:px-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle>People</CardTitle>
+                    <CardTitle>People (Showing top 50)</CardTitle>
                     <CardDescription>
-                      Customers associated with companies of class: {companyClassName}
+                      Showing top 50 customers associated with companies of class: {companyClassName}. 
+                      Use the Export CSV button to download all {people.length} records.
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -539,7 +532,8 @@ export default async function PeopleCompanyClassPage(
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {people.map((person, index) => (
+                        {/* Show only the first 50 records in the table */}
+                        {people.slice(0, 50).map((person, index) => (
                           <TableRow key={index}>
                             <TableCell>
                               <div className="font-medium">
