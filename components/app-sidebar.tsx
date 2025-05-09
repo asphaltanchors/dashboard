@@ -10,6 +10,7 @@ import {
   IconUsers,
   IconChartPie,
   IconUserCircle,
+  IconReceiptTax,
 } from "@tabler/icons-react"
 import Link from "next/link"
 
@@ -59,6 +60,11 @@ const data = {
       title: "People",
       url: "/people",
       icon: IconUserCircle,
+    },
+    {
+      title: "Tax",
+      url: "/tax/nexus",
+      icon: IconReceiptTax,
     },
   ],
   documents: [
