@@ -429,7 +429,7 @@ export default async function PeopleCompanyClassPage(
   };
 
   return (
-    <SidebarProvider
+    (<SidebarProvider
       style={
         {
           "--sidebar-width": "calc(var(--spacing) * 72)",
@@ -630,6 +630,6 @@ export default async function PeopleCompanyClassPage(
           </div>
         </div>
       </SidebarInset>
-    </SidebarProvider>
+    </SidebarProvider>)
   );
 }

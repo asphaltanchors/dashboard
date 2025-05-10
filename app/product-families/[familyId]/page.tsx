@@ -325,7 +325,7 @@ export default async function ProductFamilyDetail(
   const backToFamiliesUrl = `/product-families?range=${range}`;
 
   return (
-    <SidebarProvider
+    (<SidebarProvider
       style={
         {
           "--sidebar-width": "calc(var(--spacing) * 72)",
@@ -527,6 +527,6 @@ export default async function ProductFamilyDetail(
           </div>
         </div>
       </SidebarInset>
-    </SidebarProvider>
+    </SidebarProvider>)
   );
 }

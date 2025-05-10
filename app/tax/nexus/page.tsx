@@ -369,11 +369,12 @@ const US_STATE_NAMES = {
   'PR': 'Puerto Rico',
 };
 
-async function TaxNexusPage({
-  searchParams,
-}: {
-  searchParams: { range?: string };
-}) {
+async function TaxNexusPage(
+  props: {
+    searchParams: Promise<{ range?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   // Default to previous year (most recent full year) if no date range provided
   const currentYear = new Date().getFullYear();
   const previousYear = currentYear - 1;
@@ -536,7 +537,7 @@ async function TaxNexusPage({
       (sum, item) => sum + Number(item.totalRevenue || 0),
       0
     );
-    
+
   // Calculate total projected revenue based on YTD
   const totalProjectedRevenue = yearProgressPercentage > 0 
     ? totalYtdRevenue / yearProgressPercentage 
